@@ -3,21 +3,36 @@
   "version": "1.1.0",
   "description": "Node + Express backend API",
   "main": "server.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest --testPathPatterns=test/ --verbose --maxWorkers=1 --detectOpenHandles --passWithNoTests"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "@prisma/client": "^6.19.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
+    "express": "^4.19.2",
     "express-rate-limit": "^7.3.0",
+    "express-xss-sanitizer": "^2.0.2",
+    "google-auth-library": "^11.3.0",
+    "helmet": "^7.1.0",
+    "http-status-codes": "^2.3.0",
+    "joi": "^18.2.9",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.4.0",
+    "morgan": "^1.10.0",
     "pg": "^8.11.5"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "jest": "^30.5.2",
+    "node-mocks-http": "^1.18.1",
+    "nodemon": "^3.0.3",
+    "prisma": "^6.19.3",
+    "supertest": "^7.3.1"
   }
 }
