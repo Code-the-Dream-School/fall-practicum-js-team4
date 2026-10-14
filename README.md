@@ -134,6 +134,10 @@ http://localhost:5173
 npm run dev
 npm run build
 npm run preview
+npm run lint          # ESLint
+npm run typecheck     # TypeScript, no build output
+npm run format        # Prettier: rewrite files
+npm run format:check  # Prettier: fail if anything is unformatted (for CI)
 ```
 
 ### Backend

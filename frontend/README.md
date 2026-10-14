@@ -1,4 +1,4 @@
-# Frontend Best Practices 
+# Frontend Best Practices
 
 This document outlines **React-specific best practices** for building maintainable,
 performant frontend applications. It is intended for students working on real-world
@@ -15,6 +15,7 @@ The frontend is responsible for:
 - Displaying loading and error states
 
 The frontend **is not** responsible for:
+
 - Business rules
 - Data persistence
 - Security logic
@@ -25,11 +26,13 @@ The frontend **is not** responsible for:
 ### 1️⃣ Keep Components Small and Focused
 
 Each component should ideally:
+
 - do **one thing**
 - be easy to read
 - be reusable
 
 ❌ Too much responsibility:
+
 ```jsx
 function Dashboard() {
   // fetch data
@@ -39,6 +42,7 @@ function Dashboard() {
 ```
 
 ✅ Better:
+
 ```text
 Dashboard
 ├── DashboardLayout
@@ -51,6 +55,7 @@ Dashboard
 Avoid putting fetch logic directly in UI-heavy components.
 
 ❌ Bad:
+
 ```jsx
 function Hello() {
   useEffect(() => {
@@ -60,6 +65,7 @@ function Hello() {
 ```
 
 ✅ Better:
+
 ```js
 // services/helloApi.js
 export const getHello = async () => {
@@ -81,6 +87,7 @@ function Hello() {
 ### 3️⃣ Minimize Unnecessary Re-Renders
 
 React re-renders when:
+
 - state changes
 - props change
 - parent re-renders
@@ -88,12 +95,14 @@ React re-renders when:
 Avoid unnecessary state.
 
 ❌ Bad:
+
 ```jsx
 const [count, setCount] = useState(0);
 const doubled = count * 2;
 ```
 
 ✅ Better:
+
 ```jsx
 const doubled = count * 2;
 ```
@@ -112,7 +121,7 @@ const expensiveValue = useMemo(() => {
 
 ```jsx
 const handleClick = useCallback(() => {
-  setCount(c => c + 1);
+  setCount((c) => c + 1);
 }, []);
 ```
 
@@ -121,14 +130,16 @@ These prevent unnecessary recalculations and re-renders.
 ### 5️⃣ Avoid Inline Functions in Props (When It Matters)
 
 ❌ Can cause re-renders:
+
 ```jsx
 <Button onClick={() => handleSave()} />
 ```
 
 ✅ Better:
+
 ```jsx
 const onSave = useCallback(handleSave, []);
-<Button onClick={onSave} />
+<Button onClick={onSave} />;
 ```
 
 ## 🧯 Prevent Memory Leaks
@@ -136,6 +147,7 @@ const onSave = useCallback(handleSave, []);
 ### 6️⃣ Clean Up Side Effects
 
 Always clean up:
+
 - timers
 - intervals
 - event listeners
@@ -159,7 +171,7 @@ useEffect(() => {
   const controller = new AbortController();
 
   fetch('/api/data', { signal: controller.signal })
-    .then(res => res.json())
+    .then((res) => res.json())
     .then(setData)
     .catch(() => {});
 
@@ -174,6 +186,7 @@ Prevents state updates on unmounted components.
 ### 8️⃣ Lift State Only When Necessary
 
 State should live:
+
 - as low as possible
 - as high as necessary
 
@@ -184,6 +197,7 @@ Avoid global state too early.
 `useEffect` is for **side effects**, not regular logic.
 
 ❌ Bad:
+
 ```jsx
 useEffect(() => {
   setTotal(price * qty);
@@ -191,6 +205,7 @@ useEffect(() => {
 ```
 
 ✅ Better:
+
 ```jsx
 const total = price * qty;
 ```
@@ -200,13 +215,15 @@ const total = price * qty;
 ### 🔟 Always Use Stable Keys
 
 ❌ Bad:
+
 ```jsx
-items.map((item, index) => <Item key={index} />)
+items.map((item, index) => <Item key={index} />);
 ```
 
 ✅ Good:
+
 ```jsx
-items.map(item => <Item key={item.id} />)
+items.map((item) => <Item key={item.id} />);
 ```
 
 Stable keys prevent UI bugs and re-renders.
