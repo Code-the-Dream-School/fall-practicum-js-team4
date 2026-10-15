@@ -24,4 +24,3 @@
 - [ ] Tested locally
 - [ ] Tests added or updated where it makes sense
 - [ ] New env vars documented (`.env.example` / README)
-- [ ] No leftover `console.log`s or commented-out code

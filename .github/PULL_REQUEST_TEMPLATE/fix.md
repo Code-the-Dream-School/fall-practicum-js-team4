@@ -1,4 +1,4 @@
-## 🐛 Bug Fix
+## 🐛 Fix
 
 **Jira Ticket:** KAN-
 
@@ -18,4 +18,3 @@
 - [ ] Branch is up to date with `main`
 - [ ] Reproduced the bug before the fix and confirmed it's gone after
 - [ ] Checked for side effects in related features
-- [ ] No leftover `console.log`s or commented-out code
