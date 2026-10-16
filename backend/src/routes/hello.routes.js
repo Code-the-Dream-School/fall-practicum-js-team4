@@ -1,8 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { getHello } = require('../controllers/hello.controller');
+const { getHello } = require("../controllers/hello.controller");
 
 // GET /api/hello
-router.get('/', getHello);
+router.get("/", getHello);
 
 module.exports = router;
