@@ -1,12 +1,98 @@
-
+// =============================================================
+// Lost & Found Pets Platform - Official Production Schema
+// Database Engine: PostgreSQL | ORM: Prisma
+// Authors: Waleed & Natalia
+// Date: October 16, 2026
+// =============================================================
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+//-----------------ENUMS-------------------
+
+enum PetType {
+  DOG
+  CAT
+  BIRD
+  OTHER
+}
+
+enum PetSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum PetGender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum ReportType {
+  LOST
+  FOUND
+}
+
+enum ReportStatus {
+  ACTIVE
+  REUNITED
+}
+
+//-----------------USER MODEL---------------
+
+model User {
+  userId       Int         @id @default(autoincrement()) @map("user_id")
+  userName     String      @map("user_name") @db.VarChar(100)
+  email        String      @unique @db.VarChar(255)
+  passwordHash String      @map("password_hash") @db.VarChar(255)
+  phoneNumber  String?     @map("phone_number") @db.VarChar(15)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  // Relationships
+  petReports   PetReport[]
+  messages     Message[]
+
+  @@map("users")
+}
+
+//-------------PET REPORT MODEL-------------
+
+
+model PetReport {
+  petReportId         Int          @id @default(autoincrement()) @map("pet_report_id")
+  userId              Int          @map("user_id")
+  locationId          Int?         @unique @map("location_id")
+
+  petName             String?      @map("pet_name") @db.VarChar(100)
+  petType             PetType      @map("pet_type")
+  breed               String?      @db.VarChar(100)
+  color               String       @db.VarChar(100)
+  size                PetSize
+  gender              PetGender
+  distinctiveFeatures String?      @map("distinctive_features") @db.Text
+  eventDate           DateTime     @map("event_date") @db.Date
+  contactInfo         String?      @map("contact_info") @db.VarChar(255)
+  reportType          ReportType   @map("report_type")
+  status              ReportStatus @default(ACTIVE)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  // Relationships
+  user                User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  location            Location?    @relation(fields: [locationId], references: [locationId], onDelete: Cascade)
+  photos              PetPhoto[]
+  messages            Message[]
+
+  @@index([userId])
+  @@map("pet_reports")
 }
 
 //-----------------Location-----------------
@@ -47,7 +133,7 @@ model Message {
   createdAt   DateTime @default(now()) @map("created_at")
 
   petReport PetReport @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [userId])
+  user      User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@index([petReportId])
   @@index([userId])
