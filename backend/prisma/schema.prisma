@@ -1,0 +1,55 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//-----------------Location-----------------
+
+model Location {
+  locationId Int      @id @default(autoincrement()) @map("location_id")
+  zipCode    String   @db.VarChar(5) @map("zip_code")
+  city       String   @db.VarChar(100)
+  state      String   @db.VarChar(2)
+  latitude   Decimal? @db.Decimal(10, 7)
+  longitude  Decimal? @db.Decimal(10, 7)
+  petReport PetReport?
+
+  @@map("locations")
+}
+
+//-----------------PetPhoto-----------------
+
+model PetPhoto {
+  photoId     Int      @id @default(autoincrement()) @map("id")
+  petReportId Int      @map("pet_report_id")
+  imageUrl    String   @db.Text @map("image_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  petReport PetReport @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
+  
+  @@index([petReportId])
+  @@map("pet_photos")
+}
+
+//-----------------Message-----------------
+
+model Message {
+  messageId   Int      @id @default(autoincrement()) @map("id")
+  petReportId Int      @map("pet_report_id")
+  userId      Int      @map("user_id")
+  message     String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  petReport PetReport @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [userId])
+
+  @@index([petReportId])
+  @@index([userId])
+  @@map("messages")
+}
