@@ -93,7 +93,7 @@ project-root/
 ## ⚙️ Setup & Installation
 
 ### Prerequisites
-- Node.js (v18+ recommended)
+- Node.js (v24 LTS recommended)
 - npm or yarn
 - MongoDB or PostgreSQL (local or cloud)
 
@@ -144,6 +144,7 @@ npm run format:check  # Prettier: fail if anything is unformatted (for CI)
 ```bash
 npm run dev
 npm start
+npm test
 ```
 
 ## 🔐 API Overview
