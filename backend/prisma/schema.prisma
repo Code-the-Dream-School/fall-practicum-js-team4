@@ -87,7 +87,7 @@ model PetReport {
 
   // Relationships
   user                User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  location            Location?    @relation(fields: [locationId], references: [locationId], onDelete: Cascade)
+  location            Location?    @relation(fields: [locationId], references: [locationId], onDelete: SetNull)
   photos              PetPhoto[]
   messages            Message[]
 
