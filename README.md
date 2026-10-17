@@ -40,25 +40,25 @@ Add screenshots or GIFs of key features here.
 ## 🛠 Tech Stack
 
 ### Frontend
-- React
-- JavaScript (ES6+)
-- HTML5
-- CSS3 / Tailwind / Bootstrap
-- Vite or Create React App
+- React + TypeScript
+- Vite
+- React Router
+- React Hook Form
 
 ### Backend
-- Node.js
-- Express.js
-- REST API
+- Node.js + Express (REST API)
+- Authentication: JWT in an httpOnly cookie, email/password and Google sign-in
+- Validation: Joi
+- API docs: Swagger UI (OpenAPI)
 
 ### Database
-- MongoDB (Mongoose) **or**
-- PostgreSQL (Prisma / Knex / Sequelize)
+- PostgreSQL with Prisma ORM (local Postgres or Neon)
 
 ### Tooling
 - Git & GitHub
 - dotenv (environment variables)
-- ESLint / Prettier
+- ESLint / Prettier / TypeScript type checking
+- Jest + Supertest (backend tests)
 
 ## 📁 Project Structure
 
@@ -66,27 +66,31 @@ Add screenshots or GIFs of key features here.
 project-root/
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── hooks/
-│   │   ├── services/        
-│   │   ├── styles/
-│   │   ├── utils/
-│   │   ├── App.jsx
-│   │   └── main.jsx
+│   │   ├── App.tsx
+│   │   └── main.tsx
 │   ├── index.html
 │   └── package.json
 │
 ├── backend/
-│   ├── controllers/
-│   ├── routes/
-│   ├── models/
-│   ├── middleware/
-│   ├── config/
-│   ├── app.js
+│   ├── docs/openapi.yaml    # API spec served at /api/docs
+│   ├── prisma/
+│   │   ├── schema.prisma    # database models
+│   │   └── migrations/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/      # requireAuth, validation, error handling
+│   │   ├── routes/
+│   │   ├── services/        # business logic and database access
+│   │   ├── utils/
+│   │   ├── validators/      # Joi request schemas
+│   │   └── app.js
+│   ├── test/                # Jest + Supertest
 │   ├── server.js
 │   └── package.json
 │
+├── docs/
+│   └── auth.md              # authentication API contract
 └── README.md
 ```
 
@@ -95,26 +99,45 @@ project-root/
 ### Prerequisites
 - Node.js (v24 LTS recommended)
 - npm or yarn
-- MongoDB or PostgreSQL (local or cloud)
+- PostgreSQL: installed locally, or a free hosted database on Neon (see below)
 
 ### Backend Setup
+
+Create a `.env` file inside the `backend` folder by copying `backend/.env.example`
+and filling in `DATABASE_URL`, `JWT_SECRET` and `GOOGLE_CLIENT_ID`. Then:
 
 ```bash
 cd backend
 npm install
+npm run db:migrate   # create/update the database tables
 npm run dev
-```
-
-Create a `.env` file inside the `backend` folder:
-
-```env
-PORT=5000
-DATABASE_URL=your_database_url
-JWT_SECRET=your_secret_key
 ```
 
 Backend runs on:  
 http://localhost:8080
+
+#### Using a hosted database (Neon) instead of local Postgres
+
+1. Sign up at [neon.tech](https://neon.tech) (free, no credit card) and create a project.
+2. In the project dashboard click **Connect**, turn **Connection pooling off**, and copy
+   the connection string.
+3. In `backend/.env`, comment out the local `DATABASE_URL` and set it to the Neon string.
+4. Create the tables on Neon, then start the server:
+
+   ```bash
+   npm run db:deploy   # applies the migrations in prisma/migrations
+   npm run dev
+   ```
+
+Use `db:deploy` (not `db:migrate`) against Neon; create new migrations against your
+local database. To switch back, swap the `DATABASE_URL` lines again.
+
+Authentication (endpoints, cookies, errors) is documented in [docs/auth.md](docs/auth.md).
+
+API docs (Swagger UI) run at http://localhost:8080/api/docs. To test in Postman,
+import the spec from **Import → Link → `http://localhost:8080/api/docs/openapi.json`**.
+The spec lives in [backend/docs/openapi.yaml](backend/docs/openapi.yaml); update it
+when you add or change an endpoint.
 
 ### Frontend Setup
 
@@ -142,23 +165,60 @@ npm run format:check  # Prettier: fail if anything is unformatted (for CI)
 
 ### Backend
 ```bash
-npm run dev
-npm start
-npm test
+npm run dev           # Start with auto-reload (nodemon)
+npm start             # Start without auto-reload
+npm test              # Run all tests (Jest)
+npm run test:cov      # Run tests and print a coverage report
+npm run lint          # ESLint
+npm run typecheck     # TypeScript, no build output
+npm run format        # Prettier: rewrite files
+npm run format:check  # Prettier: fail if anything is unformatted (for CI)
+npm run db:migrate    # Create/apply database migrations (development)
+npm run db:deploy     # Apply existing migrations (production)
 ```
+
+## ✅ Testing
+
+Backend tests use **Jest** and **Supertest** and live in `backend/test/`. Run
+them from the `backend` folder:
+
+```bash
+npm test          # all tests
+npm run test:cov  # tests + coverage table (also writes backend/coverage/, gitignored)
+npx jest test/auth.test.js   # a single file
+```
+
+Tests don't need a database or a Google account: Prisma is replaced with an
+in-memory fake and Google's token check is stubbed.
+
+To add a test, create `backend/test/<name>.test.js`:
+
+- **Endpoint:** copy [test/hello.test.js](backend/test/hello.test.js), which calls the
+  app with Supertest, no running server needed.
+- **Endpoint that needs a signed-in user or the database:** follow
+  [test/auth.test.js](backend/test/auth.test.js). `request.agent(app)` keeps the auth
+  cookie between requests.
+- **Plain function:** see [test/jwt.test.js](backend/test/jwt.test.js).
+
+Frontend tests aren't set up yet.
 
 ## 🔐 API Overview
 
-### Example Endpoints
+Full, interactive reference: http://localhost:8080/api/docs (Swagger UI).
+
+### Authentication
 
 ```text
-POST   /api/auth/register
-POST   /api/auth/login
-GET    /api/items
-POST   /api/items
-PUT    /api/items/:id
-DELETE /api/items/:id
+POST   /api/auth/register   Create an account and sign in
+POST   /api/auth/login      Sign in with email + password
+POST   /api/auth/google     Sign in with Google
+PATCH  /api/auth/password   Change password (signs out other devices)
+POST   /api/auth/logout     Sign out
+GET    /api/auth/me         Current user (401 if signed out)
 ```
+
+Sessions use an httpOnly cookie; see [docs/auth.md](docs/auth.md) for request and
+response formats and error codes.
 
 ## 🤝 Team & Collaboration
 
@@ -184,12 +244,12 @@ DELETE /api/items/:id
 ## 📌 Known Issues / Limitations
 
 - Limited role-based access control
-- No automated tests yet
+- No frontend tests yet
 - Performance optimizations pending
 
 ## 🛣 Future Improvements
 
-- Add automated testing (Jest, Supertest)
+- Add frontend tests (Vitest + React Testing Library)
 - Improve security and validation
 - Add caching and performance improvements
 - Dockerize the application

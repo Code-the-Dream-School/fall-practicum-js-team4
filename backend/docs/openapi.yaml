@@ -1,0 +1,415 @@
+openapi: 3.0.3
+info:
+  title: Lost & Found Pets API
+  version: 1.0.0
+  description: |
+    Authentication uses an httpOnly cookie named `token`. Register, login or Google
+    sign-in sets it; the browser (or Postman) then sends it automatically.
+    Full contract: docs/auth.md in the repository.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Sign up, sign in, sign out and the current user
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      security: []
+      summary: Create an account with email and password, and sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            example:
+              name: Sam Rivera
+              email: sam@example.com
+              password: correct-horse-1
+      responses:
+        "201":
+          description: Account created and signed in
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: An account with this email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: EMAIL_TAKEN
+                message: An account with this email already exists
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      security: []
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: sam@example.com
+              password: correct-horse-1
+      responses:
+        "200":
+          description: Signed in
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Wrong password, unknown email, or a Google-only account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: INVALID_CREDENTIALS
+                message: Email or password is incorrect
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/google:
+    post:
+      tags: [Auth]
+      operationId: googleSignIn
+      security: []
+      summary: Sign in or sign up with a Google ID token
+      description: |
+        `credential` is the ID token the Google sign-in button gives the frontend.
+        Creates the user on first sign-in, or links Google to an existing account
+        with the same verified email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleRequest"
+      responses:
+        "200":
+          description: Signed in
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Google rejected the token, or the email isn't verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: GOOGLE_AUTH_FAILED
+                message: Google sign-in failed
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/password:
+    patch:
+      tags: [Auth]
+      operationId: changePassword
+      summary: Change the password (signs out other devices)
+      description: |
+        Requires a signed-in user. `currentPassword` is required unless the account
+        only uses Google (then this sets a first password). On success the cookie is
+        replaced: this session stays signed in, every other session gets 401.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+            example:
+              currentPassword: correct-horse-1
+              newPassword: even-better-horse-2
+      responses:
+        "200":
+          description: Password changed; a new session cookie is set
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: |
+            VALIDATION_ERROR (missing/invalid fields, or new password same as current)
+            or INVALID_CURRENT_PASSWORD
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                wrongCurrentPassword:
+                  summary: Wrong current password
+                  value:
+                    success: false
+                    code: INVALID_CURRENT_PASSWORD
+                    message: Current password is incorrect
+                samePassword:
+                  summary: New password equals the current one
+                  value:
+                    success: false
+                    code: VALIDATION_ERROR
+                    message: Invalid request data
+                    details:
+                      - field: newPassword
+                        message: New password must be different from the current password
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      security: []
+      summary: Sign out (clears the cookie)
+      description: Always succeeds, even if no one is signed in.
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      operationId: getMe
+      summary: Get the signed-in user
+      description: Call on app load. 200 means signed in, 401 means signed out.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: The signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  headers:
+    SessionCookie:
+      description: Session cookie (HttpOnly, SameSite=Lax, 7 days)
+      schema:
+        type: string
+        example: token=eyJhbGciOiJIUzI1NiIs...; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax
+
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Stored lowercase
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          maxLength: 128
+
+    GoogleRequest:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential:
+          type: string
+          description: Google ID token
+
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [newPassword]
+      properties:
+        currentPassword:
+          type: string
+          maxLength: 128
+          description: Required unless the account only uses Google
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+    User:
+      type: object
+      required: [id, email, name, avatarUrl, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 6f1c2b9e-1d2a-4c6e-9a51-3d8f0e2b7a10
+        email:
+          type: string
+          format: email
+          example: sam@example.com
+        name:
+          type: string
+          example: Sam Rivera
+        avatarUrl:
+          type: string
+          nullable: true
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-16T19:40:00.000Z"
+
+    UserResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required: [user]
+          properties:
+            user:
+              $ref: "#/components/schemas/User"
+
+    Error:
+      type: object
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+          example: false
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - INVALID_CURRENT_PASSWORD
+            - INVALID_CREDENTIALS
+            - GOOGLE_AUTH_FAILED
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - NOT_FOUND
+            - EMAIL_TAKEN
+            - TOO_MANY_REQUESTS
+            - INTERNAL_ERROR
+        message:
+          type: string
+        details:
+          type: array
+          description: Only present on VALIDATION_ERROR
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+  responses:
+    ValidationError:
+      description: Missing or invalid fields, unknown fields, or invalid JSON
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            code: VALIDATION_ERROR
+            message: Invalid request data
+            details:
+              - field: email
+                message: '"email" must be a valid email'
+    Unauthenticated:
+      description: No valid session cookie
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            code: UNAUTHENTICATED
+            message: Please sign in
+    TooManyRequests:
+      description: Rate limit hit (20 auth attempts per IP per 15 minutes)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            code: TOO_MANY_REQUESTS
+            message: Too many attempts, please try again later
