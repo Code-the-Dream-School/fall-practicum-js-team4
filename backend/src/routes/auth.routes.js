@@ -8,7 +8,6 @@ const AppError = require("../utils/AppError");
 const {
   registerSchema,
   loginSchema,
-  googleSchema,
   changePasswordSchema,
 } = require("../validators/auth.validators");
 
@@ -25,7 +24,6 @@ const authLimiter = rateLimit({
 
 router.post("/register", authLimiter, validate(registerSchema), asyncHandler(controller.register));
 router.post("/login", authLimiter, validate(loginSchema), asyncHandler(controller.login));
-router.post("/google", authLimiter, validate(googleSchema), asyncHandler(controller.google));
 router.patch(
   "/password",
   authLimiter,

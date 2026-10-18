@@ -47,7 +47,7 @@ Add screenshots or GIFs of key features here.
 
 ### Backend
 - Node.js + Express (REST API)
-- Authentication: JWT in an httpOnly cookie, email/password and Google sign-in
+- Authentication: email/password, with a JWT in an httpOnly cookie
 - Validation: Joi
 - API docs: Swagger UI (OpenAPI)
 
@@ -104,7 +104,7 @@ project-root/
 ### Backend Setup
 
 Create a `.env` file inside the `backend` folder by copying `backend/.env.example`
-and filling in `DATABASE_URL`, `JWT_SECRET` and `GOOGLE_CLIENT_ID`. Then:
+and filling in `DATABASE_URL` and `JWT_SECRET`. Then:
 
 ```bash
 cd backend
@@ -188,8 +188,7 @@ npm run test:cov  # tests + coverage table (also writes backend/coverage/, gitig
 npx jest test/auth.test.js   # a single file
 ```
 
-Tests don't need a database or a Google account: Prisma is replaced with an
-in-memory fake and Google's token check is stubbed.
+Tests don't need a database: Prisma is replaced with an in-memory fake.
 
 To add a test, create `backend/test/<name>.test.js`:
 
@@ -211,7 +210,6 @@ Full, interactive reference: http://localhost:8080/api/docs (Swagger UI).
 ```text
 POST   /api/auth/register   Create an account and sign in
 POST   /api/auth/login      Sign in with email + password
-POST   /api/auth/google     Sign in with Google
 PATCH  /api/auth/password   Change password (signs out other devices)
 POST   /api/auth/logout     Sign out
 GET    /api/auth/me         Current user (401 if signed out)

@@ -2,7 +2,6 @@ const request = require("supertest");
 const jwt = require("jsonwebtoken");
 
 process.env.JWT_SECRET = "test-secret";
-process.env.GOOGLE_CLIENT_ID = "test-client-id";
 
 // In-memory stand-in for the Prisma users table, so tests don't need a database
 jest.mock("../src/config/prisma", () => {
@@ -20,9 +19,6 @@ jest.mock("../src/config/prisma", () => {
         const now = new Date();
         const user = {
           id: crypto.randomUUID(),
-          passwordHash: null,
-          googleId: null,
-          avatarUrl: null,
           tokenVersion: 0,
           createdAt: now,
           updatedAt: now,
@@ -42,10 +38,7 @@ jest.mock("../src/config/prisma", () => {
   };
 });
 
-jest.mock("../src/utils/google", () => ({ verifyGoogleIdToken: jest.fn() }));
-
 const prisma = require("../src/config/prisma");
-const { verifyGoogleIdToken } = require("../src/utils/google");
 const app = require("../src/app");
 
 const newUser = { name: "Sam Rivera", email: "Sam@Example.com", password: "correct-horse-1" };
@@ -70,7 +63,6 @@ describe("POST /api/auth/register", () => {
       id: expect.any(String),
       email: "sam@example.com",
       name: "Sam Rivera",
-      avatarUrl: null,
       createdAt: expect.any(String),
     });
     const cookie = getTokenCookie(res);
@@ -142,16 +134,6 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(401);
     expect(res.body.code).toBe("INVALID_CREDENTIALS");
     expect(getTokenCookie(res)).toBeUndefined();
-  });
-
-  it("returns 401 INVALID_CREDENTIALS for a Google-only account", async () => {
-    await prisma.user.create({ data: { email: "g@example.com", name: "G", googleId: "g-1" } });
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "g@example.com", password: "anything-at-all" });
-
-    expect(res.status).toBe(401);
-    expect(res.body.code).toBe("INVALID_CREDENTIALS");
   });
 });
 
@@ -264,7 +246,7 @@ describe("PATCH /api/auth/password", () => {
     expect((await agent.get("/api/auth/me")).status).toBe(200);
   });
 
-  it("requires currentPassword for accounts that have a password", async () => {
+  it("requires currentPassword", async () => {
     const agent = await signedInAgent();
     const res = await changePassword(agent, { newPassword: "new-password-1" });
 
@@ -286,25 +268,6 @@ describe("PATCH /api/auth/password", () => {
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("VALIDATION_ERROR");
     expect(res.body.details[0].field).toBe("newPassword");
-  });
-
-  it("lets a Google-only user set a password without a current one", async () => {
-    verifyGoogleIdToken.mockResolvedValue({
-      googleId: "google-123",
-      email: "g@example.com",
-      name: "G",
-      avatarUrl: null,
-    });
-    const agent = request.agent(app);
-    await agent.post("/api/auth/google").send({ credential: "id-token" });
-
-    const res = await changePassword(agent, { newPassword: "new-password-1" });
-    expect(res.status).toBe(200);
-
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "g@example.com", password: "new-password-1" });
-    expect(login.status).toBe(200);
   });
 
   it("returns 401 when not signed in", async () => {
@@ -331,79 +294,6 @@ describe("POST /api/auth/logout", () => {
 
   it("succeeds even when nobody is signed in", async () => {
     expect((await request(app).post("/api/auth/logout")).status).toBe(200);
-  });
-});
-
-describe("POST /api/auth/google", () => {
-  const profile = {
-    googleId: "google-123",
-    email: "sam@example.com",
-    name: "Sam From Google",
-    avatarUrl: "https://example.com/sam.png",
-  };
-  const google = (body = { credential: "id-token" }) =>
-    request(app).post("/api/auth/google").send(body);
-
-  it("creates a new user from the Google profile", async () => {
-    verifyGoogleIdToken.mockResolvedValue(profile);
-    const res = await google();
-
-    expect(res.status).toBe(200);
-    expect(res.body.data.user).toMatchObject({
-      email: "sam@example.com",
-      name: "Sam From Google",
-      avatarUrl: "https://example.com/sam.png",
-    });
-    expect(getTokenCookie(res)).toBeDefined();
-    expect(verifyGoogleIdToken).toHaveBeenCalledWith("id-token");
-  });
-
-  it("signs in the same user again on a later Google sign-in", async () => {
-    verifyGoogleIdToken.mockResolvedValue(profile);
-    const first = await google();
-    const second = await google();
-
-    expect(second.body.data.user.id).toBe(first.body.data.user.id);
-    expect(prisma._users).toHaveLength(1);
-  });
-
-  it("links Google to an existing password account with the same email", async () => {
-    const registered = await register();
-    verifyGoogleIdToken.mockResolvedValue(profile);
-
-    const res = await google();
-
-    expect(res.body.data.user.id).toBe(registered.body.data.user.id);
-    expect(res.body.data.user.name).toBe("Sam Rivera");
-    expect(prisma._users[0].googleId).toBe("google-123");
-    expect(prisma._users[0].passwordHash).toBeTruthy();
-  });
-
-  it("refuses to replace a different Google account already linked to the email", async () => {
-    verifyGoogleIdToken.mockResolvedValue(profile);
-    await google();
-    verifyGoogleIdToken.mockResolvedValue({ ...profile, googleId: "google-999" });
-
-    const res = await google();
-
-    expect(res.status).toBe(401);
-    expect(res.body.code).toBe("GOOGLE_AUTH_FAILED");
-    expect(prisma._users[0].googleId).toBe("google-123");
-  });
-
-  it("returns 401 GOOGLE_AUTH_FAILED when Google rejects the token", async () => {
-    verifyGoogleIdToken.mockResolvedValue(null);
-    const res = await google();
-
-    expect(res.status).toBe(401);
-    expect(res.body.code).toBe("GOOGLE_AUTH_FAILED");
-    expect(getTokenCookie(res)).toBeUndefined();
-  });
-
-  it("returns 400 when credential is missing", async () => {
-    const res = await google({});
-    expect(res.status).toBe(400);
-    expect(res.body.details[0].field).toBe("credential");
   });
 });
 

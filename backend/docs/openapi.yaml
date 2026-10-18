@@ -3,8 +3,8 @@ info:
   title: Lost & Found Pets API
   version: 1.0.0
   description: |
-    Authentication uses an httpOnly cookie named `token`. Register, login or Google
-    sign-in sets it; the browser (or Postman) then sends it automatically.
+    Authentication uses an httpOnly cookie named `token`. Register or login
+    sets it; the browser (or Postman) then sends it automatically.
     Full contract: docs/auth.md in the repository.
 servers:
   - url: http://localhost:8080
@@ -84,7 +84,7 @@ paths:
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
-          description: Wrong password, unknown email, or a Google-only account
+          description: Wrong password or unknown email
           content:
             application/json:
               schema:
@@ -96,56 +96,13 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
-  /api/auth/google:
-    post:
-      tags: [Auth]
-      operationId: googleSignIn
-      security: []
-      summary: Sign in or sign up with a Google ID token
-      description: |
-        `credential` is the ID token the Google sign-in button gives the frontend.
-        Creates the user on first sign-in, or links Google to an existing account
-        with the same verified email.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GoogleRequest"
-      responses:
-        "200":
-          description: Signed in
-          headers:
-            Set-Cookie:
-              $ref: "#/components/headers/SessionCookie"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          description: Google rejected the token, or the email isn't verified
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                success: false
-                code: GOOGLE_AUTH_FAILED
-                message: Google sign-in failed
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
-
   /api/auth/password:
     patch:
       tags: [Auth]
       operationId: changePassword
       summary: Change the password (signs out other devices)
       description: |
-        Requires a signed-in user. `currentPassword` is required unless the account
-        only uses Google (then this sets a first password). On success the cookie is
-        replaced: this session stays signed in, every other session gets 401.
+        Requires a signed-in user. On success the cookie is replaced: this session stays signed in, every other session gets 401.
       security:
         - cookieAuth: []
       requestBody:
@@ -284,24 +241,14 @@ components:
           type: string
           maxLength: 128
 
-    GoogleRequest:
-      type: object
-      additionalProperties: false
-      required: [credential]
-      properties:
-        credential:
-          type: string
-          description: Google ID token
-
     ChangePasswordRequest:
       type: object
       additionalProperties: false
-      required: [newPassword]
+      required: [currentPassword, newPassword]
       properties:
         currentPassword:
           type: string
           maxLength: 128
-          description: Required unless the account only uses Google
         newPassword:
           type: string
           minLength: 8
@@ -309,7 +256,7 @@ components:
 
     User:
       type: object
-      required: [id, email, name, avatarUrl, createdAt]
+      required: [id, email, name, createdAt]
       properties:
         id:
           type: string
@@ -322,10 +269,6 @@ components:
         name:
           type: string
           example: Sam Rivera
-        avatarUrl:
-          type: string
-          nullable: true
-          example: null
         createdAt:
           type: string
           format: date-time
@@ -358,7 +301,6 @@ components:
             - VALIDATION_ERROR
             - INVALID_CURRENT_PASSWORD
             - INVALID_CREDENTIALS
-            - GOOGLE_AUTH_FAILED
             - UNAUTHENTICATED
             - FORBIDDEN
             - NOT_FOUND

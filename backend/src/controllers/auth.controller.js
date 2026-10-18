@@ -21,11 +21,6 @@ const login = async (req, res) => {
   sendSession(res, 200, user);
 };
 
-const google = async (req, res) => {
-  const user = await authService.loginWithGoogle(req.body);
-  sendSession(res, 200, user);
-};
-
 // Old tokens stop working, so give this browser a fresh one to stay signed in
 const changePassword = async (req, res) => {
   const user = await authService.changePassword(req.user.id, req.body);
@@ -41,4 +36,10 @@ const me = (req, res) => {
   res.json({ success: true, data: { user: req.user } });
 };
 
-module.exports = { register, login, google, changePassword, logout, me };
+module.exports = {
+  register,
+  login,
+  changePassword,
+  logout,
+  me,
+};

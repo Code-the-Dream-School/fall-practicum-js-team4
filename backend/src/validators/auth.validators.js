@@ -14,14 +14,8 @@ const loginSchema = Joi.object({
   password: Joi.string().max(128).required(),
 });
 
-const googleSchema = Joi.object({
-  credential: Joi.string().required(),
-});
-
-// currentPassword is optional here because Google-only users don't have one;
-// the service requires it for everyone else
 const changePasswordSchema = Joi.object({
-  currentPassword: Joi.string().max(128),
+  currentPassword: Joi.string().max(128).required(),
   newPassword: Joi.string()
     .min(8)
     .max(128)
@@ -30,4 +24,4 @@ const changePasswordSchema = Joi.object({
     .messages({ "any.invalid": "New password must be different from the current password" }),
 });
 
-module.exports = { registerSchema, loginSchema, googleSchema, changePasswordSchema };
+module.exports = { registerSchema, loginSchema, changePasswordSchema };

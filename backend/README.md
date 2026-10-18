@@ -7,7 +7,7 @@ will be added on the same structure.
 - **Runtime:** Node.js 24 (see `.nvmrc`)
 - **Framework:** Express 4
 - **Database:** PostgreSQL via Prisma ORM
-- **Auth:** JWT in an httpOnly cookie; email/password and Google sign-in
+- **Auth:** email/password, with a JWT in an httpOnly cookie
 - **Validation:** Joi
 - **Docs:** Swagger UI generated from `docs/openapi.yaml`
 - **Tests:** Jest + Supertest
@@ -31,7 +31,6 @@ the API docs are at http://localhost:8080/api/docs.
 | ------------------ | -------- | --------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`     | yes      | PostgreSQL connection string (local or Neon, see [Database](#database))                             |
 | `JWT_SECRET`       | yes      | Signs session tokens. Generate your own: `openssl rand -hex 32`                                     |
-| `GOOGLE_CLIENT_ID` | yes\*    | OAuth client ID from Google Cloud Console. \*Only Google sign-in fails without it                   |
 | `CLIENT_URL`       | no       | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                    |
 | `COOKIE_SAME_SITE` | no       | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)   |
 | `PORT`             | no       | Default `8080`                                                                                      |
@@ -74,7 +73,7 @@ backend/
 │   ├── services/            # business logic and database access (Prisma)
 │   ├── validators/          # Joi schemas for request bodies
 │   ├── middleware/          # requireAuth, validate, notFound, errorHandler
-│   └── utils/               # AppError, asyncHandler, JWT, passwords, Google
+│   └── utils/               # AppError, asyncHandler, JWT, passwords
 ├── test/                    # Jest + Supertest tests
 └── server.js                # loads .env and starts the server
 ```
@@ -127,7 +126,6 @@ Full contract (request/response formats, error codes, frontend checklist):
 | ------- | -------------------- | ---- | ----------------------------------------- |
 | `POST`  | `/api/auth/register` | no   | Create an account and sign in             |
 | `POST`  | `/api/auth/login`    | no   | Sign in with email + password             |
-| `POST`  | `/api/auth/google`   | no   | Sign in with a Google ID token            |
 | `PATCH` | `/api/auth/password` | yes  | Change password (signs out other devices) |
 | `POST`  | `/api/auth/logout`   | no   | Sign out                                  |
 | `GET`   | `/api/auth/me`       | yes  | Current user, or `401` when signed out    |
@@ -139,7 +137,7 @@ How it works:
 - The token holds the user id and a `tokenVersion`. Changing the password
   increments the version, which invalidates every older token.
 - Passwords are hashed with Node's built-in `scrypt`.
-- Register, login, Google and change-password are limited to 20 attempts per IP
+- Register, login and change-password are limited to 20 attempts per IP
   per 15 minutes; all routes together to 100.
 
 ### Protecting a route
@@ -192,9 +190,6 @@ Every response uses the same envelope:
 - **Postman:** Import → Link → `http://localhost:8080/api/docs/openapi.json`.
   Postman stores the auth cookie after register/login and sends it with later
   requests automatically.
-- **Google sign-in in Postman:** use an OAuth 2.0 `id_token` (not the
-  `access_token`) as `credential`. If it fails, the server log shows a line
-  starting with `Google sign-in rejected:` that says why.
 
 ## Testing
 
@@ -204,8 +199,7 @@ npm run test:cov              # with coverage (writes coverage/, gitignored)
 npx jest test/auth.test.js    # one file
 ```
 
-Tests need no database or Google account: Prisma is replaced by an in-memory
-fake and Google's token check is stubbed. Test files go in `test/` and end in
+Tests need no database: Prisma is replaced by an in-memory fake. Test files go in `test/` and end in
 `.test.js`.
 
 | To test…                         | Start from           |

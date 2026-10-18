@@ -8,7 +8,7 @@ document; change it first if the contract needs to change.
 
 | Topic                    | Decision                                                                                                                                                 |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in methods          | Email + password, and Sign in with Google                                                                                                                |
+| Sign-in methods          | Email + password only for the MVP. Third-party sign-in (e.g. Google) can be added after the MVP                                                          |
 | Session mechanism        | A JWT stored in an **httpOnly cookie** named `token`                                                                                                     |
 | Who is the current user  | The backend reads the cookie, verifies the JWT, and loads the user whose id is in the token's `sub` claim                                                |
 | Surviving a page refresh | The browser keeps the cookie (7-day lifetime) and sends it automatically. On app load the frontend calls `GET /api/auth/me` to find out who is signed in |
@@ -50,7 +50,7 @@ which invalidates every token issued before.
 3. On app load, call `GET /api/auth/me`:
    - `200` → signed in; keep `data.user` in app state (e.g. an `AuthContext`).
    - `401` → signed out. This is the normal "not logged in" answer, not an error to display.
-4. After register, login or Google sign-in, use `data.user` from the response;
+4. After register or login, use `data.user` from the response;
    there is no need to call `/me` again.
 5. If any request returns `401 UNAUTHENTICATED`, the session expired: clear the
    user from state and send them to the login page.
@@ -85,20 +85,16 @@ for display. `details` is only present on `VALIDATION_ERROR`.
 ### User object
 
 Returned by every auth endpoint as `data.user`. It never includes the password
-hash or Google id.
+hash.
 
 ```json
 {
   "id": "6f1c2b9e-1d2a-4c6e-9a51-3d8f0e2b7a10",
   "email": "sam@example.com",
   "name": "Sam Rivera",
-  "avatarUrl": null,
   "createdAt": "2026-10-16T19:40:00.000Z"
 }
 ```
-
-`avatarUrl` is filled from the Google profile picture for Google users, and is
-`null` otherwise.
 
 ## Endpoints
 
@@ -108,8 +104,7 @@ Base path: `/api/auth`.
 | ------- | ----------- | ------------- | ---------------------------------------------------- |
 | `POST`  | `/register` | no            | Create an account with email + password, and sign in |
 | `POST`  | `/login`    | no            | Sign in with email + password                        |
-| `POST`  | `/google`   | no            | Sign in (or sign up) with a Google ID token          |
-| `PATCH` | `/password` | yes           | Change (or, for Google-only users, set) the password |
+| `PATCH` | `/password` | yes           | Change the password                                  |
 | `POST`  | `/logout`   | no            | Sign out                                             |
 | `GET`   | `/me`       | yes           | Return the signed-in user                            |
 
@@ -151,35 +146,9 @@ Success: `200 OK`, sets the `token` cookie, same body as register.
 
 Errors: `400 VALIDATION_ERROR`, `401 INVALID_CREDENTIALS`, `429 TOO_MANY_REQUESTS`.
 
-`INVALID_CREDENTIALS` is returned for a wrong password, an unknown email, and an
-account that only uses Google. The response deliberately doesn't say which, so
+`INVALID_CREDENTIALS` is returned for both a wrong password and an unknown
+email. The response deliberately doesn't say which, so
 it can't be used to discover who has an account.
-
-### `POST /api/auth/google`
-
-The frontend shows Google's sign-in button (Google Identity Services, e.g. the
-`@react-oauth/google` package configured with the same `GOOGLE_CLIENT_ID`). Google
-hands the frontend an ID token string called `credential`; the frontend posts it
-here as-is.
-
-Request:
-
-```json
-{ "credential": "<Google ID token>" }
-```
-
-The backend verifies the token with Google and requires a verified email. Then:
-
-- a user with this Google account exists → sign them in;
-- a user with the same email exists (registered with a password) → link the
-  Google account to that user and sign them in;
-- otherwise → create a new user from the Google profile (name, email, picture).
-
-Success: `200 OK`, sets the `token` cookie, same body as register.
-
-Errors: `400 VALIDATION_ERROR` (missing `credential`), `401 GOOGLE_AUTH_FAILED`
-(invalid or expired token, wrong audience, or unverified email),
-`429 TOO_MANY_REQUESTS`.
 
 ### `PATCH /api/auth/password`
 
@@ -191,10 +160,10 @@ Request:
 { "currentPassword": "correct-horse-1", "newPassword": "even-better-horse-2" }
 ```
 
-| Field             | Rules                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------ |
-| `currentPassword` | required if the account has a password; omit it for Google-only accounts setting one |
-| `newPassword`     | required, 8–128 characters, must differ from `currentPassword`                       |
+| Field             | Rules                                                          |
+| ----------------- | -------------------------------------------------------------- |
+| `currentPassword` | required                                                       |
+| `newPassword`     | required, 8–128 characters, must differ from `currentPassword` |
 
 Success: `200 OK`, same body as register. It also **replaces** the `token` cookie:
 every other device where this user is signed in gets `401 UNAUTHENTICATED` on
@@ -245,30 +214,28 @@ job, and should answer `403 FORBIDDEN`.
 
 ## Error codes
 
-| HTTP | `code`                     | When                                                                                                          |
-| ---- | -------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`         | Missing/invalid fields, unknown fields, or a body that isn't valid JSON                                       |
-| 400  | `INVALID_CURRENT_PASSWORD` | Changing the password with a wrong current password                                                           |
-| 401  | `INVALID_CREDENTIALS`      | Email/password login failed                                                                                   |
-| 401  | `GOOGLE_AUTH_FAILED`       | Google token rejected                                                                                         |
-| 401  | `UNAUTHENTICATED`          | Route needs a signed-in user and there isn't a valid session                                                  |
-| 403  | `FORBIDDEN`                | Signed in, but not allowed (reserved for other features)                                                      |
-| 404  | `NOT_FOUND`                | Unknown route                                                                                                 |
-| 409  | `EMAIL_TAKEN`              | Registering with an email that already has an account                                                         |
-| 429  | `TOO_MANY_REQUESTS`        | More than 20 register/login/Google/change-password attempts per IP in 15 minutes, or 100 requests of any kind |
-| 500  | `INTERNAL_ERROR`           | Unexpected server error; details are logged on the server only                                                |
+| HTTP | `code`                     | When                                                                                                   |
+| ---- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 400  | `VALIDATION_ERROR`         | Missing/invalid fields, unknown fields, or a body that isn't valid JSON                                |
+| 400  | `INVALID_CURRENT_PASSWORD` | Changing the password with a wrong current password                                                    |
+| 401  | `INVALID_CREDENTIALS`      | Email/password login failed                                                                            |
+| 401  | `UNAUTHENTICATED`          | Route needs a signed-in user and there isn't a valid session                                           |
+| 403  | `FORBIDDEN`                | Signed in, but not allowed (reserved for other features)                                               |
+| 404  | `NOT_FOUND`                | Unknown route                                                                                          |
+| 409  | `EMAIL_TAKEN`              | Registering with an email that already has an account                                                  |
+| 429  | `TOO_MANY_REQUESTS`        | More than 20 register/login/change-password attempts per IP in 15 minutes, or 100 requests of any kind |
+| 500  | `INTERNAL_ERROR`           | Unexpected server error; details are logged on the server only                                         |
 
 ## Configuration
 
 Backend `.env`:
 
-| Variable           | Example                                                            | Notes                                                                    |
-| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `DATABASE_URL`     | `postgresql://user:password@localhost:5432/pawradar?schema=public` | Used by Prisma                                                           |
-| `JWT_SECRET`       | output of `openssl rand -hex 32`                                   | Required; the server refuses to issue tokens without it                  |
-| `GOOGLE_CLIENT_ID` | `1234-abc.apps.googleusercontent.com`                              | OAuth client ID from Google Cloud Console; the frontend uses the same ID |
-| `CLIENT_URL`       | `http://localhost:5173`                                            | Frontend origin allowed by CORS (credentials enabled)                    |
-| `COOKIE_SAME_SITE` | `lax`                                                              | `lax` (default), `strict` or `none`                                      |
+| Variable           | Example                                                            | Notes                                                   |
+| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------- |
+| `DATABASE_URL`     | `postgresql://user:password@localhost:5432/pawradar?schema=public` | Used by Prisma                                          |
+| `JWT_SECRET`       | output of `openssl rand -hex 32`                                   | Required; the server refuses to issue tokens without it |
+| `CLIENT_URL`       | `http://localhost:5173`                                            | Frontend origin allowed by CORS (credentials enabled)   |
+| `COOKIE_SAME_SITE` | `lax`                                                              | `lax` (default), `strict` or `none`                     |
 
 ## Known limitations (MVP)
 
@@ -278,3 +245,11 @@ Backend `.env`:
   reuse the same `tokenVersion` mechanism later.
 - **No "forgot password" reset or email verification.** Both need an email
   provider. Changing the password requires being signed in.
+- **Emails are not verified,** so anyone can register with an address they
+  don't own. Keep this in mind before adding third-party sign-in (e.g. Google):
+  **never link a provider to an existing account just because the email
+  matches.** Otherwise an attacker can pre-register the victim's email with
+  their own password, and keep access after the victim signs in with Google
+  ("account pre-hijacking"). When linking, either require the user to confirm
+  the existing password first, or clear `passwordHash` and increment
+  `tokenVersion` so only the provider can sign in afterwards.
