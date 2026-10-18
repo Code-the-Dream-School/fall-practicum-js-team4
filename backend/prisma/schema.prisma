@@ -2,7 +2,6 @@
 // Lost & Found Pets Platform - Official Production Schema
 // Database Engine: PostgreSQL | ORM: Prisma
 // Authors: Waleed & Natalia
-// Date: October 16, 2026
 // =============================================================
 generator client {
   provider = "prisma-client-js"
@@ -65,12 +64,9 @@ model User {
 
 //-------------PET REPORT MODEL-------------
 
-
 model PetReport {
   petReportId         Int          @id @default(autoincrement()) @map("pet_report_id")
   userId              Int          @map("user_id")
-  locationId          Int?         @unique @map("location_id")
-
   petName             String?      @map("pet_name") @db.VarChar(100)
   petType             PetType      @map("pet_type")
   breed               String?      @db.VarChar(100)
@@ -87,7 +83,7 @@ model PetReport {
 
   // Relationships
   user                User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  location            Location?    @relation(fields: [locationId], references: [locationId], onDelete: SetNull)
+  location            Location?
   photos              PetPhoto[]
   messages            Message[]
 
@@ -99,12 +95,15 @@ model PetReport {
 
 model Location {
   locationId Int      @id @default(autoincrement()) @map("location_id")
+  petReportId Int        @unique @map("pet_report_id")
   zipCode    String   @db.VarChar(5) @map("zip_code")
   city       String   @db.VarChar(100)
   state      String   @db.VarChar(2)
   latitude   Decimal? @db.Decimal(10, 7)
   longitude  Decimal? @db.Decimal(10, 7)
-  petReport PetReport?
+  
+  // Relationships
+  petReport   PetReport  @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
 
   @@map("locations")
 }
