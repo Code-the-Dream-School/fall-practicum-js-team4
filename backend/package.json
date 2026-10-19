@@ -8,7 +8,7 @@
   },
   "overrides": {
     "express-xss-sanitizer": {
-      "sanitize-html": "2.18.1"
+      "sanitize-html": "^2.18.1"
     }
   },
   "scripts": {
