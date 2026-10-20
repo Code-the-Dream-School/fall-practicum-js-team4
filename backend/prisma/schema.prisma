@@ -47,10 +47,11 @@ enum ReportStatus {
 //-----------------USER MODEL---------------
 
 model User {
-  userId       Int         @id @default(autoincrement()) @map("user_id")
-  userName     String      @map("user_name") @db.VarChar(100)
-  email        String      @unique @db.VarChar(255)
-  passwordHash String      @map("password_hash") @db.VarChar(255)
+  id           String      @id @default(uuid()) @db.Uuid
+  name         String      
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  tokenVersion Int         @default(0) @map("token_version")
   phoneNumber  String?     @map("phone_number") @db.VarChar(15)
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
@@ -66,7 +67,7 @@ model User {
 
 model PetReport {
   petReportId         Int          @id @default(autoincrement()) @map("pet_report_id")
-  userId              Int          @map("user_id")
+  userId              String @map("user_id") @db.Uuid
   petName             String?      @map("pet_name") @db.VarChar(100)
   petType             PetType      @map("pet_type")
   breed               String?      @db.VarChar(100)
@@ -82,7 +83,7 @@ model PetReport {
   updatedAt           DateTime     @updatedAt @map("updated_at")
 
   // Relationships
-  user                User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   location            Location?
   photos              PetPhoto[]
   messages            Message[]
@@ -127,12 +128,12 @@ model PetPhoto {
 model Message {
   messageId   Int      @id @default(autoincrement()) @map("id")
   petReportId Int      @map("pet_report_id")
-  userId      Int      @map("user_id")
+  userId      String   @map("user_id") @db.Uuid
   message     String   @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
 
   petReport PetReport @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([petReportId])
   @@index([userId])
