@@ -6,16 +6,16 @@ document; change it first if the contract needs to change.
 
 ## Decisions
 
-| Topic                    | Decision                                                                                                                                                 |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in methods          | Email + password only for the MVP. Third-party sign-in (e.g. Google) can be added after the MVP                                                          |
-| Session mechanism        | A JWT stored in an **httpOnly cookie** named `token`                                                                                                     |
-| Who is the current user  | The backend reads the cookie, verifies the JWT, and loads the user whose id is in the token's `sub` claim                                                |
-| Surviving a page refresh | The browser keeps the cookie (7-day lifetime) and sends it automatically. On app load the frontend calls `GET /api/auth/me` to find out who is signed in |
-| Session length           | 7 days, then the user signs in again. No refresh tokens in the MVP                                                                                       |
-| Sign out                 | `POST /api/auth/logout` clears the cookie                                                                                                                |
-| Changing the password    | `PATCH /api/auth/password`. Signs the user out on every other device; the current one gets a new cookie                                                  |
-| Password storage         | Hashed with Node's built-in `scrypt` and a random salt per user. Plain passwords are never stored or logged                                              |
+| Topic                    | Decision                                                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sign-in methods          | Email + password only for the MVP. Third-party sign-in (e.g. Google) can be added after the MVP                                                                                                                                |
+| Session mechanism        | A JWT stored in an **httpOnly cookie** named `token`                                                                                                                                                                           |
+| Who is the current user  | The backend reads the cookie, verifies the JWT, and loads the user whose id is in the token's `sub` claim                                                                                                                      |
+| Surviving a page refresh | The browser keeps the cookie (7-day lifetime) and sends it automatically. On app load the frontend calls `GET /api/auth/me` to find out who is signed in                                                                       |
+| Session length           | 7 days, then the user signs in again. No refresh tokens in the MVP                                                                                                                                                             |
+| Sign out                 | `POST /api/auth/logout` clears the cookie                                                                                                                                                                                      |
+| Changing the password    | `PATCH /api/auth/password`. Signs the user out on every other device; the current one gets a new cookie                                                                                                                        |
+| Password storage         | Hashed with Node's built-in `scrypt` (OWASP minimum: N=2^17, r=8, p=1) and a random salt per user, stored as `scrypt$N$r$p$salt$hash`. Older hashes are upgraded on the next login. Plain passwords are never stored or logged |
 
 ### Why a cookie and not `localStorage`
 
@@ -223,6 +223,8 @@ job, and should answer `403 FORBIDDEN`.
 | 403  | `FORBIDDEN`                | Signed in, but not allowed (reserved for other features)                                               |
 | 404  | `NOT_FOUND`                | Unknown route                                                                                          |
 | 409  | `EMAIL_TAKEN`              | Registering with an email that already has an account                                                  |
+| 413  | `PAYLOAD_TOO_LARGE`        | Request body over 100 kB                                                                               |
+| 415  | `UNSUPPORTED_MEDIA_TYPE`   | Request body in an unsupported charset                                                                 |
 | 429  | `TOO_MANY_REQUESTS`        | More than 20 register/login/change-password attempts per IP in 15 minutes, or 100 requests of any kind |
 | 500  | `INTERNAL_ERROR`           | Unexpected server error; details are logged on the server only                                         |
 
@@ -230,12 +232,13 @@ job, and should answer `403 FORBIDDEN`.
 
 Backend `.env`:
 
-| Variable           | Example                                                            | Notes                                                   |
-| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------- |
-| `DATABASE_URL`     | `postgresql://user:password@localhost:5432/pawradar?schema=public` | Used by Prisma                                          |
-| `JWT_SECRET`       | output of `openssl rand -hex 32`                                   | Required; the server refuses to issue tokens without it |
-| `CLIENT_URL`       | `http://localhost:5173`                                            | Frontend origin allowed by CORS (credentials enabled)   |
-| `COOKIE_SAME_SITE` | `lax`                                                              | `lax` (default), `strict` or `none`                     |
+| Variable           | Example                                                            | Notes                                                                                                |
+| ------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`     | `postgresql://user:password@localhost:5432/pawradar?schema=public` | Used by Prisma                                                                                       |
+| `JWT_SECRET`       | output of `openssl rand -hex 32`                                   | Required; the server refuses to issue tokens without it                                              |
+| `CLIENT_URL`       | `http://localhost:5173`                                            | Frontend origin allowed by CORS (credentials enabled)                                                |
+| `COOKIE_SAME_SITE` | `lax`                                                              | `lax` (default), `strict` or `none`                                                                  |
+| `TRUST_PROXY`      | `1`                                                                | Number of proxies in front of the app when deployed (1 on Render, Railway, Fly). Leave unset locally |
 
 ## Known limitations (MVP)
 
