@@ -16,6 +16,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ["test/**/*.js"],
+    languageOptions: {
+      globals: globals.jest,
+    },
+  },
+  {
     files: ["**/*.ts"],
     languageOptions: {
       globals: globals.node,
