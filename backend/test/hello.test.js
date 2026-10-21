@@ -1,6 +1,15 @@
 const request = require("supertest");
 const app = require("../src/app");
 
+describe("GET /", () => {
+  it("says the API is running", async () => {
+    const res = await request(app).get("/");
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe("Backend API is running");
+  });
+});
+
 describe("GET /api/hello", () => {
   it("returns a greeting", async () => {
     const res = await request(app).get("/api/hello");

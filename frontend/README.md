@@ -253,6 +253,50 @@ Optimize when you see real issues.
 - [ ] Side effects are cleaned up
 - [ ] Lists use stable keys
 - [ ] Environment variables are used correctly
+- [ ] `npm run lint && npm run typecheck && npm run format:check && npm test` passes
+
+## 🧪 Testing
+
+Tests use **Vitest** (Jest-like, reuses `vite.config.ts`) with **React Testing
+Library**. They run in a fake browser (jsdom) and need no backend: **MSW**
+answers API requests instead.
+
+```bash
+npm test              # run all tests once
+npm run test:watch    # re-run on every save
+npm run test:cov      # with a coverage table (writes coverage/, gitignored)
+npx vitest run src/pages/LoginPage.test.tsx   # one file
+```
+
+- Put a test next to the file it tests: `LoginPage.tsx` → `LoginPage.test.tsx`.
+- Find elements the way a user would: `getByRole('button', { name: /sign in/i })`,
+  `getByLabelText(/email/i)`. Avoid CSS classes and test ids.
+- Interact with `user-event` (`await user.type(...)`, `await user.click(...)`).
+- `renderApp('/some/path')` from `src/test/renderApp.tsx` renders the whole app
+  (auth context + routes) at that URL.
+
+### Faking the backend
+
+`src/test/server.ts` holds the default fake API: signed out, and login succeeds
+only for `testUser` / `testPassword`. Override a response in one test with
+`server.use(...)`; overrides are reset after each test:
+
+```tsx
+import { http, HttpResponse } from 'msw';
+import { API, errorResponse, server, signedIn } from '../test/server';
+
+signedIn(); // GET /api/auth/me returns testUser
+
+server.use(
+  http.post(`${API}/api/auth/login`, () =>
+    errorResponse(500, 'INTERNAL_ERROR'),
+  ),
+);
+server.use(http.get(`${API}/api/reports`, () => HttpResponse.error())); // network failure
+```
+
+A request with no handler fails, so add a handler for every new endpoint a test
+calls.
 
 ## 📄 License
 

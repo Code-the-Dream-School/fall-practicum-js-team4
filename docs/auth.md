@@ -12,7 +12,7 @@ document; change it first if the contract needs to change.
 | Session mechanism        | A JWT stored in an **httpOnly cookie** named `token`                                                                                                                                                                           |
 | Who is the current user  | The backend reads the cookie, verifies the JWT, and loads the user whose id is in the token's `sub` claim                                                                                                                      |
 | Surviving a page refresh | The browser keeps the cookie (7-day lifetime) and sends it automatically. On app load the frontend calls `GET /api/auth/me` to find out who is signed in                                                                       |
-| Session length           | 7 days, then the user signs in again. No refresh tokens in the MVP                                                                                                                                                             |
+| Session length           | 7 days, then the user signs in again. With "remember me" unchecked at login, the cookie is deleted when the browser closes. No refresh tokens in the MVP                                                                       |
 | Sign out                 | `POST /api/auth/logout` clears the cookie                                                                                                                                                                                      |
 | Changing the password    | `PATCH /api/auth/password`. Signs the user out on every other device; the current one gets a new cookie                                                                                                                        |
 | Password storage         | Hashed with Node's built-in `scrypt` (OWASP minimum: N=2^17, r=8, p=1) and a random salt per user, stored as `scrypt$N$r$p$salt$hash`. Older hashes are upgraded on the next login. Plain passwords are never stored or logged |
@@ -31,13 +31,15 @@ no token to store, attach or refresh: the browser does it.
 | `HttpOnly` | always                                                                                                                                  |
 | `Secure`   | in production (`NODE_ENV=production`)                                                                                                   |
 | `SameSite` | `Lax` by default; set `COOKIE_SAME_SITE=none` if the deployed frontend and backend are on different sites (this also requires `Secure`) |
-| `Max-Age`  | 7 days                                                                                                                                  |
+| `Max-Age`  | 7 days; omitted when signing in with `rememberMe: false`, so the browser deletes the cookie when it closes                              |
 | `Path`     | `/`                                                                                                                                     |
 
-JWT payload: `{ "sub": "<user id>", "ver": 0, "iat": ..., "exp": ... }`, signed
+JWT payload: `{ "sub": "<user id>", "ver": 0, "rem": true, "iat": ..., "exp": ... }`, signed
 with `JWT_SECRET` (HS256). It contains no personal data. `ver` must match the
 user's `tokenVersion` in the database; changing the password increments it,
-which invalidates every token issued before.
+which invalidates every token issued before. `rem` is the "remember me" choice,
+so the cookie reissued after a password change keeps the same lifetime. The
+token itself always expires after 7 days.
 
 ## Frontend checklist
 
@@ -139,8 +141,18 @@ Errors: `400 VALIDATION_ERROR`, `409 EMAIL_TAKEN`, `429 TOO_MANY_REQUESTS`.
 Request:
 
 ```json
-{ "email": "sam@example.com", "password": "correct-horse-1" }
+{
+  "email": "sam@example.com",
+  "password": "correct-horse-1",
+  "rememberMe": true
+}
 ```
+
+| Field        | Rules                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `email`      | required, valid email                                                                                                          |
+| `password`   | required, max 128 characters                                                                                                   |
+| `rememberMe` | optional boolean, default `true`. `false` sets a browser-session cookie (no `Max-Age`) that is deleted when the browser closes |
 
 Success: `200 OK`, sets the `token` cookie, same body as register.
 

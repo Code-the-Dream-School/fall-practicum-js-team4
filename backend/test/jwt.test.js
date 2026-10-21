@@ -9,8 +9,13 @@ beforeEach(() => {
 });
 
 describe("signToken / verifyToken", () => {
-  it("round-trips the user id and token version", () => {
-    expect(verifyToken(signToken(user))).toEqual({ userId: "user-1", version: 3 });
+  it("round-trips the user id, token version and remember-me choice", () => {
+    expect(verifyToken(signToken(user))).toEqual({ userId: "user-1", version: 3, remember: true });
+    expect(verifyToken(signToken(user, { remember: false }))).toEqual({
+      userId: "user-1",
+      version: 3,
+      remember: false,
+    });
   });
 
   it("issues tokens that expire after 7 days", () => {
@@ -18,9 +23,9 @@ describe("signToken / verifyToken", () => {
     expect(exp - iat).toBe(7 * 24 * 60 * 60);
   });
 
-  it("treats tokens issued before versioning existed as version 0", () => {
+  it("treats tokens issued before versioning and remember-me as version 0, remembered", () => {
     const token = jwt.sign({ sub: "user-1" }, SECRET);
-    expect(verifyToken(token)).toEqual({ userId: "user-1", version: 0 });
+    expect(verifyToken(token)).toEqual({ userId: "user-1", version: 0, remember: true });
   });
 
   it.each([

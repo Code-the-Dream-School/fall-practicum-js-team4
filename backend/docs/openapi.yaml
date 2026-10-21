@@ -204,7 +204,9 @@ components:
 
   headers:
     SessionCookie:
-      description: Session cookie (HttpOnly, SameSite=Lax, 7 days)
+      description: >-
+        Session cookie (HttpOnly, SameSite=Lax). 7 days, or until the browser closes
+        when signing in with rememberMe false
       schema:
         type: string
         example: token=eyJhbGciOiJIUzI1NiIs...; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax
@@ -240,6 +242,12 @@ components:
         password:
           type: string
           maxLength: 128
+        rememberMe:
+          type: boolean
+          default: true
+          description: >-
+            true keeps the session cookie for 7 days; false makes it a browser-session
+            cookie (no Max-Age) that is deleted when the browser closes
 
     ChangePasswordRequest:
       type: object
