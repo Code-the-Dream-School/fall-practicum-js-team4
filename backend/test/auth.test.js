@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const request = require("supertest");
 const jwt = require("jsonwebtoken");
 
@@ -137,6 +138,45 @@ describe("POST /api/auth/login", () => {
   });
 });
 
+describe("upgrading old password hashes on login", () => {
+  // Original "salt:hash" format, made with Node's default scrypt settings
+  const legacyHash = (password) =>
+    `abcd1234:${crypto.scryptSync(password, "abcd1234", 64).toString("hex")}`;
+
+  beforeEach(() =>
+    prisma.user.create({
+      data: { name: "Old", email: "old@example.com", passwordHash: legacyHash("old-password-1") },
+    }),
+  );
+
+  const login = (password) =>
+    request(app).post("/api/auth/login").send({ email: "old@example.com", password });
+
+  it("signs in with a legacy hash and rehashes it with the current settings", async () => {
+    const res = await login("old-password-1");
+
+    expect(res.status).toBe(200);
+    expect(prisma._users[0].passwordHash).toMatch(/^scrypt\$131072\$8\$1\$/);
+    // The new hash works for the next login
+    expect((await login("old-password-1")).status).toBe(200);
+  });
+
+  it("doesn't rehash after a failed login", async () => {
+    const before = prisma._users[0].passwordHash;
+    expect((await login("wrong-password")).status).toBe(401);
+    expect(prisma._users[0].passwordHash).toBe(before);
+  });
+
+  it("still lets the user in if saving the new hash fails", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    prisma.user.update.mockRejectedValueOnce(new Error("db down"));
+
+    expect((await login("old-password-1")).status).toBe(200);
+    expect(spy).toHaveBeenCalledWith("Could not rehash password:", "db down");
+    spy.mockRestore();
+  });
+});
+
 describe("GET /api/auth/me", () => {
   it("returns the signed-in user when the cookie is sent", async () => {
     const agent = request.agent(app);
@@ -270,6 +310,21 @@ describe("PATCH /api/auth/password", () => {
     expect(res.body.details[0].field).toBe("newPassword");
   });
 
+  it("returns 401 UNAUTHENTICATED if the user is deleted mid-request", async () => {
+    const agent = await signedInAgent();
+    const user = prisma._users[0];
+    // requireAuth still finds the user; the service's lookup no longer does
+    prisma.user.findUnique.mockResolvedValueOnce(user).mockResolvedValueOnce(null);
+
+    const res = await changePassword(agent, {
+      currentPassword: newUser.password,
+      newPassword: "new-password-1",
+    });
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+  });
+
   it("returns 401 when not signed in", async () => {
     const res = await changePassword(request(app), {
       currentPassword: newUser.password,
@@ -306,6 +361,33 @@ describe("error handling", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 413 PAYLOAD_TOO_LARGE for a body over the 100kb limit, without logging a server error", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "sam@example.com", password: "x".repeat(150 * 1024) });
+
+    expect(res.status).toBe(413);
+    expect(res.body).toEqual({
+      success: false,
+      code: "PAYLOAD_TOO_LARGE",
+      message: "Request body is too large",
+    });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("returns 415 UNSUPPORTED_MEDIA_TYPE for an unsupported charset", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Content-Type", "application/json; charset=klingon")
+      .send('{"email":"a@b.co","password":"x"}');
+
+    expect(res.status).toBe(415);
+    expect(res.body.code).toBe("UNSUPPORTED_MEDIA_TYPE");
   });
 
   it("returns 404 NOT_FOUND for unknown routes", async () => {

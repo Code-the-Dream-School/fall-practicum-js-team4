@@ -11,8 +11,12 @@ const docsRoutes = require("./routes/docs.routes");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
 const AppError = require("./utils/AppError");
+const { parseTrustProxy } = require("./config/trustProxy");
 
 const app = express();
+
+// Needed for correct req.ip (and per-user rate limits) behind a hosting proxy
+app.set("trust proxy", parseTrustProxy(process.env.TRUST_PROXY));
 
 // Security & best‑practice middleware
 app.use(helmet());

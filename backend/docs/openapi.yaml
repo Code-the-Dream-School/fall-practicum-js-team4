@@ -305,6 +305,8 @@ components:
             - FORBIDDEN
             - NOT_FOUND
             - EMAIL_TAKEN
+            - PAYLOAD_TOO_LARGE
+            - UNSUPPORTED_MEDIA_TYPE
             - TOO_MANY_REQUESTS
             - INTERNAL_ERROR
         message:

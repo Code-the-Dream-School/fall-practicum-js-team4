@@ -27,14 +27,15 @@ the API docs are at http://localhost:8080/api/docs.
 
 ### Environment variables (`.env`)
 
-| Variable           | Required | Description                                                                                         |
-| ------------------ | -------- | --------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`     | yes      | PostgreSQL connection string (local or Neon, see [Database](#database))                             |
-| `JWT_SECRET`       | yes      | Signs session tokens. Generate your own: `openssl rand -hex 32`                                     |
-| `CLIENT_URL`       | no       | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                    |
-| `COOKIE_SAME_SITE` | no       | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)   |
-| `PORT`             | no       | Default `8080`                                                                                      |
-| `NODE_ENV`         | no       | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting |
+| Variable           | Required | Description                                                                                                                           |
+| ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`     | yes      | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
+| `JWT_SECRET`       | yes      | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
+| `CLIENT_URL`       | no       | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
+| `COOKIE_SAME_SITE` | no       | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
+| `TRUST_PROXY`      | no       | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
+| `PORT`             | no       | Default `8080`                                                                                                                        |
+| `NODE_ENV`         | no       | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
 
 `.env` is gitignored. Never commit it or paste its values into chat. `MONGO_URI`
 and `POSTGRES_URI` in `.env.example` are unused leftovers from the starter template.
@@ -136,7 +137,9 @@ How it works:
   sends it automatically; frontend code never reads it.
 - The token holds the user id and a `tokenVersion`. Changing the password
   increments the version, which invalidates every older token.
-- Passwords are hashed with Node's built-in `scrypt`.
+- Passwords are hashed with Node's built-in `scrypt` at OWASP's minimum cost
+  (N=2^17, r=8, p=1); the settings are stored with each hash, and older hashes
+  are upgraded automatically on the next successful login.
 - Register, login and change-password are limited to 20 attempts per IP
   per 15 minutes; all routes together to 100.
 
@@ -164,8 +167,10 @@ Every response uses the same envelope:
 - `code` is stable and for frontend logic; `message` is for display.
 - To fail a request, `throw new AppError(status, code, message)` (from
   `src/utils/AppError.js`). The central `errorHandler` turns it into the error
-  response. Any other error becomes a generic `500 INTERNAL_ERROR`; the details
-  are logged on the server, never sent to the client.
+  response. Client errors raised by Express itself keep their status (e.g.
+  `413 PAYLOAD_TOO_LARGE` for a body over 100 kB). Any other error becomes a
+  generic `500 INTERNAL_ERROR`; the details are logged on the server, never sent
+  to the client.
 - Wrap async controllers in `asyncHandler(...)`. Express 4 doesn't catch errors
   from async functions on its own.
 - Validate every request body with a Joi schema and the `validate()` middleware.

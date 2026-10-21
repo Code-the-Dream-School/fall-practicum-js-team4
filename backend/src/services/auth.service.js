@@ -1,6 +1,6 @@
 const prisma = require("../config/prisma");
 const AppError = require("../utils/AppError");
-const { hashPassword, verifyPassword } = require("../utils/password");
+const { hashPassword, verifyPassword, needsRehash } = require("../utils/password");
 
 // Service functions return the full user record; controllers send only toPublicUser(),
 // the only user fields the API ever returns
@@ -36,6 +36,19 @@ const login = async ({ email, password }) => {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw invalidCredentials();
   if (!(await verifyPassword(password, user.passwordHash))) throw invalidCredentials();
+
+  // Upgrade hashes made with older scrypt settings while we have the plain password.
+  // Not fatal: the old hash keeps working, so log and let the user in.
+  if (needsRehash(user.passwordHash)) {
+    try {
+      return await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(password) },
+      });
+    } catch (err) {
+      console.error("Could not rehash password:", err.message);
+    }
+  }
   return user;
 };
 
@@ -43,6 +56,8 @@ const findUserById = (id) => prisma.user.findUnique({ where: { id } });
 
 const changePassword = async (userId, { currentPassword, newPassword }) => {
   const user = await findUserById(userId);
+  // Deleted after requireAuth loaded it
+  if (!user) throw new AppError(401, "UNAUTHENTICATED", "Please sign in");
   if (!(await verifyPassword(currentPassword, user.passwordHash))) {
     throw new AppError(400, "INVALID_CURRENT_PASSWORD", "Current password is incorrect");
   }
