@@ -1,3 +1,5 @@
+// Lost & Found Pets: PostgreSQL schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,15 +9,129 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+//-----------------ENUMS-------------------
+
+enum PetType {
+  DOG
+  CAT
+  BIRD
+  OTHER
+}
+
+enum PetSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum PetGender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum ReportType {
+  LOST
+  FOUND
+}
+
+enum ReportStatus {
+  ACTIVE
+  REUNITED
+}
+
+//-----------------USER MODEL---------------
+
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  name         String
-  passwordHash String   @map("password_hash")
-  // Stored in each JWT; incrementing it signs the user out everywhere
-  tokenVersion Int      @default(0) @map("token_version")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String      @id @default(uuid()) @db.Uuid
+  name         String      
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  tokenVersion Int         @default(0) @map("token_version")
+  phoneNumber  String?     @map("phone_number") @db.VarChar(15)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  // Relationships
+  petReports   PetReport[]
+  messages     Message[]
 
   @@map("users")
+}
+
+//-------------PET REPORT MODEL-------------
+
+model PetReport {
+  petReportId         Int          @id @default(autoincrement()) @map("pet_report_id")
+  userId              String       @map("user_id") @db.Uuid
+  petName             String?      @map("pet_name") @db.VarChar(100)
+  petType             PetType      @map("pet_type")
+  breed               String?      @db.VarChar(100)
+  color               String       @db.VarChar(100)
+  size                PetSize
+  gender              PetGender
+  distinctiveFeatures String?      @map("distinctive_features") @db.Text
+  eventDate           DateTime     @map("event_date") @db.Date
+  contactInfo         String?      @map("contact_info") @db.VarChar(255)
+  reportType          ReportType   @map("report_type")
+  status              ReportStatus @default(ACTIVE)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  // Relationships
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location            Location?
+  photos              PetPhoto[]
+  messages            Message[]
+
+  @@index([userId])
+  @@map("pet_reports")
+}
+
+//-----------------Location-----------------
+
+model Location {
+  locationId  Int        @id @default(autoincrement()) @map("location_id")
+  petReportId Int        @unique @map("pet_report_id")
+  zipCode     String     @db.VarChar(5) @map("zip_code")
+  city        String     @db.VarChar(100)
+  state       String     @db.VarChar(2)
+  latitude    Decimal?   @db.Decimal(10, 7)
+  longitude   Decimal?   @db.Decimal(10, 7)
+  
+  // Relationships
+  petReport   PetReport  @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
+
+  @@map("locations")
+}
+
+//-----------------PetPhoto-----------------
+
+model PetPhoto {
+  petPhotoId  Int        @id @default(autoincrement()) @map("pet_photo_id")
+  petReportId Int        @map("pet_report_id")
+  imageUrl    String     @db.Text @map("image_url")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  petReport   PetReport  @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
+  
+  @@index([petReportId])
+  @@map("pet_photos")
+}
+
+//-----------------Message-----------------
+
+model Message {
+  messageId   Int        @id @default(autoincrement()) @map("message_id")
+  petReportId Int        @map("pet_report_id")
+  userId      String     @map("user_id") @db.Uuid
+  message     String     @db.Text
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  petReport   PetReport  @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([petReportId])
+  @@index([userId])
+  @@map("messages")
 }
