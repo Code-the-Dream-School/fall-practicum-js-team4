@@ -8,6 +8,7 @@ import { login } from '../services/authApi';
 import type { LoginInput, User } from '../services/authApi';
 import { Icon } from '../components/Icon';
 import { loginRules } from '../validation/authRules';
+import { describeLoginError } from './loginErrors';
 import './LoginPage.css';
 
 const DEFAULT_REDIRECT = '/dashboard';
@@ -15,23 +16,6 @@ const DEFAULT_REDIRECT = '/dashboard';
 const REDIRECT_DELAY_MS = 1000;
 
 type Feedback = { type: 'error' | 'success'; message: string } | null;
-
-// Turns an API failure into the message shown above the form
-const describeError = (err: unknown): string => {
-  const code = err instanceof ApiError ? err.code : undefined;
-  switch (code) {
-    case 'INVALID_CREDENTIALS':
-      return 'Email or password is incorrect.';
-    case 'VALIDATION_ERROR':
-      return 'Please fix the highlighted fields.';
-    case 'TOO_MANY_REQUESTS':
-      return 'Too many sign-in attempts. Please wait a few minutes and try again.';
-    case 'NETWORK_ERROR':
-      return (err as ApiError).message;
-    default:
-      return 'Something went wrong on our side. Please try again in a moment.';
-  }
-};
 
 export function LoginPage() {
   const { status, setSession } = useAuth();
@@ -83,7 +67,7 @@ export function LoginPage() {
           }
         }
       }
-      setFeedback({ type: 'error', message: describeError(err) });
+      setFeedback({ type: 'error', message: describeLoginError(err) });
     }
   };
 
