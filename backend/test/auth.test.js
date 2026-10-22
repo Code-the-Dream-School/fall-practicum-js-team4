@@ -111,6 +111,22 @@ describe("POST /api/auth/register", () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("EMAIL_TAKEN");
   });
+
+  it("returns a generic 500 when saving the user fails for another reason", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    prisma.user.create.mockRejectedValueOnce(new Error("db down"));
+
+    const res = await register();
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({
+      success: false,
+      code: "INTERNAL_ERROR",
+      message: "Something went wrong",
+    });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
 });
 
 describe("POST /api/auth/login", () => {
@@ -135,6 +151,41 @@ describe("POST /api/auth/login", () => {
     expect(res.status).toBe(401);
     expect(res.body.code).toBe("INVALID_CREDENTIALS");
     expect(getTokenCookie(res)).toBeUndefined();
+  });
+
+  const loginWith = (extra) =>
+    request(app)
+      .post("/api/auth/login")
+      .send({ email: "sam@example.com", password: newUser.password, ...extra });
+
+  it.each([
+    ["by default", {}],
+    ["with rememberMe: true", { rememberMe: true }],
+  ])("sets a 7-day cookie %s", async (_, extra) => {
+    const cookie = getTokenCookie(await loginWith(extra));
+    expect(cookie).toMatch(/Max-Age=604800/);
+    expect(cookie).toMatch(/Expires=/);
+  });
+
+  it("sets a browser-session cookie with rememberMe: false", async () => {
+    const res = await loginWith({ rememberMe: false });
+
+    expect(res.status).toBe(200);
+    const cookie = getTokenCookie(res);
+    expect(cookie).toMatch(/HttpOnly/);
+    expect(cookie).not.toMatch(/Max-Age|Expires/);
+  });
+
+  it.each([
+    ["a string", "false"],
+    ["a number", 0],
+    ["null", null],
+  ])("returns 400 VALIDATION_ERROR when rememberMe is %s", async (_, rememberMe) => {
+    const res = await loginWith({ rememberMe });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details[0].field).toBe("rememberMe");
   });
 });
 
@@ -237,6 +288,25 @@ describe("PATCH /api/auth/password", () => {
     expect(res.body.data.user.email).toBe("sam@example.com");
     expect(getTokenCookie(res)).toBeDefined();
     expect((await agent.get("/api/auth/me")).status).toBe(200);
+  });
+
+  it.each([
+    [true, /Max-Age=604800/],
+    [false, /^(?!.*Max-Age)/],
+  ])("keeps the rememberMe: %s cookie lifetime", async (rememberMe, expected) => {
+    const agent = request.agent(app);
+    await register();
+    await agent
+      .post("/api/auth/login")
+      .send({ email: "sam@example.com", password: newUser.password, rememberMe });
+
+    const res = await changePassword(agent, {
+      currentPassword: newUser.password,
+      newPassword: "new-password-1",
+    });
+
+    expect(res.status).toBe(200);
+    expect(getTokenCookie(res)).toMatch(expected);
   });
 
   it("makes the new password work for login and the old one fail", async () => {

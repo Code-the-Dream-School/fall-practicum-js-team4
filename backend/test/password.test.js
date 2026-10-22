@@ -39,8 +39,28 @@ describe("password hashing", () => {
     ["non-numeric parameters", `scrypt$big$8$1$abcd$${"ab".repeat(64)}`],
     ["a zero parameter", `scrypt$0$8$1$abcd$${"ab".repeat(64)}`],
     ["a non-string value", null],
+    ["N that isn't a power of 2", `scrypt$3$8$1$abcd$${"ab".repeat(64)}`],
+    ["settings over the memory limit", `scrypt$${2 ** 20}$8$1$abcd$${"ab".repeat(64)}`],
   ])("returns false for %s", async (_, stored) => {
     expect(await verifyPassword("any-password", stored)).toBe(false);
+  });
+});
+
+describe("when scrypt itself fails", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const failScrypt = (err) =>
+    jest.spyOn(crypto, "scrypt").mockImplementation((...args) => args.at(-1)(err));
+
+  it("hashPassword rejects with the error", async () => {
+    failScrypt(new Error("out of memory"));
+    await expect(hashPassword("pw")).rejects.toThrow("out of memory");
+  });
+
+  it("verifyPassword rethrows errors other than invalid settings", async () => {
+    const stored = await hashPassword("pw");
+    failScrypt(new Error("out of memory"));
+    await expect(verifyPassword("pw", stored)).rejects.toThrow("out of memory");
   });
 });
 

@@ -58,7 +58,14 @@ const hashPassword = async (password) => {
 const verifyPassword = async (password, stored) => {
   const parsed = parse(stored);
   if (!parsed) return false;
-  const actual = await scrypt(password, parsed.salt, parsed.params);
+  let actual;
+  try {
+    actual = await scrypt(password, parsed.salt, parsed.params);
+  } catch (err) {
+    // Settings scrypt can't use (e.g. N not a power of 2) are malformed too
+    if (err.code === "ERR_CRYPTO_INVALID_SCRYPT_PARAMS") return false;
+    throw err;
+  }
   return crypto.timingSafeEqual(actual, parsed.hash);
 };
 

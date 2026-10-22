@@ -33,4 +33,20 @@ describe("rate limiting", () => {
     expect(res.headers["x-ratelimit-limit"]).toBe("100");
     expect(Number(res.headers["x-ratelimit-remaining"])).toBeLessThan(100);
   });
+
+  // Runs last: it uses up the rest of the global limit for this file
+  it("answers 429 TOO_MANY_REQUESTS once the global limit is used up", async () => {
+    let res;
+    for (let i = 0; i <= 100; i++) {
+      res = await request(app).get("/api/hello");
+      if (res.status === 429) break;
+    }
+
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({
+      success: false,
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many requests, please try again later",
+    });
+  });
 });

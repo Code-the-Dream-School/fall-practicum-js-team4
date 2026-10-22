@@ -12,6 +12,8 @@ const loginSchema = Joi.object({
   email,
   // No length rules here: login only checks against the stored hash
   password: Joi.string().max(128).required(),
+  // false: the session cookie is deleted when the browser closes
+  rememberMe: Joi.boolean().strict().default(true),
 });
 
 const changePasswordSchema = Joi.object({
