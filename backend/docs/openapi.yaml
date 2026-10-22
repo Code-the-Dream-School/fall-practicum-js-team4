@@ -345,6 +345,7 @@ components:
           enum: [MALE, FEMALE, UNKNOWN]
         distinctiveFeatures:
           type: string
+          maxLength: 1000
           nullable: true
         eventDate:
           type: string
@@ -368,17 +369,21 @@ components:
               minLength: 2
               maxLength: 2
             latitude:
-              type: number
+              type: string
               nullable: true
+              example: "40.7128000"
             longitude:
-              type: number
+              type: string
               nullable: true
+              example: "-74.0060000"
         photos:
           type: array
           maxItems: 5
           items:
             type: string
             format: uri
+            maxLength: 2048
+            example: "https://example.com/pet.jpg"
 
     CreateReportResponse:
       type: object
@@ -447,10 +452,44 @@ components:
             location:
               type: object
               nullable: true
+              properties:
+                locationId:
+                  type: integer
+                petReportId:
+                  type: integer
+                zipCode:
+                  type: string
+                  example: "10001"
+                city:
+                  type: string
+                  example: "New York"
+                state:
+                  type: string
+                  example: "NY"
+                latitude:
+                  type: string
+                  nullable: true
+                  example: "40.7128000"
+                longitude:
+                  type: string
+                  nullable: true
+                  example: "-74.0060000"
             photos:
               type: array
               items:
                 type: object
+                properties:
+                  petPhotoId:
+                    type: integer
+                  petReportId:
+                    type: integer
+                  imageUrl:
+                    type: string
+                    format: uri
+                    example: "https://example.com/pet.jpg"
+                  createdAt:
+                    type: string
+                    format: date-time
 
     Error:
       type: object

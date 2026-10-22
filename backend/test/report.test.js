@@ -31,8 +31,9 @@ jest.mock("../src/config/prisma", () => {
     },
     petReport: {
       create: jest.fn(async ({ data }) => {
+        const currentReportId = reportIdCounter++;
         const report = {
-          petReportId: reportIdCounter++,
+          petReportId: currentReportId,
           userId: data.userId,
           reportType: data.reportType,
           petType: data.petType,
@@ -48,11 +49,12 @@ jest.mock("../src/config/prisma", () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           location: data.location?.create
-            ? { locationId: 1, petReportId: reportIdCounter, ...data.location.create }
+            ? { locationId: 1, petReportId: currentReportId, ...data.location.create }
             : null,
           photos: data.photos?.createMany?.data
             ? data.photos.createMany.data.map((p, i) => ({
                 petPhotoId: i + 1,
+                petReportId: currentReportId,
                 imageUrl: p.imageUrl,
               }))
             : [],
@@ -69,6 +71,7 @@ const prisma = require("../src/config/prisma");
 
 describe("POST /api/reports", () => {
   let agent;
+  let testUser;
 
   beforeEach(async () => {
     prisma._users.length = 0;
@@ -76,11 +79,12 @@ describe("POST /api/reports", () => {
     jest.clearAllMocks();
 
     agent = request.agent(app);
-    await agent.post("/api/auth/register").send({
+    const regRes = await agent.post("/api/auth/register").send({
       name: "Alex Smith",
       email: "alex@example.com",
       password: "password123!",
     });
+    testUser = regRes.body.data.user;
   });
 
   const validReport = {
@@ -111,7 +115,7 @@ describe("POST /api/reports", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data).toMatchObject({
       petReportId: expect.any(Number),
-      userId: expect.any(String),
+      userId: testUser.id,
       reportType: "LOST",
       petType: "DOG",
       petName: "Buddy",
@@ -140,6 +144,32 @@ describe("POST /api/reports", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.reportType).toBe("FOUND");
     expect(res.body.data.petType).toBe("CAT");
+  });
+
+  it("rejects an event date in the future (400)", async () => {
+    const futureReport = {
+      ...validReport,
+      eventDate: "2099-01-01T00:00:00.000Z",
+    };
+
+    const res = await agent.post("/api/reports").send(futureReport);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects non-https photo URLs (400)", async () => {
+    const insecureReport = {
+      ...validReport,
+      photos: ["javascript:alert(1)"],
+    };
+
+    const res = await agent.post("/api/reports").send(insecureReport);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
   });
 
   it("rejects unauthenticated requests (401)", async () => {

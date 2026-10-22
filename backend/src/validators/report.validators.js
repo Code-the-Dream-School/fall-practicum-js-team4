@@ -22,10 +22,11 @@ const createReportSchema = Joi.object({
     "any.required": "Gender is required",
     "any.only": "Gender must be MALE, FEMALE, or UNKNOWN",
   }),
-  distinctiveFeatures: Joi.string().allow(null, "").trim(),
-  eventDate: Joi.date().iso().required().messages({
+  distinctiveFeatures: Joi.string().max(1000).allow(null, "").trim(),
+  eventDate: Joi.date().iso().max("now").required().messages({
     "any.required": "Event date is required",
     "date.format": "Event date must be a valid ISO date",
+    "date.max": "Event date cannot be in the future",
   }),
   contactInfo: Joi.string().max(255).allow(null, "").trim(),
   location: Joi.object({
@@ -42,7 +43,14 @@ const createReportSchema = Joi.object({
     latitude: Joi.number().min(-90).max(90).allow(null),
     longitude: Joi.number().min(-180).max(180).allow(null),
   }).optional(),
-  photos: Joi.array().items(Joi.string().uri()).max(5).optional(),
+  photos: Joi.array()
+    .items(
+      Joi.string()
+        .uri({ scheme: ["https"] })
+        .max(2048),
+    )
+    .max(5)
+    .optional(),
 });
 
 module.exports = {

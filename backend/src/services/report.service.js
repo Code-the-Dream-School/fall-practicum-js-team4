@@ -1,32 +1,14 @@
 const prisma = require("../config/prisma");
 
 const createReport = async (userId, data) => {
-  const {
-    reportType,
-    petType,
-    petName,
-    breed,
-    color,
-    size,
-    gender,
-    distinctiveFeatures,
-    eventDate,
-    contactInfo,
-    location,
-    photos,
-  } = data;
+  const { petName, breed, distinctiveFeatures, contactInfo, location, photos, ...rest } = data;
 
   const reportData = {
+    ...rest,
     userId,
-    reportType,
-    petType,
     petName: petName || null,
     breed: breed || null,
-    color,
-    size,
-    gender,
     distinctiveFeatures: distinctiveFeatures || null,
-    eventDate: new Date(eventDate),
     contactInfo: contactInfo || null,
   };
 
@@ -36,8 +18,8 @@ const createReport = async (userId, data) => {
         zipCode: location.zipCode,
         city: location.city,
         state: location.state,
-        latitude: location.latitude != null ? location.latitude : null,
-        longitude: location.longitude != null ? location.longitude : null,
+        latitude: location.latitude ?? null,
+        longitude: location.longitude ?? null,
       },
     };
   }
