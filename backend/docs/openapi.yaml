@@ -13,6 +13,8 @@ servers:
 tags:
   - name: Auth
     description: Sign up, sign in, sign out and the current user
+  - name: Reports
+    description: Create and manage pet reports
 
 paths:
   /api/auth/register:
@@ -195,6 +197,32 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
 
+  /api/reports:
+    post:
+      tags: [Reports]
+      operationId: createReport
+      summary: Create a new pet report
+      description: Creates a lost or found pet report associated with the authenticated user.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportRequest"
+      responses:
+        "201":
+          description: Report created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReportResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -287,6 +315,142 @@ components:
           properties:
             user:
               $ref: "#/components/schemas/User"
+
+    CreateReportRequest:
+      type: object
+      required: [reportType, petType, color, size, gender, eventDate]
+      properties:
+        reportType:
+          type: string
+          enum: [LOST, FOUND]
+        petType:
+          type: string
+          enum: [DOG, CAT, BIRD, OTHER]
+        petName:
+          type: string
+          maxLength: 100
+          nullable: true
+        breed:
+          type: string
+          maxLength: 100
+          nullable: true
+        color:
+          type: string
+          maxLength: 100
+        size:
+          type: string
+          enum: [SMALL, MEDIUM, LARGE]
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        distinctiveFeatures:
+          type: string
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+        contactInfo:
+          type: string
+          maxLength: 255
+          nullable: true
+        location:
+          type: object
+          required: [zipCode, city, state]
+          properties:
+            zipCode:
+              type: string
+              pattern: '^\d{5}$'
+            city:
+              type: string
+              maxLength: 100
+            state:
+              type: string
+              minLength: 2
+              maxLength: 2
+            latitude:
+              type: number
+              nullable: true
+            longitude:
+              type: number
+              nullable: true
+        photos:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            format: uri
+
+    CreateReportResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required:
+            [
+              petReportId,
+              userId,
+              reportType,
+              petType,
+              color,
+              size,
+              gender,
+              eventDate,
+              status,
+              createdAt,
+            ]
+          properties:
+            petReportId:
+              type: integer
+            userId:
+              type: string
+              format: uuid
+            reportType:
+              type: string
+              enum: [LOST, FOUND]
+            petType:
+              type: string
+              enum: [DOG, CAT, BIRD, OTHER]
+            petName:
+              type: string
+              nullable: true
+            breed:
+              type: string
+              nullable: true
+            color:
+              type: string
+            size:
+              type: string
+            gender:
+              type: string
+            distinctiveFeatures:
+              type: string
+              nullable: true
+            eventDate:
+              type: string
+              format: date-time
+            contactInfo:
+              type: string
+              nullable: true
+            status:
+              type: string
+              enum: [ACTIVE, REUNITED]
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+            location:
+              type: object
+              nullable: true
+            photos:
+              type: array
+              items:
+                type: object
 
     Error:
       type: object

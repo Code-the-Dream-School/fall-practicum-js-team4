@@ -1,9 +1,9 @@
 const request = require("supertest");
-const crypto = require("crypto");
 
 process.env.JWT_SECRET = "test-secret";
 
 jest.mock("../src/config/prisma", () => {
+  const crypto = require("crypto");
   const users = [];
   const reports = [];
   let reportIdCounter = 1;

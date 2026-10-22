@@ -29,10 +29,14 @@ const createReportSchema = Joi.object({
   }),
   contactInfo: Joi.string().max(255).allow(null, "").trim(),
   location: Joi.object({
-    zipCode: Joi.string().length(5).pattern(/^\d{5}$/).required().messages({
-      "any.required": "Zip code is required",
-      "string.pattern.base": "Zip code must be a 5-digit number",
-    }),
+    zipCode: Joi.string()
+      .length(5)
+      .pattern(/^\d{5}$/)
+      .required()
+      .messages({
+        "any.required": "Zip code is required",
+        "string.pattern.base": "Zip code must be a 5-digit number",
+      }),
     city: Joi.string().max(100).required().trim(),
     state: Joi.string().length(2).uppercase().required().trim(),
     latitude: Joi.number().min(-90).max(90).allow(null),
