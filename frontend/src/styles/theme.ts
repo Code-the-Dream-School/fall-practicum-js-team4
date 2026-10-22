@@ -34,9 +34,24 @@ const buttonBase: CSSProperties = {
 };
 
 export const buttonStyles = {
-  lost: { ...buttonBase, border: '1px solid transparent', backgroundColor: colors.lost, color: '#fff' },
-  found: { ...buttonBase, border: '1px solid transparent', backgroundColor: colors.found, color: colors.bg },
-  outline: { ...buttonBase, border: `1px solid ${colors.border}`, backgroundColor: 'transparent', color: colors.text },
+  lost: {
+    ...buttonBase,
+    border: '1px solid transparent',
+    backgroundColor: colors.lost,
+    color: '#fff',
+  },
+  found: {
+    ...buttonBase,
+    border: '1px solid transparent',
+    backgroundColor: colors.found,
+    color: colors.bg,
+  },
+  outline: {
+    ...buttonBase,
+    border: `1px solid ${colors.border}`,
+    backgroundColor: 'transparent',
+    color: colors.text,
+  },
 } satisfies Record<string, CSSProperties>;
 
 export const textStyles = {

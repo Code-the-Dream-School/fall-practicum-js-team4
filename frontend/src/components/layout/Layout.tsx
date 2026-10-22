@@ -8,7 +8,9 @@ export function Layout() {
   const isMobile = useMediaQuery('(max-width: 1023px)');
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}
+    >
       <Navbar isMobile={isMobile} />
       <main
         style={{

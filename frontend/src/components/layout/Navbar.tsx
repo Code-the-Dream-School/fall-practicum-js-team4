@@ -121,7 +121,11 @@ export function Navbar({ isMobile }: NavbarProps) {
           {status === 'authenticated' && user && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {!isMobile && (
-                <button type="button" aria-label="Notifications" style={iconButtonStyle}>
+                <button
+                  type="button"
+                  aria-label="Notifications"
+                  style={iconButtonStyle}
+                >
                   <Icon name="notifications" />
                 </button>
               )}
