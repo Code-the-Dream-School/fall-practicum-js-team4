@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router';
+import { Link, NavLink } from 'react-router';
 import { Icon } from '../Icon';
 import { useAuth } from '../../context/useAuth';
 import { PATHS } from '../../app/paths';
 import { buttonStyles, colors, layout } from '../../styles/theme';
+import LogoutButton from '../LogoutButton';
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }): CSSProperties => ({
   padding: '8px 12px',
@@ -43,13 +44,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ isMobile }: NavbarProps) {
-  const { user, status, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate(PATHS.home);
-  };
+  const { user, status } = useAuth();
 
   return (
     <header
@@ -146,13 +141,7 @@ export function Navbar({ isMobile }: NavbarProps) {
                 </span>
                 {!isMobile && <span style={{ fontSize: 14 }}>{user.name}</span>}
               </Link>
-              <button
-                type="button"
-                onClick={() => void handleLogout()}
-                style={buttonStyles.outline}
-              >
-                Log out
-              </button>
+              <LogoutButton />
             </div>
           )}
 
