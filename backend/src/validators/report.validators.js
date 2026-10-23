@@ -40,8 +40,6 @@ const createReportSchema = Joi.object({
       }),
     city: Joi.string().max(100).required().trim(),
     state: Joi.string().length(2).uppercase().required().trim(),
-    latitude: Joi.number().min(-90).max(90).allow(null),
-    longitude: Joi.number().min(-180).max(180).allow(null),
   }).optional(),
   photos: Joi.array()
     .items(

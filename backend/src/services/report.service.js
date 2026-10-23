@@ -18,8 +18,6 @@ const createReport = async (userId, data) => {
         zipCode: location.zipCode,
         city: location.city,
         state: location.state,
-        latitude: location.latitude ?? null,
-        longitude: location.longitude ?? null,
       },
     };
   }

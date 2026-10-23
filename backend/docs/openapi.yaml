@@ -349,7 +349,8 @@ components:
           nullable: true
         eventDate:
           type: string
-          format: date-time
+          format: date
+          example: "2026-10-22"
         contactInfo:
           type: string
           maxLength: 255
@@ -368,14 +369,6 @@ components:
               type: string
               minLength: 2
               maxLength: 2
-            latitude:
-              type: string
-              nullable: true
-              example: "40.7128000"
-            longitude:
-              type: string
-              nullable: true
-              example: "-74.0060000"
         photos:
           type: array
           maxItems: 5
@@ -436,7 +429,8 @@ components:
               nullable: true
             eventDate:
               type: string
-              format: date-time
+              format: date
+              example: "2026-10-22"
             contactInfo:
               type: string
               nullable: true

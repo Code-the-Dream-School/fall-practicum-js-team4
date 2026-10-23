@@ -102,8 +102,6 @@ describe("POST /api/reports", () => {
       zipCode: "10001",
       city: "New York",
       state: "NY",
-      latitude: 40.7128,
-      longitude: -74.006,
     },
     photos: ["https://images.example.com/buddy.jpg"],
   };
@@ -125,6 +123,13 @@ describe("POST /api/reports", () => {
     expect(res.body.data.location).toMatchObject({
       zipCode: "10001",
       city: "New York",
+      state: "NY",
+    });
+    expect(res.body.data.photos).toHaveLength(1);
+    expect(res.body.data.photos[0]).toMatchObject({
+      petPhotoId: expect.any(Number),
+      petReportId: expect.any(Number),
+      imageUrl: "https://images.example.com/buddy.jpg",
     });
   });
 
@@ -166,6 +171,22 @@ describe("POST /api/reports", () => {
     };
 
     const res = await agent.post("/api/reports").send(insecureReport);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects coordinates in location payload (400)", async () => {
+    const reportWithCoordinates = {
+      ...validReport,
+      location: {
+        ...validReport.location,
+        latitude: 40.7128,
+      },
+    };
+
+    const res = await agent.post("/api/reports").send(reportWithCoordinates);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
