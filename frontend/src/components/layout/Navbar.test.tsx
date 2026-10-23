@@ -24,24 +24,13 @@ describe('Navbar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows the profile link and Log out to a signed-in user', async () => {
+  it('shows the profile link and Log out placeholder to a signed-in user', async () => {
     signedIn();
     renderApp('/');
     expect(
       await screen.findByRole('link', { name: new RegExp(testUser.name, 'i') }),
     ).toHaveAttribute('href', '/profile');
-    expect(
-      screen.getByRole('button', { name: /log out/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('signs the user out', async () => {
-    signedIn();
-    const { user } = renderApp('/');
-    await user.click(await screen.findByRole('button', { name: /log out/i }));
-    expect(
-      await screen.findByRole('link', { name: /sign in/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /log out/i })).toBeDisabled();
   });
 
   it('shows the main links and report buttons on desktop', async () => {

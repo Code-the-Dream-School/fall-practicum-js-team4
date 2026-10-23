@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router';
+import { Link, NavLink } from 'react-router';
 import { Icon } from '../Icon';
 import { useAuth } from '../../context/useAuth';
 import { PATHS } from '../../app/paths';
@@ -43,13 +43,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ isMobile }: NavbarProps) {
-  const { user, status, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate(PATHS.home);
-  };
+  const { user, status } = useAuth();
 
   return (
     <header
@@ -146,10 +140,16 @@ export function Navbar({ isMobile }: NavbarProps) {
                 </span>
                 {!isMobile && <span style={{ fontSize: 14 }}>{user.name}</span>}
               </Link>
+              {/* TODO(FE Logout Flow): replace with <LogoutButton /> */}
               <button
                 type="button"
-                onClick={() => void handleLogout()}
-                style={buttonStyles.outline}
+                disabled
+                title="Coming soon"
+                style={{
+                  ...buttonStyles.outline,
+                  opacity: 0.5,
+                  cursor: 'not-allowed',
+                }}
               >
                 Log out
               </button>
