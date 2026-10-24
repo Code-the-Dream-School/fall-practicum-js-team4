@@ -8,6 +8,7 @@ const cookieParser = require("cookie-parser");
 const helloRoutes = require("./routes/hello.routes");
 const authRoutes = require("./routes/auth.routes");
 const docsRoutes = require("./routes/docs.routes");
+const reportRoutes = require("./routes/report.routes");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
 const AppError = require("./utils/AppError");
@@ -39,6 +40,7 @@ app.use(limiter);
 app.use("/api/hello", helloRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/docs", docsRoutes);
+app.use("/api/reports", reportRoutes);
 
 // Root route
 app.get("/", (req, res) => {
