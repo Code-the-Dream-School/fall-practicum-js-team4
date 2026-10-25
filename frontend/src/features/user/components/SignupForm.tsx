@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { useForm } from 'react-hook-form';
 import type { RegisterInput } from '../../../services/authApi';
@@ -30,6 +31,19 @@ export function SignupForm() {
 
   const [feedback, setFeedback] = useState<Feedback>(null);
 
+  const navigate = useNavigate();
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+
+  useEffect(() => {
+    if (!registrationComplete) return;
+
+    const timer = setTimeout(() => {
+      navigate('/dashboard', { replace: true });
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [registrationComplete, navigate]);
+
   const onSubmit = async (values: SignupFormValues) => {
     setFeedback(null);
 
@@ -45,6 +59,8 @@ export function SignupForm() {
         type: 'success',
         message: 'Account created successfully',
       });
+
+      setRegistrationComplete(true);
     } catch (error: unknown) {
       if (error instanceof ApiError && error.code === 'VALIDATION_ERROR') {
         for (const { field, message } of error.details) {
@@ -187,10 +203,7 @@ export function SignupForm() {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isSubmitting || feedback?.type === 'success'}
-      >
+      <button type="submit" disabled={isSubmitting || registrationComplete}>
         {isSubmitting ? 'Creating account...' : 'Create Account'}
       </button>
     </form>

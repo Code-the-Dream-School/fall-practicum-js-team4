@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { AuthProvider } from '../../../context/AuthProvider';
 import {
@@ -18,7 +19,12 @@ const setup = () => {
 
   render(
     <AuthProvider>
-      <SignupForm />
+      <MemoryRouter initialEntries={['/register']}>
+        <Routes>
+          <Route path="/register" element={<SignupForm />} />
+          <Route path="/dashboard" element={<p>Dashboard reached</p>} />
+        </Routes>
+      </MemoryRouter>
     </AuthProvider>,
   );
 
@@ -97,6 +103,10 @@ describe('SignupForm', () => {
     expect(
       screen.getByRole('button', { name: /create account/i }),
     ).toBeDisabled();
+
+    expect(
+      await screen.findByText('Dashboard reached', {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
   });
 
   it('shows an error for an existing email', async () => {
