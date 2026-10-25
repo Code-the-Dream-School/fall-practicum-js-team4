@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 
 import { useForm } from 'react-hook-form';
 import type { RegisterInput } from '../../../services/authApi';
@@ -27,7 +27,7 @@ export function SignupForm() {
     formState: { errors, isSubmitting },
   } = useForm<SignupFormValues>();
 
-  const { setSession } = useAuth();
+  const { status, setSession } = useAuth();
 
   const [feedback, setFeedback] = useState<Feedback>(null);
 
@@ -93,6 +93,15 @@ export function SignupForm() {
       setFeedback({ type: 'error', message });
     }
   };
+
+  //check authentication status before rendering the registration form
+  if (status === 'loading') {
+    return <p role="status">Verifying your sign-in status...</p>;
+  }
+
+  if (status === 'authenticated' && !registrationComplete) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>

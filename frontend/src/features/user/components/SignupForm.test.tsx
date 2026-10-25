@@ -9,6 +9,7 @@ import {
   API,
   errorResponse,
   server,
+  signedIn,
   testPassword,
   testUser,
 } from '../../../test/server';
@@ -32,16 +33,27 @@ const setup = () => {
 };
 
 const fillForm = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.type(screen.getByLabelText(/full name/i), testUser.name);
+  await user.type(await screen.findByLabelText(/full name/i), testUser.name);
   await user.type(screen.getByLabelText(/email address/i), testUser.email);
   await user.type(screen.getByLabelText(/^password$/i), testPassword);
   await user.type(screen.getByLabelText(/confirm password/i), testPassword);
 };
 
-const submit = (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: /create account/i }));
+const submit = async (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(await screen.findByRole('button', { name: /create account/i }));
 
 describe('SignupForm', () => {
+  it('redirects an already signed-in user away from signup', async () => {
+    signedIn();
+    setup();
+
+    expect(await screen.findByText('Dashboard reached')).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole('button', { name: /create account/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it('requires all four fields', async () => {
     const user = setup();
 
