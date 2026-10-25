@@ -41,16 +41,16 @@ const createReportSchema = Joi.object({
     city: Joi.string().max(100).required().trim(),
     state: Joi.string().length(2).uppercase().required().trim(),
   }).optional(),
-  photos: Joi.array()
-    .items(
-      Joi.string()
-        .uri({ scheme: ["https"] })
-        .max(2048),
-    )
-    .max(5)
-    .optional(),
+});
+
+// Query string for GET /api/reports/mine
+const myReportsQuerySchema = Joi.object({
+  search: Joi.string().trim().max(100).allow("").messages({
+    "string.max": "Search must be at most 100 characters",
+  }),
 });
 
 module.exports = {
   createReportSchema,
+  myReportsQuerySchema,
 };

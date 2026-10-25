@@ -219,10 +219,19 @@ in once and then call protected routes.
 ## Security checklist
 
 Already in place: `helmet` security headers, CORS limited to `CLIENT_URL`,
-rate limiting, httpOnly cookies, hashed passwords, validated input, and generic
-error messages. When adding features:
+rate limiting, httpOnly cookies, hashed passwords, validated input, generic
+error messages, and `Cache-Control: private, no-store` on every signed-in
+(`requireAuth`) response. When adding features:
 
 - Treat every request body, query and URL param as untrusted. Validate it.
+  Joi rejects unknown fields; never turn that off (`allowUnknown`/`.unknown()`),
+  or clients could set fields like `userId` or `status` themselves.
 - Protect any route that changes data with `requireAuth`, and check ownership.
+  Take the owner from `req.user.id`, never from the body or query.
+- User text (pet names, descriptions) is stored exactly as typed. The frontend
+  must render it as text: `{report.petName}` in React is safe;
+  `innerHTML` / `dangerouslySetInnerHTML` with user text is an XSS hole.
+- Owner-only queries (e.g. `getUserReports`) return contact info and exact
+  coordinates. Public endpoints need their own `select` of public fields.
 - Keep secrets in `.env`, never in code.
 - Don't log tokens, passwords or full request bodies.
