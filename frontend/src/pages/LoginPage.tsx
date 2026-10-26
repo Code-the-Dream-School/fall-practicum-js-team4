@@ -36,9 +36,10 @@ export function LoginPage() {
   });
 
   // Send the user back to the protected page that redirected them here
-  const from =
-    (location.state as { from?: Location } | null)?.from?.pathname ??
-    DEFAULT_REDIRECT;
+  const fromLocation = (location.state as { from?: Location } | null)?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname}${fromLocation.search}`
+    : DEFAULT_REDIRECT;
 
   useEffect(() => {
     if (!signedInUser) return;
@@ -86,7 +87,7 @@ export function LoginPage() {
   const busy = isSubmitting || signedInUser !== null;
 
   return (
-    <main className="login">
+    <div className="login">
       {/* Decorative background from the mockup */}
       <div className="login__glow login__glow--cyan" aria-hidden="true" />
       <div className="login__glow login__glow--orange" aria-hidden="true" />
@@ -210,6 +211,6 @@ export function LoginPage() {
           Your session is kept in a secure, HTTP-only cookie
         </p>
       </div>
-    </main>
+    </div>
   );
 }
