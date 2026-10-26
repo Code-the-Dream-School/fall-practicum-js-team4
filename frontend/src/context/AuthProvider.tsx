@@ -9,6 +9,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
 
+  const [signedOutByUser, setSignedOutByUser] = useState(false);
+
   // The session lives in an httpOnly cookie, so ask the backend who is
   // signed in. Any failure (401, network) means "signed out".
   useEffect(() => {
@@ -35,12 +37,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await logout();
     setUser(null);
+    setSignedOutByUser(true);
     setStatus('unauthenticated');
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, setSession, signOut }),
-    [user, status, setSession, signOut],
+    () => ({
+      user,
+      status,
+      signedOutByUser,
+      setSession,
+      signOut,
+    }),
+    [user, status, signedOutByUser, setSession, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
