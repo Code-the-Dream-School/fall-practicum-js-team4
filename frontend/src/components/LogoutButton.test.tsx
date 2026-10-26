@@ -124,4 +124,61 @@ describe('LogoutButton', () => {
       screen.queryByRole('heading', { name: /profile & my reports/i }),
     ).not.toBeInTheDocument();
   });
+
+  it('shows an error and keeps the user signed in when logout returns 500', async () => {
+    signedIn();
+
+    server.use(
+      http.post(`${API}/api/auth/logout`, () => {
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+
+    const { user } = renderApp('/profile');
+
+    const logoutButton = await screen.findByRole('button', {
+      name: /log out/i,
+    });
+    await user.click(logoutButton);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to log out. Please try again',
+    );
+
+    expect(
+      screen.getByRole('button', { name: /log out/i }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole('heading', { name: /profile & my reports/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows an error and keeps the user signed in when the network fails', async () => {
+    signedIn();
+
+    server.use(
+      http.post(`${API}/api/auth/logout`, () => {
+        return HttpResponse.error();
+      }),
+    );
+    const { user } = renderApp('/profile');
+
+    const logoutButton = await screen.findByRole('button', {
+      name: /log out/i,
+    });
+    await user.click(logoutButton);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to log out. Please try again',
+    );
+
+    expect(
+      screen.getByRole('button', { name: /log out/i }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole('heading', { name: /profile & my reports/i }),
+    ).toBeInTheDocument();
+  });
 });
