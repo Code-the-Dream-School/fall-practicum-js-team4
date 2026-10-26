@@ -1,7 +1,7 @@
 # Lost & Found Pets — Backend
 
 Node.js + Express REST API for the Lost & Found Pets platform. It handles user
-accounts and authentication today; pet reports, photos, matching and analytics
+accounts, authentication and pet reports today; photos, matching and analytics
 will be added on the same structure.
 
 - **Runtime:** Node.js 24 (see `.nvmrc`)
@@ -154,6 +154,27 @@ router.post("/", requireAuth, validate(createReportSchema), asyncHandler(control
 
 `requireAuth` answers `401 UNAUTHENTICATED` by itself. Checking that the user
 owns a resource is your code's job; answer `403 FORBIDDEN` if they don't.
+
+## Reports
+
+Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
+
+| Method | Path                | Auth | Purpose                                                   |
+| ------ | ------------------- | ---- | --------------------------------------------------------- |
+| `POST` | `/api/reports`      | yes  | Create a lost or found report owned by the signed-in user |
+| `GET`  | `/api/reports/mine` | yes  | The signed-in user's reports, newest first, with `total`  |
+
+- The owner is always the signed-in user (`req.user.id`). Sending `userId`,
+  `status`, ids or timestamps in the body is a `400`.
+- A user can have at most 100 reports (`403 REPORT_LIMIT_REACHED`).
+- `GET /mine` isn't paginated. Optional `?search=` is a case-insensitive
+  partial match on pet name, breed, color, distinctive features or city
+  (`%` and `_` are matched literally). Unknown query parameters are a `400`.
+- `GET /mine` is owner-only: it includes contact info, so it is sent with
+  `Cache-Control: private, no-store`. A future public listing needs its own
+  query that selects only public fields.
+- Photos aren't supported yet (`photos` in the body is a `400`); they will be
+  uploaded as files in a separate story.
 
 ## API conventions
 

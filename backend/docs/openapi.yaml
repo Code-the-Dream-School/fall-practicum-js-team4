@@ -178,6 +178,8 @@ paths:
                     type: object
                     nullable: true
                     example: null
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/auth/me:
     get:
@@ -196,6 +198,8 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/reports:
     post:
@@ -236,6 +240,8 @@ paths:
                 success: false
                 code: REPORT_LIMIT_REACHED
                 message: You can have at most 100 reports.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/reports/mine:
     get:
@@ -270,6 +276,8 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
 components:
   securitySchemes:
@@ -374,6 +382,7 @@ components:
 
     CreateReportRequest:
       type: object
+      additionalProperties: false
       required: [reportType, petType, color, size, gender, eventDate]
       properties:
         reportType:
@@ -413,6 +422,7 @@ components:
           nullable: true
         location:
           type: object
+          additionalProperties: false
           required: [zipCode, city, state]
           properties:
             zipCode:
@@ -626,12 +636,24 @@ components:
             code: UNAUTHENTICATED
             message: Please sign in
     TooManyRequests:
-      description: Rate limit hit (20 auth attempts per IP per 15 minutes)
+      description: >-
+        Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
+        register, login and change-password also share a stricter limit of 20
+        attempts per IP per 15 minutes.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
-          example:
-            success: false
-            code: TOO_MANY_REQUESTS
-            message: Too many attempts, please try again later
+          examples:
+            global:
+              summary: Over 100 requests in 15 minutes (any route)
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many requests, please try again later
+            authAttempts:
+              summary: Over 20 register/login/change-password attempts in 15 minutes
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many attempts, please try again later

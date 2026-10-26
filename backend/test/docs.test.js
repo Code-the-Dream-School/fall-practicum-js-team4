@@ -31,6 +31,22 @@ describe("API docs", () => {
     }
   });
 
+  // The global rate limit applies to every route, so every operation can answer 429
+  it("documents the 429 rate-limit response on every operation", async () => {
+    const { body: spec } = await request(app).get("/api/docs/openapi.json");
+    const operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
+      Object.entries(methods).map(([method, op]) => [`${method.toUpperCase()} ${path}`, op]),
+    );
+
+    expect(operations.length).toBeGreaterThan(0);
+    for (const [name, op] of operations) {
+      expect([name, op.responses["429"]?.$ref]).toEqual([
+        name,
+        "#/components/responses/TooManyRequests",
+      ]);
+    }
+  });
+
   it("serves the Swagger UI page", async () => {
     const res = await request(app).get("/api/docs/");
     expect(res.status).toBe(200);
