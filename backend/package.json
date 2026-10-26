@@ -4,7 +4,7 @@
   "description": "Node + Express backend API",
   "main": "server.js",
   "engines": {
-    "node": "24.x"
+    "node": ">=24.22.1 <25"
   },
   "overrides": {
     "express-xss-sanitizer": {
