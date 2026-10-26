@@ -125,7 +125,8 @@ describe("POST /api/reports", () => {
       city: "New York",
       state: "NY",
     });
-    expect(res.body.data).not.toHaveProperty("photos");
+    // A JSON request has no files, so nothing is uploaded or saved as a photo
+    expect(prisma.petReport.create.mock.calls[0][0].data).not.toHaveProperty("photos");
   });
 
   it("supports FOUND reports without optional fields (201)", async () => {
@@ -159,7 +160,7 @@ describe("POST /api/reports", () => {
     expect(res.body.code).toBe("VALIDATION_ERROR");
   });
 
-  it("rejects photos until the photo-upload story is done (400)", async () => {
+  it("rejects photo URLs in JSON: photos must be uploaded as files (400)", async () => {
     const res = await agent
       .post("/api/reports")
       .send({ ...validReport, photos: ["https://images.example.com/buddy.jpg"] });
@@ -403,12 +404,19 @@ describe("GET /api/reports/mine", () => {
     expect(res.body.data.reports[1].location).toMatchObject({ city: "New York" });
   });
 
-  it("asks the database for the user's reports with location, newest first", async () => {
+  it("asks the database for the user's reports with location and photos, newest first", async () => {
     await agent.get("/api/reports/mine");
 
     expect(lastFindManyArgs()).toEqual({
       where: { userId: me.id },
-      include: { location: true },
+      include: {
+        location: true,
+        // publicId is left out on purpose: it's internal
+        photos: {
+          select: { petPhotoId: true, imageUrl: true, createdAt: true },
+          orderBy: { petPhotoId: "asc" },
+        },
+      },
       orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
     });
   });

@@ -1,11 +1,20 @@
 const prisma = require("../config/prisma");
 const AppError = require("../utils/AppError");
+const { storePhotos, deleteImages } = require("./photo.service");
 
 // Stops one account (or a script) from filling the database and making
 // GET /api/reports/mine huge, since that list isn't paginated
 const MAX_REPORTS_PER_USER = 100;
 
-const createReport = async (userId, data) => {
+// Photo fields sent to clients; publicId (Cloudinary's id) stays internal
+const PHOTOS = {
+  select: { petPhotoId: true, imageUrl: true, createdAt: true },
+  // Same order the files were uploaded in
+  orderBy: { petPhotoId: "asc" },
+};
+
+// files: uploaded photos from multer ([] for JSON requests)
+const createReport = async (userId, data, files) => {
   // Count-then-create isn't atomic: parallel requests can pass the check together
   // and go a few over. Fine for a cap whose job is to stop abuse, not to be exact.
   const existing = await prisma.petReport.count({ where: { userId } });
@@ -38,13 +47,22 @@ const createReport = async (userId, data) => {
     };
   }
 
-  return prisma.petReport.create({
-    data: reportData,
-    // Photos are left out until the photo-upload story (PetPhoto table stays)
-    include: {
-      location: true,
-    },
-  });
+  // After the checks above, so a rejected report never uploads anything
+  const photos = await storePhotos(files);
+  if (photos.length > 0) {
+    reportData.photos = { createMany: { data: photos } };
+  }
+
+  try {
+    return await prisma.petReport.create({
+      data: reportData,
+      include: { location: true, photos: PHOTOS },
+    });
+  } catch (err) {
+    // Don't leave images in Cloudinary that no report points to
+    await deleteImages(photos.map((photo) => photo.publicId));
+    throw err;
+  }
 };
 
 // Text fields a search matches against (case-insensitive, partial match)
@@ -70,9 +88,7 @@ const getUserReports = (userId, { search } = {}) => {
 
   return prisma.petReport.findMany({
     where,
-    include: {
-      location: true,
-    },
+    include: { location: true, photos: PHOTOS },
     // petReportId breaks ties between reports created in the same millisecond
     orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
   });

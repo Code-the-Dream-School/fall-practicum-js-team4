@@ -1,14 +1,16 @@
 # Lost & Found Pets — Backend
 
 Node.js + Express REST API for the Lost & Found Pets platform. It handles user
-accounts, authentication and pet reports today; photos, matching and analytics
-will be added on the same structure.
+accounts, authentication, pet reports and report photos today; matching and
+analytics will be added on the same structure.
 
-- **Runtime:** Node.js 24 (see `.nvmrc`)
+- **Runtime:** Node.js 24 (see `.nvmrc`; `package.json` requires 24.22.1 or later)
 - **Framework:** Express 4
 - **Database:** PostgreSQL via Prisma ORM
 - **Auth:** email/password, with a JWT in an httpOnly cookie
 - **Validation:** Joi
+- **Photos:** `multer` (uploads), `sharp` (cleaning and resizing), Cloudinary
+  (storage)
 - **Docs:** Swagger UI generated from `docs/openapi.yaml`
 - **Tests:** Jest + Supertest
 
@@ -27,34 +29,37 @@ the API docs are at http://localhost:8080/api/docs.
 
 ### Environment variables (`.env`)
 
-| Variable           | Required | Description                                                                                                                           |
-| ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`     | yes      | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
-| `JWT_SECRET`       | yes      | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
-| `CLIENT_URL`       | no       | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
-| `COOKIE_SAME_SITE` | no       | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
-| `TRUST_PROXY`      | no       | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
-| `PORT`             | no       | Default `8080`                                                                                                                        |
-| `NODE_ENV`         | no       | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
+| Variable                | Required   | Description                                                                                                                           |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | yes        | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
+| `JWT_SECRET`            | yes        | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
+| `CLIENT_URL`            | no         | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
+| `COOKIE_SAME_SITE`      | no         | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
+| `TRUST_PROXY`           | no         | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
+| `CLOUDINARY_CLOUD_NAME` | for photos | From the Cloudinary dashboard (API Keys page). Only photo uploads need the three Cloudinary values                                    |
+| `CLOUDINARY_API_KEY`    | for photos | Same page. Never commit it                                                                                                            |
+| `CLOUDINARY_API_SECRET` | for photos | Same page. Never commit it or put it in frontend code                                                                                 |
+| `PORT`                  | no         | Default `8080`                                                                                                                        |
+| `NODE_ENV`              | no         | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
 
 `.env` is gitignored. Never commit it or paste its values into chat. `MONGO_URI`
 and `POSTGRES_URI` in `.env.example` are unused leftovers from the starter template.
 
 ## Scripts
 
-| Command                | What it does                                                            |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `npm run dev`          | Start with auto-reload (nodemon). Restart manually after `.env` changes |
-| `npm start`            | Start without auto-reload                                               |
-| `npm test`             | Run all tests                                                           |
-| `npm run test:cov`     | Run tests and print a coverage table                                    |
-| `npm run lint`         | ESLint                                                                  |
-| `npm run typecheck`    | TypeScript type check (no build output)                                 |
-| `npm run format`       | Format all files with Prettier                                          |
-| `npm run format:check` | Fail if any file isn't formatted (for CI)                               |
-| `npm run db:migrate`   | Create and apply migrations, **local database only**                    |
-| `npm run db:deploy`    | Apply committed migrations, safe for shared/production databases        |
-| `npx prisma studio`    | Browse the database in the browser                                      |
+| Command                | What it does                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| `npm run dev`          | Start with auto-reload (`node --watch`). Restart manually after `.env` changes |
+| `npm start`            | Start without auto-reload                                                      |
+| `npm test`             | Run all tests                                                                  |
+| `npm run test:cov`     | Run tests and print a coverage table                                           |
+| `npm run lint`         | ESLint                                                                         |
+| `npm run typecheck`    | TypeScript type check (no build output)                                        |
+| `npm run format`       | Format all files with Prettier                                                 |
+| `npm run format:check` | Fail if any file isn't formatted (for CI)                                      |
+| `npm run db:migrate`   | Create and apply migrations, **local database only**                           |
+| `npm run db:deploy`    | Apply committed migrations, safe for shared/production databases               |
+| `npx prisma studio`    | Browse the database in the browser                                             |
 
 Before opening a PR, run `npm run lint && npm run typecheck && npm run format:check && npm test`.
 
@@ -68,12 +73,12 @@ backend/
 │   └── migrations/          # generated SQL, committed to git
 ├── src/
 │   ├── app.js               # Express app: middleware, routes, error handling
-│   ├── config/              # Prisma client, session/cookie settings
+│   ├── config/              # Prisma client, session/cookie settings, Cloudinary
 │   ├── routes/              # URL + HTTP method → middleware + controller
 │   ├── controllers/         # read the request, call a service, send the response
-│   ├── services/            # business logic and database access (Prisma)
-│   ├── validators/          # Joi schemas for request bodies
-│   ├── middleware/          # requireAuth, validate, notFound, errorHandler
+│   ├── services/            # business logic, database access (Prisma), photo storage
+│   ├── validators/          # Joi schemas for request bodies and query strings
+│   ├── middleware/          # requireAuth, validate, photoUpload, notFound, errorHandler
 │   └── utils/               # AppError, asyncHandler, JWT, passwords
 ├── test/                    # Jest + Supertest tests
 └── server.js                # loads .env and starts the server
@@ -173,8 +178,45 @@ Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
 - `GET /mine` is owner-only: it includes contact info, so it is sent with
   `Cache-Control: private, no-store`. A future public listing needs its own
   query that selects only public fields.
-- Photos aren't supported yet (`photos` in the body is a `400`); they will be
-  uploaded as files in a separate story.
+- Photos are uploaded as files with `multipart/form-data` (see below). Photo
+  URLs in a JSON body are a `400`. Reports return
+  `photos: [{ petPhotoId, imageUrl, createdAt }]`; Cloudinary's `publicId` is
+  stored but never sent.
+
+### Photos
+
+`POST /api/reports` accepts up to 5 photos when sent as `multipart/form-data`:
+a `report` field with the report as JSON text, plus `photos` files.
+
+```js
+// Frontend
+const form = new FormData();
+form.append("report", JSON.stringify(report));
+for (const file of fileInput.files) form.append("photos", file);
+await fetch(`${API_URL}/api/reports`, { method: "POST", body: form, credentials: "include" });
+// Don't set Content-Type yourself: the browser adds the multipart boundary
+```
+
+```bash
+# curl (with a saved session cookie)
+curl -b cookies.txt -F 'report={"reportType":"LOST","petType":"DOG","color":"Golden","size":"LARGE","gender":"MALE","eventDate":"2026-10-20"}' \
+  -F photos=@milo.jpg -F photos=@milo2.png http://localhost:8080/api/reports
+```
+
+How it works (`src/middleware/photoUpload.js`, `src/services/photo.service.js`):
+
+1. `multer` keeps files in memory: at most 5, 5 MB each.
+2. `sharp` checks each file really is a JPEG, PNG or WebP (from its contents, not
+   the name), applies the phone's rotation, **removes all metadata including GPS
+   location**, resizes to at most 1600 px and converts to WebP.
+3. The images go to Cloudinary (`pawradar/reports` folder). The report and its
+   photos (`imageUrl` plus Cloudinary's `publicId`) are saved together.
+4. If an upload or the database save fails, photos already uploaded for that
+   request are deleted from Cloudinary, so nothing is left behind.
+
+Use `accept="image/jpeg,image/png,image/webp"` on the file input: iPhones then
+send JPEG instead of HEIC, which the server can't read. Tests mock Cloudinary,
+so `npm test` needs no Cloudinary account.
 
 ## API conventions
 
@@ -194,8 +236,8 @@ Every response uses the same envelope:
   to the client.
 - Wrap async controllers in `asyncHandler(...)`. Express 4 doesn't catch errors
   from async functions on its own.
-- Validate every request body with a Joi schema and the `validate()` middleware.
-  Unknown fields are rejected.
+- Validate every request body with a Joi schema and the `validate()` middleware,
+  and query strings with `validate(schema, "query")`. Unknown fields are rejected.
 - Never return password hashes or other internal fields; send users through
   `toPublicUser()`.
 
@@ -206,8 +248,10 @@ Every response uses the same envelope:
 3. **Controller** in `src/controllers/` (calls the service, sends the response).
 4. **Route** in `src/routes/` with `requireAuth` if needed, `validate(schema)` and
    `asyncHandler(controller.fn)`; mount new routers in `src/app.js`.
-5. **Docs:** add the endpoint to `docs/openapi.yaml`. `test/docs.test.js` fails if
-   an auth route is missing; add new routers to that test too.
+5. **Docs:** add the endpoint to `docs/openapi.yaml`, including a `429` response
+   (the global rate limit applies everywhere). `test/docs.test.js` fails if an
+   auth or reports route is missing or an operation has no `429`; add new
+   routers to that test too.
 6. **Tests** in `test/` for the success case and each error case.
 
 ## API docs and Postman
@@ -228,11 +272,12 @@ npx jest test/auth.test.js    # one file
 Tests need no database: Prisma is replaced by an in-memory fake. Test files go in `test/` and end in
 `.test.js`.
 
-| To test…                         | Start from           |
-| -------------------------------- | -------------------- |
-| A simple endpoint                | `test/hello.test.js` |
-| Signed-in requests, database use | `test/auth.test.js`  |
-| A plain function                 | `test/jwt.test.js`   |
+| To test…                         | Start from                  |
+| -------------------------------- | --------------------------- |
+| A simple endpoint                | `test/hello.test.js`        |
+| Signed-in requests, database use | `test/auth.test.js`         |
+| A plain function                 | `test/jwt.test.js`          |
+| File uploads, a mocked service   | `test/reportPhotos.test.js` |
 
 `request.agent(app)` keeps cookies between requests, so you can register or log
 in once and then call protected routes.
@@ -254,5 +299,8 @@ error messages, and `Cache-Control: private, no-store` on every signed-in
   `innerHTML` / `dangerouslySetInnerHTML` with user text is an XSS hole.
 - Owner-only queries (e.g. `getUserReports`) return contact info and exact
   coordinates. Public endpoints need their own `select` of public fields.
-- Keep secrets in `.env`, never in code.
+- Uploaded files are untrusted too: photos are checked by content, size and
+  count, then re-encoded so no metadata (e.g. GPS location) is stored.
+- Keep secrets in `.env`, never in code. The Cloudinary API secret must never
+  reach frontend code.
 - Don't log tokens, passwords or full request bodies.
