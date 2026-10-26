@@ -16,11 +16,11 @@ export default function LogoutButton() {
     setError('');
 
     try {
-      navigate(PATHS.login, { replace: true });
       await signOut();
+      navigate(PATHS.login, { replace: true });
     } catch {
       setError('Failed to log out. Please try again.');
-    } finally {
+      // } finally {
       setIsLoggingOff(false);
     }
   }

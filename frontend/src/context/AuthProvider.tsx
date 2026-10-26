@@ -33,12 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await logout();
-    } finally {
-      setUser(null);
-      setStatus('unauthenticated');
-    }
+    await logout();
+    setUser(null);
+    setStatus('unauthenticated');
   }, []);
 
   const value = useMemo(
