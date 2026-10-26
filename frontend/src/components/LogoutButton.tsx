@@ -16,8 +16,8 @@ export default function LogoutButton() {
     setError('');
 
     try {
-      await signOut();
       navigate(PATHS.login, { replace: true });
+      await signOut();
     } catch {
       setError('Failed to log out. Please try again.');
     } finally {

@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../test/renderApp';
 import { http, HttpResponse, delay } from 'msw';
-import { API, server, signedIn } from '../test/server';
+import { API, server, signedIn, testUser, testPassword } from '../test/server';
 
 describe('LogoutButton', () => {
   it('renders the Logout Button for an authenticated User', async () => {
@@ -88,5 +88,40 @@ describe('LogoutButton', () => {
     ).toBeInTheDocument();
 
     expect(logoutRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not return to the Profile page after logout and signing in again', async () => {
+    signedIn();
+
+    const { user } = renderApp('/profile');
+
+    expect(
+      await screen.findByRole('heading', { name: /profile & my reports/i }),
+    ).toBeInTheDocument();
+
+    const logoutButton = await screen.findByRole('button', {
+      name: /log out/i,
+    });
+    await user.click(logoutButton);
+
+    const emailInput = await screen.findByLabelText(/email address/i);
+
+    expect(
+      screen.getByRole('heading', { name: /welcome back to pawradar/i }),
+    ).toBeInTheDocument();
+
+    await user.type(emailInput, testUser.email);
+    await user.type(screen.getByLabelText(/^password/i), testPassword);
+    await user.click(
+      screen.getByRole('button', { name: /sign in to pawradar/i }),
+    );
+
+    expect(
+      await screen.findByText('Logged in', undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole('heading', { name: /profile & my reports/i }),
+    ).not.toBeInTheDocument();
   });
 });
