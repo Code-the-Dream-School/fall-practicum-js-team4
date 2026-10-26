@@ -179,4 +179,38 @@ describe('LogoutButton', () => {
       screen.getByRole('heading', { name: /profile & my reports/i }),
     ).toBeInTheDocument();
   });
+
+  it('8. redirects to the requested protected page after logout and signing in again', async () => {
+    signedIn();
+
+    const { user } = renderApp(PATHS.profile);
+
+    await user.click(await screen.findByRole('button', { name: /log out/i }));
+
+    expect(
+      await screen.findByRole('heading', { name: /welcome back to pawradar/i }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: /report lost/i }));
+
+    expect(
+      await screen.findByRole('heading', {
+        name: /welcome back to pawradar/i,
+      }),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/email address/i), testUser.email);
+    await user.type(screen.getByLabelText(/^password/i), testPassword);
+    await user.click(
+      screen.getByRole('button', { name: /sign in to pawradar/i }),
+    );
+
+    expect(
+      await screen.findByRole(
+        'heading',
+        { name: /report a pet: lost/i },
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
+  });
 });

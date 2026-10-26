@@ -10,6 +10,7 @@ export interface AuthContextValue {
   // Store the user returned by login/register; no need to call /me again
   setSession: (user: User) => void;
   signOut: () => Promise<void>;
+  clearSignedOutByUser: () => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

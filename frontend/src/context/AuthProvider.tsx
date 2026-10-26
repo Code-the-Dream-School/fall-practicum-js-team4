@@ -8,7 +8,6 @@ import type { User } from '../services/authApi';
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
-
   const [signedOutByUser, setSignedOutByUser] = useState(false);
 
   // The session lives in an httpOnly cookie, so ask the backend who is
@@ -32,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setSession = useCallback((next: User) => {
     setUser(next);
     setStatus('authenticated');
+    setSignedOutByUser(false);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -41,6 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }, []);
 
+  const clearSignedOutByUser = useCallback(() => {
+    setSignedOutByUser(false);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -48,8 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signedOutByUser,
       setSession,
       signOut,
+      clearSignedOutByUser,
     }),
-    [user, status, signedOutByUser, setSession, signOut],
+    [user, status, signedOutByUser, setSession, signOut, clearSignedOutByUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

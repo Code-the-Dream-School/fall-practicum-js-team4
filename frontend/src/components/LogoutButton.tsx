@@ -20,7 +20,6 @@ export default function LogoutButton() {
       navigate(PATHS.login, { replace: true });
     } catch {
       setError('Failed to log out. Please try again.');
-      // } finally {
       setIsLoggingOff(false);
     }
   }
