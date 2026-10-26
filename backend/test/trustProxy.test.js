@@ -57,9 +57,16 @@ describe("rate limiting behind a proxy", () => {
   });
 
   it("without TRUST_PROXY, ignores X-Forwarded-For so clients can't dodge the limit", async () => {
+    // express-rate-limit warns (console.error) about the unexpected header: that
+    // warning is what flags a missing TRUST_PROXY in production, so expect it here
+    const warn = jest.spyOn(console, "error").mockImplementation(() => {});
     const app = loadApp("");
     await exhaust(app, "203.0.113.1");
 
     expect((await attempt(app, "203.0.113.2")).status).toBe(429);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "ERR_ERL_UNEXPECTED_X_FORWARDED_FOR" }),
+    );
+    warn.mockRestore();
   });
 });
