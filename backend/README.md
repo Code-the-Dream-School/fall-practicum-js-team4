@@ -27,15 +27,18 @@ the API docs are at http://localhost:8080/api/docs.
 
 ### Environment variables (`.env`)
 
-| Variable           | Required | Description                                                                                                                           |
-| ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`     | yes      | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
-| `JWT_SECRET`       | yes      | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
-| `CLIENT_URL`       | no       | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
-| `COOKIE_SAME_SITE` | no       | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
-| `TRUST_PROXY`      | no       | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
-| `PORT`             | no       | Default `8080`                                                                                                                        |
-| `NODE_ENV`         | no       | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
+| Variable                | Required   | Description                                                                                                                           |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | yes        | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
+| `JWT_SECRET`            | yes        | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
+| `CLIENT_URL`            | no         | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
+| `COOKIE_SAME_SITE`      | no         | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
+| `TRUST_PROXY`           | no         | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
+| `CLOUDINARY_CLOUD_NAME` | for photos | From the Cloudinary dashboard (API Keys page). Only photo uploads need the three Cloudinary values                                    |
+| `CLOUDINARY_API_KEY`    | for photos | Same page. Never commit it                                                                                                            |
+| `CLOUDINARY_API_SECRET` | for photos | Same page. Never commit it or put it in frontend code                                                                                 |
+| `PORT`                  | no         | Default `8080`                                                                                                                        |
+| `NODE_ENV`              | no         | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
 
 `.env` is gitignored. Never commit it or paste its values into chat. `MONGO_URI`
 and `POSTGRES_URI` in `.env.example` are unused leftovers from the starter template.
@@ -154,6 +157,41 @@ router.post("/", requireAuth, validate(createReportSchema), asyncHandler(control
 
 `requireAuth` answers `401 UNAUTHENTICATED` by itself. Checking that the user
 owns a resource is your code's job; answer `403 FORBIDDEN` if they don't.
+
+## Report photos
+
+`POST /api/reports` accepts up to 5 photos when sent as `multipart/form-data`:
+a `report` field with the report as JSON text, plus `photos` files.
+
+```js
+// Frontend
+const form = new FormData();
+form.append("report", JSON.stringify(report));
+for (const file of fileInput.files) form.append("photos", file);
+await fetch(`${API_URL}/api/reports`, { method: "POST", body: form, credentials: "include" });
+// Don't set Content-Type yourself: the browser adds the multipart boundary
+```
+
+```bash
+# curl (with a saved session cookie)
+curl -b cookies.txt -F 'report={"reportType":"LOST","petType":"DOG","color":"Golden","size":"LARGE","gender":"MALE","eventDate":"2026-10-20"}' \
+  -F photos=@milo.jpg -F photos=@milo2.png http://localhost:8080/api/reports
+```
+
+How it works (`src/middleware/photoUpload.js`, `src/services/photo.service.js`):
+
+1. `multer` keeps files in memory: at most 5, 5 MB each.
+2. `sharp` checks each file really is a JPEG, PNG or WebP (from its contents, not
+   the name), applies the phone's rotation, **removes all metadata including GPS
+   location**, resizes to at most 1600 px and converts to WebP.
+3. The images go to Cloudinary (`pawradar/reports` folder). The report and its
+   photos (`imageUrl` plus Cloudinary's `publicId`) are saved together.
+4. If an upload or the database save fails, photos already uploaded for that
+   request are deleted from Cloudinary, so nothing is left behind.
+
+Use `accept="image/jpeg,image/png,image/webp"` on the file input: iPhones then
+send JPEG instead of HEIC, which the server can't read. Tests mock Cloudinary,
+so `npm test` needs no Cloudinary account.
 
 ## API conventions
 
