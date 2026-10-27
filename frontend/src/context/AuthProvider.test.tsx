@@ -101,15 +101,21 @@ describe('AuthProvider', () => {
     expect(auth.user).toBeNull();
   });
 
-  it('signOut clears the user even if the server is unreachable', async () => {
-    server.use(http.post(`${API}/api/auth/logout`, () => HttpResponse.error()));
+  it.each([
+    ['the server is unreachable', () => HttpResponse.error()],
+    ['the server returns 500', () => new HttpResponse(null, { status: 500 })],
+  ])('signOut keeps the user signed in when %s', async (_, respond) => {
+    server.use(http.post(`${API}/api/auth/logout`, respond));
     signedIn();
     renderProvider();
     await screen.findByText('status: authenticated');
 
-    await act(() => auth.signOut().catch(() => {}));
+    await act(async () => {
+      await expect(auth.signOut()).rejects.toThrow();
+    });
 
-    expect(screen.getByText('status: unauthenticated')).toBeInTheDocument();
+    expect(screen.getByText('status: authenticated')).toBeInTheDocument();
+    expect(auth.user).toEqual(testUser);
   });
 
   it('useAuth throws outside the provider', () => {

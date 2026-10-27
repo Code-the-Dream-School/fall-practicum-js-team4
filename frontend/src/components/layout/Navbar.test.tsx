@@ -24,13 +24,13 @@ describe('Navbar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows the profile link and Log out placeholder to a signed-in user', async () => {
+  it('shows the profile link and enabled Logout button to a signed-in user', async () => {
     signedIn();
     renderApp('/');
     expect(
       await screen.findByRole('link', { name: new RegExp(testUser.name, 'i') }),
     ).toHaveAttribute('href', '/profile');
-    expect(screen.getByRole('button', { name: /log out/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /log out/i })).toBeEnabled();
   });
 
   it('shows the main links and report buttons on desktop', async () => {
