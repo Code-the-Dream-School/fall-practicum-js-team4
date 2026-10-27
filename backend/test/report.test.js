@@ -1,0 +1,474 @@
+const request = require("supertest");
+
+process.env.JWT_SECRET = "test-secret";
+
+jest.mock("../src/config/prisma", () => {
+  const crypto = require("crypto");
+  const users = [];
+  const reports = [];
+  let reportIdCounter = 1;
+
+  return {
+    _users: users,
+    _reports: reports,
+    user: {
+      findUnique: jest.fn(async ({ where }) => {
+        if (where.id) return users.find((u) => u.id === where.id) || null;
+        if (where.email) return users.find((u) => u.email === where.email) || null;
+        return null;
+      }),
+      create: jest.fn(async ({ data }) => {
+        const user = {
+          id: crypto.randomUUID(),
+          tokenVersion: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+        };
+        users.push(user);
+        return user;
+      }),
+    },
+    petReport: {
+      create: jest.fn(async ({ data }) => {
+        const currentReportId = reportIdCounter++;
+        const report = {
+          petReportId: currentReportId,
+          userId: data.userId,
+          reportType: data.reportType,
+          petType: data.petType,
+          petName: data.petName || null,
+          breed: data.breed || null,
+          color: data.color,
+          size: data.size,
+          gender: data.gender,
+          distinctiveFeatures: data.distinctiveFeatures || null,
+          eventDate: data.eventDate,
+          contactInfo: data.contactInfo || null,
+          status: "ACTIVE",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          location: data.location?.create
+            ? { locationId: 1, petReportId: currentReportId, ...data.location.create }
+            : null,
+        };
+        reports.push(report);
+        return report;
+      }),
+      count: jest.fn(async ({ where }) => reports.filter((r) => r.userId === where.userId).length),
+      // Filters by owner only and sorts like the real query; search filters are
+      // checked through the arguments (and against a real database by hand)
+      findMany: jest.fn(async ({ where }) =>
+        reports
+          .filter((r) => r.userId === where.userId)
+          .sort((a, b) => b.createdAt - a.createdAt || b.petReportId - a.petReportId),
+      ),
+    },
+  };
+});
+
+const app = require("../src/app");
+const prisma = require("../src/config/prisma");
+
+describe("POST /api/reports", () => {
+  let agent;
+  let testUser;
+
+  beforeEach(async () => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+
+    agent = request.agent(app);
+    const regRes = await agent.post("/api/auth/register").send({
+      name: "Alex Smith",
+      email: "alex@example.com",
+      password: "password123!",
+    });
+    testUser = regRes.body.data.user;
+  });
+
+  const validReport = {
+    reportType: "LOST",
+    petType: "DOG",
+    petName: "Buddy",
+    breed: "Golden Retriever",
+    color: "Golden",
+    size: "LARGE",
+    gender: "MALE",
+    distinctiveFeatures: "Blue collar with bell",
+    eventDate: "2026-10-20T10:00:00.000Z",
+    contactInfo: "+1234567890",
+    location: {
+      zipCode: "10001",
+      city: "New York",
+      state: "NY",
+    },
+  };
+
+  it("creates a report successfully for an authenticated user (201)", async () => {
+    const res = await agent.post("/api/reports").send(validReport);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: expect.any(Number),
+      userId: testUser.id,
+      reportType: "LOST",
+      petType: "DOG",
+      petName: "Buddy",
+      color: "Golden",
+      status: "ACTIVE",
+    });
+    expect(res.body.data.location).toMatchObject({
+      zipCode: "10001",
+      city: "New York",
+      state: "NY",
+    });
+    expect(res.body.data).not.toHaveProperty("photos");
+  });
+
+  it("supports FOUND reports without optional fields (201)", async () => {
+    const minimalFoundReport = {
+      reportType: "FOUND",
+      petType: "CAT",
+      color: "Black",
+      size: "SMALL",
+      gender: "UNKNOWN",
+      eventDate: "2026-10-21T08:00:00.000Z",
+    };
+
+    const res = await agent.post("/api/reports").send(minimalFoundReport);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.reportType).toBe("FOUND");
+    expect(res.body.data.petType).toBe("CAT");
+  });
+
+  it("rejects an event date in the future (400)", async () => {
+    const futureReport = {
+      ...validReport,
+      eventDate: "2099-01-01T00:00:00.000Z",
+    };
+
+    const res = await agent.post("/api/reports").send(futureReport);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects photos until the photo-upload story is done (400)", async () => {
+    const res = await agent
+      .post("/api/reports")
+      .send({ ...validReport, photos: ["https://images.example.com/buddy.jpg"] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details[0].field).toBe("photos");
+    expect(prisma.petReport.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects coordinates in location payload (400)", async () => {
+    const reportWithCoordinates = {
+      ...validReport,
+      location: {
+        ...validReport.location,
+        latitude: 40.7128,
+      },
+    };
+
+    const res = await agent.post("/api/reports").send(reportWithCoordinates);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects unauthenticated requests (401)", async () => {
+    const res = await request(app).post("/api/reports").send(validReport);
+
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+  });
+
+  it.each([
+    ["another user's id", { userId: "00000000-0000-0000-0000-000000000000" }],
+    ["a status", { status: "REUNITED" }],
+    ["a report id", { petReportId: 999 }],
+    ["timestamps", { createdAt: "2020-01-01T00:00:00.000Z" }],
+  ])("rejects a body that sets %s, which only the server decides (400)", async (_, extra) => {
+    const res = await agent.post("/api/reports").send({ ...validReport, ...extra });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details[0].field).toBe(Object.keys(extra)[0]);
+    expect(prisma.petReport.create).not.toHaveBeenCalled();
+  });
+
+  it("always saves the report under the signed-in user", async () => {
+    await agent.post("/api/reports").send(validReport);
+
+    expect(prisma.petReport.create.mock.calls[0][0].data.userId).toBe(testUser.id);
+  });
+
+  it("stores text exactly as sent; escaping it is the frontend's job", async () => {
+    const petName = '<img src=x onerror="alert(1)">';
+
+    const res = await agent.post("/api/reports").send({ ...validReport, petName });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.petName).toBe(petName);
+  });
+
+  describe("report limit", () => {
+    const { MAX_REPORTS_PER_USER } = require("../src/services/report.service");
+
+    const fillUp = (count) => {
+      for (let i = 0; i < count; i++) {
+        prisma._reports.push({ petReportId: 1000 + i, userId: testUser.id, createdAt: new Date() });
+      }
+    };
+
+    it("allows the last report up to the limit", async () => {
+      fillUp(MAX_REPORTS_PER_USER - 1);
+
+      const res = await agent.post("/api/reports").send(validReport);
+
+      expect(res.status).toBe(201);
+    });
+
+    it("returns 403 REPORT_LIMIT_REACHED once the user has the maximum", async () => {
+      fillUp(MAX_REPORTS_PER_USER);
+
+      const res = await agent.post("/api/reports").send(validReport);
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({
+        success: false,
+        code: "REPORT_LIMIT_REACHED",
+        message: `You can have at most ${MAX_REPORTS_PER_USER} reports.`,
+      });
+      expect(prisma.petReport.create).not.toHaveBeenCalled();
+    });
+
+    it("counts only the user's own reports", async () => {
+      for (let i = 0; i < MAX_REPORTS_PER_USER; i++) {
+        prisma._reports.push({ petReportId: 2000 + i, userId: "someone-else" });
+      }
+
+      const res = await agent.post("/api/reports").send(validReport);
+
+      expect(res.status).toBe(201);
+    });
+  });
+
+  it("rejects invalid input with validation details (400)", async () => {
+    const invalidReport = {
+      ...validReport,
+      reportType: "INVALID_TYPE",
+      size: "TINY",
+    };
+
+    const res = await agent.post("/api/reports").send(invalidReport);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details).toBeDefined();
+  });
+});
+
+describe("GET /api/reports/mine", () => {
+  let agent;
+  let me;
+
+  const signUp = async (email) => {
+    const userAgent = request.agent(app);
+    const res = await userAgent
+      .post("/api/auth/register")
+      .send({ name: "Test User", email, password: "password123!" });
+    return { agent: userAgent, user: res.body.data.user };
+  };
+
+  const report = (overrides = {}) => ({
+    reportType: "LOST",
+    petType: "DOG",
+    color: "Golden",
+    size: "LARGE",
+    gender: "MALE",
+    eventDate: "2026-10-20T10:00:00.000Z",
+    ...overrides,
+  });
+
+  const lastFindManyArgs = () => prisma.petReport.findMany.mock.calls.at(-1)[0];
+
+  beforeEach(async () => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+    ({ agent, user: me } = await signUp("me@example.com"));
+  });
+
+  it("rejects unauthenticated requests (401)", async () => {
+    const res = await request(app).get("/api/reports/mine");
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+    expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+  });
+
+  describe("a cookie claiming to be me", () => {
+    const jwt = require("jsonwebtoken");
+    // What an attacker could put in the token cookie to impersonate "me"
+    const tokens = {
+      "signed with a guessed secret": () => jwt.sign({ sub: me.id, ver: 0 }, "wrong-secret"),
+      "unsigned (alg: none)": () => jwt.sign({ sub: me.id, ver: 0 }, null, { algorithm: "none" }),
+      expired: () => jwt.sign({ sub: me.id, ver: 0, exp: 1 }, "test-secret"),
+      "issued before a password change": () => {
+        prisma._users.find((u) => u.id === me.id).tokenVersion = 1;
+        return jwt.sign({ sub: me.id, ver: 0 }, "test-secret");
+      },
+      "garbage text": () => "not-a-jwt",
+    };
+
+    it.each(Object.keys(tokens))("is rejected when %s (401)", async (name) => {
+      await agent.post("/api/reports").send(report({ petName: "Secret" }));
+      const token = tokens[name]();
+
+      const res = await request(app).get("/api/reports/mine").set("Cookie", `token=${token}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe("UNAUTHENTICATED");
+      expect(JSON.stringify(res.body)).not.toContain("Secret");
+      expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("stops working after logout", async () => {
+    await agent.post("/api/auth/logout");
+
+    const res = await agent.get("/api/reports/mine");
+
+    expect(res.status).toBe(401);
+  });
+
+  it("never shows another user's reports, even with my report ids known", async () => {
+    await agent.post("/api/reports").send(report({ petName: "Mine" }));
+    const other = await signUp("other@example.com");
+
+    const res = await other.agent.get("/api/reports/mine");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ total: 0, reports: [] });
+    expect(lastFindManyArgs().where.userId).toBe(other.user.id);
+  });
+
+  it.each([
+    ["the list", "/api/reports/mine"],
+    ["the signed-in user", "/api/auth/me"],
+  ])("tells caches never to store %s", async (_, path) => {
+    const res = await agent.get(path);
+
+    expect(res.status).toBe(200);
+    expect(res.headers["cache-control"]).toBe("private, no-store");
+  });
+
+  it("returns an empty list when the user has no reports", async () => {
+    const res = await agent.get("/api/reports/mine");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, data: { total: 0, reports: [] } });
+  });
+
+  it("returns only the user's own reports, newest first, with location", async () => {
+    const other = await signUp("other@example.com");
+    await agent.post("/api/reports").send(
+      report({
+        petName: "Milo",
+        location: { zipCode: "10001", city: "New York", state: "NY" },
+      }),
+    );
+    await other.agent.post("/api/reports").send(report({ petName: "Not mine" }));
+    await agent.post("/api/reports").send(report({ petName: "Luna", reportType: "FOUND" }));
+
+    const res = await agent.get("/api/reports/mine");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(2);
+    expect(res.body.data.reports.map((r) => r.petName)).toEqual(["Luna", "Milo"]);
+    expect(res.body.data.reports.every((r) => r.userId === me.id)).toBe(true);
+    expect(res.body.data.reports[1].location).toMatchObject({ city: "New York" });
+  });
+
+  it("asks the database for the user's reports with location, newest first", async () => {
+    await agent.get("/api/reports/mine");
+
+    expect(lastFindManyArgs()).toEqual({
+      where: { userId: me.id },
+      include: { location: true },
+      orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+    });
+  });
+
+  describe("search", () => {
+    it("matches name, breed, color, features and city, ignoring case", async () => {
+      await agent.get("/api/reports/mine").query({ search: "  Golden  " });
+
+      const contains = { contains: "Golden", mode: "insensitive" };
+      expect(lastFindManyArgs().where).toEqual({
+        userId: me.id,
+        OR: [
+          { petName: contains },
+          { breed: contains },
+          { color: contains },
+          { distinctiveFeatures: contains },
+          { location: { is: { city: contains } } },
+        ],
+      });
+    });
+
+    it("treats %, _ and \\ as plain characters, not wildcards", async () => {
+      await agent.get("/api/reports/mine").query({ search: "100%_\\" });
+
+      expect(lastFindManyArgs().where.OR[0].petName.contains).toBe("100\\%\\_\\\\");
+    });
+
+    it.each([
+      ["empty", ""],
+      ["only spaces", "   "],
+    ])("returns every report when the search is %s", async (_, search) => {
+      await agent.get("/api/reports/mine").query({ search });
+
+      expect(lastFindManyArgs().where).toEqual({ userId: me.id });
+    });
+
+    it.each([
+      ["longer than 100 characters", "?search=" + "a".repeat(101)],
+      ["given twice", "?search=a&search=b"],
+      ["an unknown parameter", "?page=2"],
+      ["someone else's user id", "?userId=00000000-0000-0000-0000-000000000000"],
+      ["a Prisma filter object instead of text", "?search[mode]=default&search[contains]=a"],
+    ])("rejects a query with %s (400)", async (_, query) => {
+      const res = await agent.get(`/api/reports/mine${query}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("reportService.getUserReports", () => {
+  const { getUserReports } = require("../src/services/report.service");
+
+  it("lists every report of the user when called without options", async () => {
+    await getUserReports("user-1");
+
+    expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { userId: "user-1" } }),
+    );
+  });
+});

@@ -6,6 +6,9 @@ const asyncHandler = require("../utils/asyncHandler");
 
 // Sets req.user to the signed-in user, or responds 401 UNAUTHENTICATED
 const requireAuth = asyncHandler(async (req, res, next) => {
+  // Responses here hold one user's data: never let a browser or a shared
+  // cache (CDN, proxy) store them and hand them to someone else
+  res.set("Cache-Control", "private, no-store");
   const session = verifyToken(req.cookies?.[COOKIE_NAME]);
   const user = session && (await findUserById(session.userId));
   // A version mismatch means the token was issued before a password change
