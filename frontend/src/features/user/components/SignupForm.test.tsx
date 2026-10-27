@@ -36,7 +36,7 @@ const fillForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(await screen.findByLabelText(/full name/i), testUser.name);
   await user.type(screen.getByLabelText(/email address/i), testUser.email);
   await user.type(screen.getByLabelText(/^password$/i), testPassword);
-  await user.type(screen.getByLabelText(/confirm password/i), testPassword);
+  await user.type(screen.getByLabelText(/^confirm password$/i), testPassword);
 };
 
 const submit = async (user: ReturnType<typeof userEvent.setup>) =>
@@ -73,7 +73,7 @@ describe('SignupForm', () => {
     const user = setup();
     await fillForm(user);
 
-    const confirm = screen.getByLabelText(/confirm password/i);
+    const confirm = screen.getByLabelText(/^confirm password$/i);
     await user.clear(confirm);
     await user.type(confirm, 'different-password');
 
@@ -135,6 +135,36 @@ describe('SignupForm', () => {
     expect(
       await screen.findByText('An account with this email already exists.'),
     ).toBeInTheDocument();
+  });
+
+  it('clears previous server feedback when client-side validation fails', async () => {
+    server.use(
+      http.post(`${API}/api/auth/register`, () =>
+        errorResponse(409, 'EMAIL_EXISTS'),
+      ),
+    );
+
+    const user = setup();
+    await fillForm(user);
+    await submit(user);
+
+    expect(
+      await screen.findByText('An account with this email already exists.'),
+    ).toBeInTheDocument();
+
+    const confirm = screen.getByLabelText(/^confirm password$/i);
+    await user.clear(confirm);
+    await user.type(confirm, 'different-password');
+
+    await submit(user);
+
+    expect(
+      await screen.findByText('Passwords do not match'),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText('An account with this email already exists.'),
+    ).not.toBeInTheDocument();
   });
 
   it('displays backend field validation errors', async () => {
