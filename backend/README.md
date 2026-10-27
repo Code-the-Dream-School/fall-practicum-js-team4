@@ -157,7 +157,8 @@ How it works:
   (N=2^17, r=8, p=1); the settings are stored with each hash, and older hashes
   are upgraded automatically on the next successful login.
 - Register, login and change-password are limited to 20 attempts per IP
-  per 15 minutes; all routes together to 100.
+  per 15 minutes; creating reports to 20 per signed-in user per 15 minutes;
+  all routes together to 100 per IP.
 
 ### Protecting a route
 
@@ -214,9 +215,12 @@ curl -b cookies.txt -F 'report={"reportType":"LOST","petType":"DOG","color":"Gol
   -F photos=@milo.jpg -F photos=@milo2.png http://localhost:8080/api/reports
 ```
 
-How it works (`src/middleware/photoUpload.js`, `src/services/photo.service.js`):
+How it works (`src/middleware/photoUpload.ts`, `src/services/photo.service.ts`):
 
-1. `multer` keeps files in memory: at most 5, 5 MB each.
+1. `multer` keeps files in memory: at most 5, 5 MB each. Photos over 25
+   megapixels are refused from the file header, before decoding: a small file
+   can decode to hundreds of MB. Photos are decoded one at a time, so a
+   request's peak memory is one photo, not five.
 2. `sharp` checks each file really is a JPEG, PNG or WebP (from its contents, not
    the name), applies the phone's rotation, **removes all metadata including GPS
    location**, resizes to at most 1600 px and converts to WebP.
@@ -224,6 +228,17 @@ How it works (`src/middleware/photoUpload.js`, `src/services/photo.service.js`):
    photos (`imageUrl` plus Cloudinary's `publicId`) are saved together.
 4. If an upload or the database save fails, photos already uploaded for that
    request are deleted from Cloudinary, so nothing is left behind.
+
+Errors tell the user what went wrong:
+
+| Problem                                          | Response                                        |
+| ------------------------------------------------ | ----------------------------------------------- |
+| Not a JPEG, PNG or WebP (or an empty file)       | `400` "Photo must be a JPEG, PNG or WebP image" |
+| Damaged file (broken header or image data)       | `400` "Photo file is damaged and can't be read" |
+| Over 25 megapixels                               | `400` "Photo is too large (max 25 megapixels)"  |
+| Image processing fails on our side (e.g. memory) | `500 INTERNAL_ERROR`, logged on the server      |
+| Cloudinary is down or rejects the upload         | `502 PHOTO_UPLOAD_FAILED`; nothing is saved     |
+| More than 20 reports in 15 minutes (per user)    | `429 TOO_MANY_REQUESTS`                         |
 
 Use `accept="image/jpeg,image/png,image/webp"` on the file input: iPhones then
 send JPEG instead of HEIC, which the server can't read. Tests mock Cloudinary,
@@ -287,7 +302,7 @@ Tests need no database: Prisma is replaced by the typed in-memory fake in
 | A simple endpoint                | `test/hello.test.ts`        |
 | Signed-in requests, database use | `test/auth.test.ts`         |
 | A plain function                 | `test/jwt.test.ts`          |
-| File uploads, a mocked service   | `test/reportPhotos.test.js` |
+| File uploads, a mocked service   | `test/reportPhotos.test.ts` |
 
 `request.agent(app)` keeps cookies between requests, so you can register or log
 in once and then call protected routes.

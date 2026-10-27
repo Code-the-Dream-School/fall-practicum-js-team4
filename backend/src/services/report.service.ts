@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
+import { deleteImages, storePhotos } from "./photo.service";
 import type { CreateReportInput, MyReportsQuery } from "../validators/report.validators";
 
 // Stops one account (or a script) from filling the database and making
@@ -12,10 +13,14 @@ const PHOTOS = {
   select: { petPhotoId: true, imageUrl: true, createdAt: true },
   // Same order the files were uploaded in
   orderBy: { petPhotoId: "asc" },
-};
+} satisfies Prisma.PetReport$photosArgs;
 
 // files: uploaded photos from multer ([] for JSON requests)
-const createReport = async (userId, data, files) => {
+export const createReport = async (
+  userId: string,
+  data: CreateReportInput,
+  files: Express.Multer.File[],
+) => {
   // Count-then-create isn't atomic: parallel requests can pass the check together
   // and go a few over. Fine for a cap whose job is to stop abuse, not to be exact.
   const existing = await prisma.petReport.count({ where: { userId } });

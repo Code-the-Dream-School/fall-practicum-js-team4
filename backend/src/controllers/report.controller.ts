@@ -5,7 +5,12 @@ import type { MyReportsQuery } from "../validators/report.validators";
 // Both routes use requireAuth, so req.user is always set here
 
 export const createReport = async (req: Request, res: Response) => {
-  const report = await reportService.createReport(req.user!.id, req.body);
+  // req.files: photos from multer ([] or undefined for JSON requests)
+  const report = await reportService.createReport(
+    req.user!.id,
+    req.body,
+    (req.files as Express.Multer.File[] | undefined) ?? [],
+  );
   res.status(201).json({
     success: true,
     data: report,

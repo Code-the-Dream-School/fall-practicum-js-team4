@@ -1,16 +1,26 @@
-const request = require("supertest");
-const sharp = require("sharp");
+import request from "supertest";
+import sharp from "sharp";
+import app from "../src/app";
+import { MAX_REPORTS_PER_USER } from "../src/services/report.service";
+import { MAX_INPUT_PIXELS } from "../src/services/photo.service";
+import type { FakePrisma } from "./helpers/fakePrisma";
+import type { Agent } from "./helpers/types";
 
 process.env.JWT_SECRET = "test-secret";
 process.env.CLOUDINARY_CLOUD_NAME = "demo";
 process.env.CLOUDINARY_API_KEY = "key";
 process.env.CLOUDINARY_API_SECRET = "secret";
 
+type UploadCallback = (
+  err: Error | null,
+  result?: { secure_url: string; public_id: string },
+) => void;
+
 // Fake Cloudinary: records each upload and answers like the real SDK
 jest.mock("cloudinary", () => {
-  const uploads = [];
-  const succeed = (options, callback) => ({
-    end: (buffer) => {
+  const uploads: { options: object; buffer: Buffer }[] = [];
+  const succeed = (options: object, callback: UploadCallback) => ({
+    end: (buffer: Buffer) => {
       const n = uploads.push({ options, buffer });
       setImmediate(() =>
         callback(null, {
@@ -31,65 +41,23 @@ jest.mock("cloudinary", () => {
   };
 });
 
-// In-memory stand-in for the users and pet_reports tables
-jest.mock("../src/config/prisma", () => {
-  const crypto = require("crypto");
-  const users = [];
-  const reports = [];
-  let nextReportId = 1;
-  let nextPhotoId = 1;
-  const pick = (obj, select) =>
-    Object.fromEntries(Object.keys(select).map((key) => [key, obj[key]]));
+// In-memory database (see test/helpers/fakePrisma.ts)
+jest.mock("../src/config/prisma", () =>
+  jest
+    .requireActual<typeof import("./helpers/fakePrisma")>("./helpers/fakePrisma")
+    .createFakePrisma(),
+);
 
-  return {
-    _users: users,
-    _reports: reports,
-    user: {
-      findUnique: jest.fn(
-        async ({ where }) =>
-          users.find((u) => (where.id ? u.id === where.id : u.email === where.email)) || null,
-      ),
-      create: jest.fn(async ({ data }) => {
-        const user = { id: crypto.randomUUID(), tokenVersion: 0, createdAt: new Date(), ...data };
-        users.push(user);
-        return user;
-      }),
-    },
-    petReport: {
-      count: jest.fn(async ({ where }) => reports.filter((r) => r.userId === where.userId).length),
-      create: jest.fn(async ({ data, include }) => {
-        const petReportId = nextReportId++;
-        const { location, photos, ...fields } = data;
-        const report = {
-          petReportId,
-          status: "ACTIVE",
-          createdAt: new Date(),
-          ...fields,
-          location: location ? { petReportId, ...location.create } : null,
-          photos: (photos?.createMany.data ?? []).map((photo) => ({
-            petPhotoId: nextPhotoId++,
-            petReportId,
-            createdAt: new Date(),
-            ...photo,
-          })),
-        };
-        reports.push(report);
-        // Apply the photo `select` like Prisma does
-        return { ...report, photos: report.photos.map((p) => pick(p, include.photos.select)) };
-      }),
-      findMany: jest.fn(async ({ where, include }) =>
-        reports
-          .filter((r) => r.userId === where.userId)
-          .map((r) => ({ ...r, photos: r.photos.map((p) => pick(p, include.photos.select)) })),
-      ),
-    },
-  };
-});
+// The fake Cloudinary above, as the tests see it
+interface FakeCloudinary {
+  _uploads: { options: object; buffer: Buffer }[];
+  _succeed: (options: object, callback: UploadCallback) => { end: (buffer: Buffer) => void };
+  uploader: { upload_stream: jest.Mock };
+  api: { delete_resources: jest.Mock };
+}
 
-const app = require("../src/app");
-const prisma = require("../src/config/prisma");
-const { v2: cloudinary } = require("cloudinary");
-const { MAX_REPORTS_PER_USER } = require("../src/services/report.service");
+const prisma = jest.requireMock<FakePrisma>("../src/config/prisma");
+const cloudinary = jest.requireMock<{ v2: FakeCloudinary }>("cloudinary").v2;
 
 const report = {
   reportType: "LOST",
@@ -103,7 +71,7 @@ const report = {
 };
 
 // Test photos made on the fly
-const solid = (width, height) =>
+const solid = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: "#c96" } });
 const jpegWithGps = () =>
   solid(2400, 1200)
@@ -120,10 +88,14 @@ const jpegWithGps = () =>
 const png = () => solid(300, 200).png().toBuffer();
 
 describe("POST /api/reports with photos", () => {
-  let agent;
+  let agent: Agent;
 
   // A multipart request: the report as JSON text plus photo files
-  const send = (photos = [], body = JSON.stringify(report), client = agent) => {
+  const send = (
+    photos: Buffer[] = [],
+    body = JSON.stringify(report),
+    client: Agent | ReturnType<typeof request> = agent,
+  ) => {
     const req = client.post("/api/reports").field("report", body);
     photos.forEach((buffer, i) => req.attach("photos", buffer, `photo${i}.jpg`));
     return req;
@@ -157,7 +129,7 @@ describe("POST /api/reports with photos", () => {
       }),
     ]);
     // Saved with Cloudinary's id so the image can be deleted later
-    expect(prisma._reports[0].photos.map((p) => p.publicId)).toEqual([
+    expect(prisma._reports[0].photos?.map((p) => p.publicId)).toEqual([
       "pawradar/reports/photo1",
       "pawradar/reports/photo2",
     ]);
@@ -196,6 +168,43 @@ describe("POST /api/reports with photos", () => {
     expect([stored.width, stored.height]).toEqual([300, 200]);
   });
 
+  it("accepts a 24 MP phone photo and shrinks it to 1600 px", async () => {
+    const phonePhoto = await solid(5712, 4284).jpeg().toBuffer();
+
+    const res = await send([phonePhoto]);
+
+    expect(res.status).toBe(201);
+    const stored = await sharp(cloudinary._uploads[0].buffer).metadata();
+    expect([stored.width, stored.height]).toEqual([1600, 1200]);
+  });
+
+  it("decodes photos one at a time, so memory peaks at one photo", async () => {
+    const photos = [await png(), await png(), await png()];
+    // Count how many sharp decodes run at the same moment
+    let running = 0;
+    let mostAtOnce = 0;
+    const originalToBuffer = sharp.prototype.toBuffer;
+    const spy = jest.spyOn(sharp.prototype, "toBuffer").mockImplementation(async function (
+      this: sharp.Sharp,
+    ) {
+      running++;
+      mostAtOnce = Math.max(mostAtOnce, running);
+      try {
+        return await originalToBuffer.call(this);
+      } finally {
+        running--;
+      }
+    } as typeof sharp.prototype.toBuffer);
+
+    const res = await send(photos);
+    const decodes = spy.mock.calls.length;
+    spy.mockRestore();
+
+    expect(res.status).toBe(201);
+    expect(decodes).toBe(3);
+    expect(mostAtOnce).toBe(1);
+  });
+
   it("accepts a multipart report without photos", async () => {
     const res = await send([]);
 
@@ -216,7 +225,7 @@ describe("POST /api/reports with photos", () => {
   });
 
   describe("rejected uploads (nothing is uploaded or saved)", () => {
-    const expectRejected = (res, status, code) => {
+    const expectRejected = (res: request.Response, status: number, code: string) => {
       expect(res.status).toBe(status);
       expect(res.body.code).toBe(code);
       expect(cloudinary.uploader.upload_stream).not.toHaveBeenCalled();
@@ -241,17 +250,54 @@ describe("POST /api/reports with photos", () => {
       expect(res.body.details[0].message).toBe("Each photo must be 5 MB or smaller");
     });
 
-    it.each([
-      ["a text file named .jpg", () => Buffer.from("definitely not a photo")],
-      ["a GIF", () => solid(10, 10).gif().toBuffer()],
-      ["a truncated JPEG", async () => (await jpegWithGps()).subarray(0, 200)],
-    ])("%s (400)", async (_, makeFile) => {
+    const NOT_AN_IMAGE = "Photo must be a JPEG, PNG or WebP image";
+    const DAMAGED = "Photo file is damaged and can't be read";
+    // Noisy images, so a cut-off file still has data left to fail on
+    const noisy = () =>
+      sharp({
+        create: {
+          width: 400,
+          height: 300,
+          channels: 3,
+          background: "#000",
+          noise: { type: "gaussian", mean: 128, sigma: 30 },
+        },
+      });
+    const half = (file: Buffer) => file.subarray(0, Math.floor(file.length / 2));
+
+    it.each<[string, () => Promise<Buffer> | Buffer, string]>([
+      ["a text file named .jpg", () => Buffer.from("definitely not a photo"), NOT_AN_IMAGE],
+      ["an empty file", () => Buffer.alloc(0), NOT_AN_IMAGE],
+      ["a GIF", () => solid(10, 10).gif().toBuffer(), NOT_AN_IMAGE],
+      // Damaged files: broken header, or broken image data found while decoding
+      ["a JPEG cut off in its header", async () => (await jpegWithGps()).subarray(0, 200), DAMAGED],
+      ["a JPEG cut off halfway", async () => half(await noisy().jpeg().toBuffer()), DAMAGED],
+      ["a PNG cut off halfway", async () => half(await noisy().png().toBuffer()), DAMAGED],
+    ])("%s (400)", async (_, makeFile, message) => {
       const res = await send([await png(), await makeFile()]);
 
       expectRejected(res, 400, "VALIDATION_ERROR");
+      expect(res.body.details).toEqual([{ field: "photos.1", message }]);
+    });
+
+    it("a photo over 25 megapixels, refused before it's decoded (400)", async () => {
+      // 25.005 MP but only ~340 KB: the file size alone wouldn't stop it
+      const huge = await solid(5001, 5000).png().toBuffer();
+      expect(huge.length).toBeLessThan(5 * 1024 * 1024);
+      const decode = jest.spyOn(sharp.prototype, "toBuffer");
+
+      const res = await send([huge]);
+      const decodes = decode.mock.calls.length;
+      decode.mockRestore();
+
+      expectRejected(res, 400, "VALIDATION_ERROR");
       expect(res.body.details).toEqual([
-        { field: "photos.1", message: "Photo must be a JPEG, PNG or WebP image" },
+        {
+          field: "photos.0",
+          message: `Photo is too large (max ${MAX_INPUT_PIXELS / 1_000_000} megapixels)`,
+        },
       ]);
+      expect(decodes).toBe(0);
     });
 
     it("a file sent under another field name (400)", async () => {
@@ -264,7 +310,10 @@ describe("POST /api/reports with photos", () => {
       expect(res.body.details[0].field).toBe("image");
     });
 
-    it.each([
+    // Builds the request from a bare POST /api/reports
+    type Build = (req: request.Test) => request.Test;
+
+    it.each<[string, Build, string]>([
       ["no report field", (req) => req.attach("photos", Buffer.from("x"), "a.jpg"), "report"],
       ["report that isn't JSON", (req) => req.field("report", "{not json"), "report"],
       [
@@ -324,7 +373,9 @@ describe("POST /api/reports with photos", () => {
 
     it("a user who already has the maximum number of reports (403)", async () => {
       const userId = prisma._users[0].id;
-      for (let i = 0; i < MAX_REPORTS_PER_USER; i++) prisma._reports.push({ userId, photos: [] });
+      for (let i = 0; i < MAX_REPORTS_PER_USER; i++) {
+        prisma._reports.push({ petReportId: 1000 + i, userId, photos: [] });
+      }
 
       const res = await send([await png()]);
 
@@ -335,11 +386,32 @@ describe("POST /api/reports with photos", () => {
   });
 
   describe("when something fails part-way", () => {
+    let consoleError: jest.SpyInstance;
     beforeEach(() => {
-      jest.spyOn(console, "error").mockImplementation(() => {});
+      consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
     });
     afterEach(() => {
-      console.error.mockRestore();
+      consoleError.mockRestore();
+    });
+
+    it("returns a logged 500, not a 400, when image processing fails on our side", async () => {
+      // e.g. the server runs out of memory: not the user's fault, so no "bad photo" message
+      const photo = await png();
+      const outOfMemory = new Error("vips_malloc: out of memory");
+      const decode = jest.spyOn(sharp.prototype, "toBuffer").mockRejectedValueOnce(outOfMemory);
+
+      const res = await send([photo]);
+      decode.mockRestore();
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        success: false,
+        code: "INTERNAL_ERROR",
+        message: "Something went wrong",
+      });
+      expect(consoleError).toHaveBeenCalledWith(outOfMemory);
+      expect(cloudinary.uploader.upload_stream).not.toHaveBeenCalled();
+      expect(prisma.petReport.create).not.toHaveBeenCalled();
     });
 
     it("returns 502 if an upload fails and deletes the photos that did upload", async () => {
@@ -381,7 +453,7 @@ describe("POST /api/reports with photos", () => {
 
       expect(res.status).toBe(500);
       expect(res.body.code).toBe("INTERNAL_ERROR");
-      expect(console.error).toHaveBeenCalledWith(
+      expect(consoleError).toHaveBeenCalledWith(
         "Could not delete uploaded photos:",
         ["pawradar/reports/photo1"],
         "also down",
@@ -397,7 +469,7 @@ describe("POST /api/reports with photos", () => {
 
       expect(res.status).toBe(502);
       expect(prisma.petReport.create).not.toHaveBeenCalled();
-      expect(console.error).toHaveBeenCalledWith(
+      expect(consoleError).toHaveBeenCalledWith(
         "Photo upload failed:",
         expect.objectContaining({ message: expect.stringContaining("CLOUDINARY_API_SECRET") }),
       );

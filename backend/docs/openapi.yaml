@@ -214,10 +214,10 @@ paths:
 
 
         **With photos:** send `multipart/form-data` with the report as JSON text in a
-        `report` field and up to 5 `photos` files (JPEG, PNG or WebP, 5 MB each). The
-        server removes all metadata (including GPS location), applies the phone's
-        rotation, resizes to at most 1600 px, converts to WebP and stores the images on
-        Cloudinary. Without photos, plain JSON works as before.
+        `report` field and up to 5 `photos` files (JPEG, PNG or WebP, 5 MB and 25
+        megapixels each). The server removes all metadata (including GPS location),
+        applies the phone's rotation, resizes to at most 1600 px, converts to WebP and
+        stores the images on Cloudinary. Without photos, plain JSON works as before.
       security:
         - cookieAuth: []
       requestBody:
@@ -239,7 +239,7 @@ paths:
                 photos:
                   type: array
                   maxItems: 5
-                  description: Up to 5 JPEG, PNG or WebP images, 5 MB each
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
                   items:
                     type: string
                     format: binary
@@ -669,7 +669,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes.
+        attempts per IP per 15 minutes, and creating reports is limited to 20 per
+        signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -687,3 +688,9 @@ components:
                 success: false
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
+            reports:
+              summary: Over 20 reports created by one user in 15 minutes
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many reports, please try again later

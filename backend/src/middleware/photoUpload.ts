@@ -1,8 +1,9 @@
-const multer = require("multer");
-const AppError = require("../utils/AppError");
+import type { RequestHandler } from "express";
+import multer from "multer";
+import AppError from "../utils/AppError";
 
-const MAX_PHOTOS = 5;
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+export const MAX_PHOTOS = 5;
+export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 // Kept in memory (never written to disk) and capped before anything is read
 const receive = multer({
@@ -16,10 +17,10 @@ const receive = multer({
   },
 }).array("photos", MAX_PHOTOS);
 
-const invalid = (field, message) =>
+const invalid = (field: string, message: string) =>
   new AppError(400, "VALIDATION_ERROR", "Invalid request data", [{ field, message }]);
 
-const describeMulterError = (err) => {
+const describeMulterError = (err: multer.MulterError) => {
   switch (err.code) {
     case "LIMIT_FILE_SIZE":
       return invalid("photos", `Each photo must be ${MAX_PHOTO_BYTES / 1024 / 1024} MB or smaller`);
@@ -36,8 +37,8 @@ const describeMulterError = (err) => {
 
 // Reads multipart/form-data: a "report" field with the report as JSON text, plus
 // up to 5 "photos" files (into req.files). JSON requests pass through untouched.
-const receivePhotos = (req, res, next) => {
-  receive(req, res, (err) => {
+const receivePhotos: RequestHandler = (req, res, next) => {
+  receive(req, res, (err: unknown) => {
     if (!err) return next();
     // Anything else multer reports here is a malformed upload from the client
     next(
@@ -48,7 +49,7 @@ const receivePhotos = (req, res, next) => {
   });
 };
 
-const parseReportField = (req, res, next) => {
+const parseReportField: RequestHandler = (req, res, next) => {
   if (!req.is("multipart/form-data")) return next();
 
   const { report, ...others } = req.body;
@@ -65,4 +66,4 @@ const parseReportField = (req, res, next) => {
   next();
 };
 
-module.exports = { photoUpload: [receivePhotos, parseReportField], MAX_PHOTOS, MAX_PHOTO_BYTES };
+export const photoUpload = [receivePhotos, parseReportField];
