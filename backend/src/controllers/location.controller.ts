@@ -8,7 +8,7 @@ export const getZipLocation: RequestHandler = async (req, res, next) => {
     if (!result) {
       return next(new AppError(404, "ZIP_NOT_FOUND", "Zip code not found"));
     }
-    res.json(result);
+    res.json({ success: true, data: result });
   } catch (err) {
     if (err instanceof ZipServiceUnavailableError) {
       return next(
