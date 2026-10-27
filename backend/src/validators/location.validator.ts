@@ -1,7 +1,6 @@
 import Joi from "joi";
 
 // Reusable schema for a zip code field: trims whitespace and validates the format
-
 export const zipCodeSchema = Joi.string()
   .trim()
   .pattern(/^\d{5}$/)
@@ -11,6 +10,7 @@ export const zipCodeSchema = Joi.string()
     "any.required": "Zip code is required",
   });
 
-export const zipPAramsSchema = Joi.object({
+export const zipParamsSchema = Joi.object({
   zip: zipCodeSchema.required(),
 });
+
