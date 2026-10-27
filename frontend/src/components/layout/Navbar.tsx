@@ -4,6 +4,7 @@ import { Icon } from '../Icon';
 import { useAuth } from '../../context/useAuth';
 import { PATHS } from '../../app/paths';
 import { buttonStyles, colors, layout } from '../../styles/theme';
+import LogoutButton from '../LogoutButton';
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }): CSSProperties => ({
   padding: '8px 12px',
@@ -140,19 +141,7 @@ export function Navbar({ isMobile }: NavbarProps) {
                 </span>
                 {!isMobile && <span style={{ fontSize: 14 }}>{user.name}</span>}
               </Link>
-              {/* TODO(FE Logout Flow): replace with <LogoutButton /> */}
-              <button
-                type="button"
-                disabled
-                title="Coming soon"
-                style={{
-                  ...buttonStyles.outline,
-                  opacity: 0.5,
-                  cursor: 'not-allowed',
-                }}
-              >
-                Log out
-              </button>
+              <LogoutButton />
             </div>
           )}
 
