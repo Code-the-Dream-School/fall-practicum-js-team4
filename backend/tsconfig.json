@@ -1,16 +1,16 @@
 {
+  // Type-checks everything (npm run typecheck). Builds use tsconfig.build.json.
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
+    "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
+    "types": ["node", "jest"],
     "noEmit": true
   },
-  "include": ["**/*.ts", "**/*.js"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src", "test", "prisma.config.ts"]
 }
