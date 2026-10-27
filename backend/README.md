@@ -1,11 +1,10 @@
 # Lost & Found Pets — Backend
 
 Node.js + Express REST API for the Lost & Found Pets platform, written in
-TypeScript. It handles user
-accounts, authentication and pet reports today; photos, matching and analytics
-will be added on the same structure.
+TypeScript. It handles user accounts, authentication, pet reports and report
+photos today; matching and analytics will be added on the same structure.
 
-- **Runtime:** Node.js 24 (see `.nvmrc`)
+- **Runtime:** Node.js 24, version 24.22.1 or later (see `.nvmrc` and `engines` in `package.json`)
 - **Language:** TypeScript (`strict`), compiled to `dist/` with `tsc`; `tsx` in development
 - **Framework:** Express 4
 - **Database:** PostgreSQL via Prisma ORM
@@ -79,7 +78,7 @@ backend/
 ├── src/
 │   ├── server.ts            # loads .env and starts the server
 │   ├── app.ts               # Express app: middleware, routes, error handling
-│   ├── config/              # Prisma client, session/cookie settings
+│   ├── config/              # Prisma client, session/cookie settings, Cloudinary
 │   ├── routes/              # URL + HTTP method → middleware + controller
 │   ├── controllers/         # read the request, call a service, send the response
 │   ├── services/            # business logic, database access (Prisma), photo storage
@@ -217,22 +216,24 @@ curl -b cookies.txt -F 'report={"reportType":"LOST","petType":"DOG","color":"Gol
 
 How it works (`src/middleware/photoUpload.ts`, `src/services/photo.service.ts`):
 
-1. `multer` keeps files in memory: at most 5, 5 MB each. Photos over 25
-   megapixels are refused from the file header, before decoding: a small file
-   can decode to hundreds of MB. Photos are decoded one at a time, so a
-   request's peak memory is one photo, not five.
-2. `sharp` checks each file really is a JPEG, PNG or WebP (from its contents, not
-   the name), applies the phone's rotation, **removes all metadata including GPS
-   location**, resizes to at most 1600 px and converts to WebP.
-3. The images go to Cloudinary (`pawradar/reports` folder). The report and its
+1. `multer` keeps files in memory: at most 5, 5 MB each.
+2. `sharp` reads each file's header first: it must really be a JPEG, PNG or WebP
+   (from its contents, not the name) and at most 25 megapixels. A small file can
+   decode to hundreds of MB, so oversized photos are refused before decoding.
+3. Photos are then decoded **one at a time** (a request's peak memory is one
+   photo, not five): `sharp` applies the phone's rotation, **removes all metadata
+   including GPS location**, resizes to at most 1600 px and converts to WebP.
+4. The images go to Cloudinary (`pawradar/reports` folder). The report and its
    photos (`imageUrl` plus Cloudinary's `publicId`) are saved together.
-4. If an upload or the database save fails, photos already uploaded for that
+5. If an upload or the database save fails, photos already uploaded for that
    request are deleted from Cloudinary, so nothing is left behind.
 
 Errors tell the user what went wrong:
 
 | Problem                                          | Response                                        |
 | ------------------------------------------------ | ----------------------------------------------- |
+| More than 5 photos                               | `400` "You can upload at most 5 photos"         |
+| A photo over 5 MB                                | `400` "Each photo must be 5 MB or smaller"      |
 | Not a JPEG, PNG or WebP (or an empty file)       | `400` "Photo must be a JPEG, PNG or WebP image" |
 | Damaged file (broken header or image data)       | `400` "Photo file is damaged and can't be read" |
 | Over 25 megapixels                               | `400` "Photo is too large (max 25 megapixels)"  |
@@ -324,8 +325,9 @@ error messages, and `Cache-Control: private, no-store` on every signed-in
   `innerHTML` / `dangerouslySetInnerHTML` with user text is an XSS hole.
 - Owner-only queries (e.g. `getUserReports`) return contact info and exact
   coordinates. Public endpoints need their own `select` of public fields.
-- Uploaded files are untrusted too: photos are checked by content, size and
-  count, then re-encoded so no metadata (e.g. GPS location) is stored.
+- Uploaded files are untrusted too: photos are checked by content, file size,
+  pixel count and number of files, then re-encoded so no metadata (e.g. GPS
+  location) is stored.
 - Keep secrets in `.env`, never in code. The Cloudinary API secret must never
   reach frontend code.
 - Don't log tokens, passwords or full request bodies.
