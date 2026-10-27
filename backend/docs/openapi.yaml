@@ -178,6 +178,8 @@ paths:
                     type: object
                     nullable: true
                     example: null
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/auth/me:
     get:
@@ -196,13 +198,19 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/reports:
     post:
       tags: [Reports]
       operationId: createReport
       summary: Create a new pet report
-      description: Creates a lost or found pet report associated with the authenticated user.
+      description: >-
+        Creates a lost or found pet report owned by the signed-in user. The owner,
+        status, id and timestamps are always set by the server; sending them is a
+        400. A user can have at most 100 reports. Text is stored exactly as sent, so
+        clients must render it as text (never as HTML).
       security:
         - cookieAuth: []
       requestBody:
@@ -222,6 +230,54 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: The user already has the maximum number of reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: REPORT_LIMIT_REACHED
+                message: You can have at most 100 reports.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/reports/mine:
+    get:
+      tags: [Reports]
+      operationId: getMyReports
+      summary: List the signed-in user's reports
+      description: >-
+        Returns every report the signed-in user created, newest first, with location.
+        Not paginated. Optionally filtered by `search`. Owner-only: includes
+        contact info and exact coordinates. Sent with `Cache-Control: private, no-store`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: >-
+            Case-insensitive partial match on pet name, breed, color, distinctive
+            features or city. Surrounding spaces are ignored; empty returns everything.
+          schema:
+            type: string
+            maxLength: 100
+          example: golden
+      responses:
+        "200":
+          description: The user's reports (an empty array when there are none)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyReportsResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
 components:
   securitySchemes:
@@ -326,6 +382,7 @@ components:
 
     CreateReportRequest:
       type: object
+      additionalProperties: false
       required: [reportType, petType, color, size, gender, eventDate]
       properties:
         reportType:
@@ -365,6 +422,7 @@ components:
           nullable: true
         location:
           type: object
+          additionalProperties: false
           required: [zipCode, city, state]
           properties:
             zipCode:
@@ -377,14 +435,15 @@ components:
               type: string
               minLength: 2
               maxLength: 2
-        photos:
-          type: array
-          maxItems: 5
-          items:
-            type: string
-            format: uri
-            maxLength: 2048
-            example: "https://example.com/pet.jpg"
+        # TODO(photo-upload story): photos are not accepted yet; sending them is a 400.
+        # photos:
+        #   type: array
+        #   maxItems: 5
+        #   items:
+        #     type: string
+        #     format: uri
+        #     maxLength: 2048
+        #     example: "https://example.com/pet.jpg"
 
     CreateReportResponse:
       type: object
@@ -394,104 +453,127 @@ components:
           type: boolean
           example: true
         data:
+          $ref: "#/components/schemas/Report"
+
+    MyReportsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
           type: object
-          required:
-            [
-              petReportId,
-              userId,
-              reportType,
-              petType,
-              color,
-              size,
-              gender,
-              eventDate,
-              status,
-              createdAt,
-            ]
+          required: [total, reports]
           properties:
-            petReportId:
+            total:
               type: integer
-            userId:
-              type: string
-              format: uuid
-            reportType:
-              type: string
-              enum: [LOST, FOUND]
-            petType:
-              type: string
-              enum: [DOG, CAT, BIRD, OTHER]
-            petName:
-              type: string
-              nullable: true
-            breed:
-              type: string
-              nullable: true
-            color:
-              type: string
-            size:
-              type: string
-            gender:
-              type: string
-            distinctiveFeatures:
-              type: string
-              nullable: true
-            eventDate:
-              type: string
-              format: date
-              example: "2026-10-22"
-            contactInfo:
-              type: string
-              nullable: true
-            status:
-              type: string
-              enum: [ACTIVE, REUNITED]
-            createdAt:
-              type: string
-              format: date-time
-            updatedAt:
-              type: string
-              format: date-time
-            location:
-              type: object
-              nullable: true
-              properties:
-                locationId:
-                  type: integer
-                petReportId:
-                  type: integer
-                zipCode:
-                  type: string
-                  example: "10001"
-                city:
-                  type: string
-                  example: "New York"
-                state:
-                  type: string
-                  example: "NY"
-                latitude:
-                  type: string
-                  nullable: true
-                  example: "40.7128000"
-                longitude:
-                  type: string
-                  nullable: true
-                  example: "-74.0060000"
-            photos:
+              description: Number of reports returned (with `search`, the number of matches)
+              example: 3
+            reports:
               type: array
               items:
-                type: object
-                properties:
-                  petPhotoId:
-                    type: integer
-                  petReportId:
-                    type: integer
-                  imageUrl:
-                    type: string
-                    format: uri
-                    example: "https://example.com/pet.jpg"
-                  createdAt:
-                    type: string
-                    format: date-time
+                $ref: "#/components/schemas/Report"
+
+    Report:
+      type: object
+      required:
+        [
+          petReportId,
+          userId,
+          reportType,
+          petType,
+          color,
+          size,
+          gender,
+          eventDate,
+          status,
+          createdAt,
+        ]
+      properties:
+        petReportId:
+          type: integer
+        userId:
+          type: string
+          format: uuid
+        reportType:
+          type: string
+          enum: [LOST, FOUND]
+        petType:
+          type: string
+          enum: [DOG, CAT, BIRD, OTHER]
+        petName:
+          type: string
+          nullable: true
+        breed:
+          type: string
+          nullable: true
+        color:
+          type: string
+        size:
+          type: string
+        gender:
+          type: string
+        distinctiveFeatures:
+          type: string
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+        contactInfo:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, REUNITED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        location:
+          type: object
+          nullable: true
+          properties:
+            locationId:
+              type: integer
+            petReportId:
+              type: integer
+            zipCode:
+              type: string
+              example: "10001"
+            city:
+              type: string
+              example: "New York"
+            state:
+              type: string
+              example: "NY"
+            latitude:
+              type: string
+              nullable: true
+              example: "40.7128000"
+            longitude:
+              type: string
+              nullable: true
+              example: "-74.0060000"
+        # TODO(photo-upload story): photos are not returned yet.
+        # photos:
+        #   type: array
+        #   items:
+        #     type: object
+        #     properties:
+        #       petPhotoId:
+        #         type: integer
+        #       petReportId:
+        #         type: integer
+        #       imageUrl:
+        #         type: string
+        #         format: uri
+        #         example: "https://example.com/pet.jpg"
+        #       createdAt:
+        #         type: string
+        #         format: date-time
 
     Error:
       type: object
@@ -513,6 +595,7 @@ components:
             - PAYLOAD_TOO_LARGE
             - UNSUPPORTED_MEDIA_TYPE
             - TOO_MANY_REQUESTS
+            - REPORT_LIMIT_REACHED
             - INTERNAL_ERROR
         message:
           type: string
@@ -553,12 +636,24 @@ components:
             code: UNAUTHENTICATED
             message: Please sign in
     TooManyRequests:
-      description: Rate limit hit (20 auth attempts per IP per 15 minutes)
+      description: >-
+        Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
+        register, login and change-password also share a stricter limit of 20
+        attempts per IP per 15 minutes.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
-          example:
-            success: false
-            code: TOO_MANY_REQUESTS
-            message: Too many attempts, please try again later
+          examples:
+            global:
+              summary: Over 100 requests in 15 minutes (any route)
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many requests, please try again later
+            authAttempts:
+              summary: Over 20 register/login/change-password attempts in 15 minutes
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many attempts, please try again later
