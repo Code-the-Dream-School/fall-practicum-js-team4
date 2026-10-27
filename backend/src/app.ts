@@ -42,7 +42,7 @@ app.use("/api/hello", helloRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/docs", docsRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("api/locations", locationRouter)
+app.use("/api/locations", locationRouter)
 
 // Root route
 app.get("/", (req, res) => {

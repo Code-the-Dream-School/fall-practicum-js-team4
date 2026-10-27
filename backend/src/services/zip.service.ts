@@ -1,7 +1,7 @@
 export interface ZipPlace {
   city: string;
   state: string;
-  sateCode: string;
+  stateCode: string;
   latitude: number;
   longitude: number;
 }
@@ -11,16 +11,39 @@ export interface ZipLookupResult {
   places: ZipPlace[];
 }
 
-export class ZipServiceUnavailableError extends Error {}
+export class ZipServiceUnavailableError extends Error {
 
-const CACH_TTL_MS = 24 * 60 * 60 * 1000;
+}
+
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const CACHE_MAX_ENTRIES = 5000;
 const cache = new Map<string, { data: ZipLookupResult | null; expires: number }>();
 
-export const clearZipCach = () => cache.clear();
+export const clearZipCache = () => cache.clear();
+
+function getCached(zipCode: string) {
+  const entry = cache.get(zipCode);
+  if (!entry) return undefined;
+  if (entry.expires <= Date.now()) {
+    cache.delete(zipCode);
+    return undefined;
+  }
+  return entry;
+}
+
+function setCached(zipCode: string, data: ZipLookupResult | null) {
+  cache.delete(zipCode);
+  if (cache.size >= CACHE_MAX_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) cache.delete(oldestKey);
+  }
+  cache.set(zipCode, { data, expires: Date.now() + CACHE_TTL_MS });
+}
 
 export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null> {
-  const cached = cache.get(zipCode);
-  if (cached && cached.expires > Date.now()) return cached.data;
+  const cached = getCached(zipCode);
+  if (cached) return cached.data;
+
   let res: Response;
   try {
     res = await fetch(`${process.env.ZIP_API_BASE_URL}/${zipCode}`, {
@@ -31,14 +54,14 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
   }
 
   if (res.status === 404) {
-    cache.set(zipCode, { data: null, expires: Date.now() + CACH_TTL_MS });
+    setCached(zipCode, null);
     return null;
   }
 
   if (!res.ok) throw new ZipServiceUnavailableError(`Zip API responded ${res.status}`);
 
   const body = await res.json();
-  const cityPull = new Set<string>();
+  const seenCities = new Set<string>();
   const places: ZipPlace[] = (body.places ?? [])
     .map((p: Record<string, string>) => ({
       city: p["place name"],
@@ -49,12 +72,12 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
     }))
     .filter((p: ZipPlace) => {
       const key = p.city.toLowerCase();
-      if (cityPull.has(key)) return false;
-      cityPull.add(key);
+      if (seenCities.has(key)) return false;
+      seenCities.add(key);
       return true;
     });
 
   const data = places.length ? { zipCode, places } : null;
-  cache.set(zipCode, { data, expires: Date.now() + CACH_TTL_MS });
+  setCached(zipCode, data);
   return data;
 }
