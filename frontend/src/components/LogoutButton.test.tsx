@@ -1,11 +1,25 @@
-import { screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderApp } from '../test/renderApp';
 import { http, HttpResponse, delay } from 'msw';
 import { API, server, signedIn, testUser, testPassword } from '../test/server';
 import { PATHS } from '../app/paths';
 
+// jsdom has no matchMedia, so the app always renders its desktop layout;
+// this pretends the screen is a phone, which shows the bottom navigation
+const useMobileLayout = () =>
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: true,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+
 describe('LogoutButton', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('1. renders the Logout Button for an authenticated User', async () => {
     signedIn();
 
@@ -146,6 +160,9 @@ describe('LogoutButton', () => {
     expect(
       screen.getByRole('button', { name: /log out/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: `Profile (${testUser.name})` }),
+    ).toBeInTheDocument();
 
     expect(
       screen.getByRole('heading', { name: /profile & my reports/i }),
@@ -173,6 +190,9 @@ describe('LogoutButton', () => {
 
     expect(
       screen.getByRole('button', { name: /log out/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: `Profile (${testUser.name})` }),
     ).toBeInTheDocument();
 
     expect(
@@ -212,5 +232,52 @@ describe('LogoutButton', () => {
         { timeout: 3000 },
       ),
     ).toBeInTheDocument();
+  });
+
+  it('9. removes the Log out button and the profile link after logout', async () => {
+    signedIn();
+
+    const { user } = renderApp(PATHS.home);
+    await user.click(await screen.findByRole('button', { name: /log out/i }));
+
+    expect(
+      await screen.findByRole('heading', { name: /welcome back to pawradar/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /log out/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: `Profile (${testUser.name})` }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it('10. sends a signed-out user from /profile to the login page', async () => {
+    useMobileLayout();
+    signedIn();
+
+    const { user } = renderApp(PATHS.home);
+    await user.click(await screen.findByRole('button', { name: /log out/i }));
+    expect(
+      await screen.findByRole('heading', { name: /welcome back to pawradar/i }),
+    ).toBeInTheDocument();
+
+    // Leave the login page, then tap Profile in the bottom navigation
+    const mobileNav = screen.getByRole('navigation', {
+      name: /mobile navigation/i,
+    });
+    await user.click(within(mobileNav).getByRole('link', { name: /home/i }));
+    expect(
+      screen.queryByRole('heading', { name: /welcome back to pawradar/i }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(mobileNav).getByRole('link', { name: /profile/i }));
+
+    expect(
+      await screen.findByRole('heading', { name: /welcome back to pawradar/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: /profile & my reports/i }),
+    ).not.toBeInTheDocument();
   });
 });

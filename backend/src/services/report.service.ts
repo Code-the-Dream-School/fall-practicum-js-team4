@@ -2,7 +2,11 @@ import type { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
 import { deleteImages, storePhotos } from "./photo.service";
-import type { CreateReportInput, MyReportsQuery } from "../validators/report.validators";
+import type {
+  CreateReportInput,
+  MyReportsQuery,
+  UpdateReportInput,
+} from "../validators/report.validators";
 
 // Stops one account (or a script) from filling the database and making
 // GET /api/reports/mine huge, since that list isn't paginated
@@ -97,5 +101,65 @@ export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) 
     include: { location: true, photos: PHOTOS },
     // petReportId breaks ties between reports created in the same millisecond
     orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+  });
+};
+
+// Optional text fields where an empty string clears the stored value to null
+const NULLABLE_TEXT_FIELDS = ["petName", "breed", "distinctiveFeatures", "contactInfo"] as const;
+
+export const updateReport = async (
+  userId: string,
+  petReportId: number,
+  data: UpdateReportInput,
+) => {
+  const existing = await prisma.petReport.findUnique({
+    where: { petReportId },
+    include: { location: true },
+  });
+
+  if (!existing) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  if (existing.userId !== userId) {
+    throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
+  }
+
+  const { location, ...fields } = data;
+  const updateData: Prisma.PetReportUpdateInput = { ...fields };
+
+  for (const field of NULLABLE_TEXT_FIELDS) {
+    if (field in fields) {
+      updateData[field] = fields[field] || null;
+    }
+  }
+
+  if (location !== undefined) {
+    if (location === null) {
+      if (existing.location) {
+        updateData.location = { delete: true };
+      }
+    } else {
+      const locationFields = {
+        zipCode: location.zipCode,
+        city: location.city,
+        state: location.state,
+      };
+      updateData.location = {
+        upsert: {
+          create: locationFields,
+          // Clear any old coordinates so they never point to a previous address
+          update: { ...locationFields, latitude: null, longitude: null },
+        },
+      };
+    }
+  }
+
+  return prisma.petReport.update({
+    where: { petReportId },
+    data: updateData,
+    include: {
+      location: true,
+    },
   });
 };

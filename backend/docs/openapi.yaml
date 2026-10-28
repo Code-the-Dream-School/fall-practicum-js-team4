@@ -315,6 +315,71 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
+  /api/reports/{id}:
+    patch:
+      tags: [Reports]
+      operationId: updateReport
+      summary: Update a pet report owned by the signed-in user
+      description: >-
+        Partially updates a pet report. Only the user who created the report can
+        edit it (403 FORBIDDEN otherwise). At least one editable field must be
+        provided. Owner, id, timestamps and coordinates cannot be changed.
+        Sent with `Cache-Control: private, no-store`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the pet report to update
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportRequest"
+            example:
+              status: REUNITED
+              distinctiveFeatures: Reunited with family near Central Park
+      responses:
+        "200":
+          description: Report updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReportResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: The signed-in user does not own this report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: FORBIDDEN
+                message: You can only edit your own reports
+        "404":
+          description: No report exists with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: NOT_FOUND
+                message: Report not found
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -473,6 +538,66 @@ components:
               maxLength: 2
         # Photos aren't part of the JSON body: upload them as files with
         # multipart/form-data (see the request body of POST /api/reports)
+
+    UpdateReportRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        reportType:
+          type: string
+          enum: [LOST, FOUND]
+        petType:
+          type: string
+          enum: [DOG, CAT, BIRD, OTHER]
+        petName:
+          type: string
+          maxLength: 100
+          nullable: true
+        breed:
+          type: string
+          maxLength: 100
+          nullable: true
+        color:
+          type: string
+          maxLength: 100
+        size:
+          type: string
+          enum: [SMALL, MEDIUM, LARGE]
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        distinctiveFeatures:
+          type: string
+          maxLength: 1000
+          nullable: true
+        eventDate:
+          type: string
+          format: date
+          example: "2026-10-22"
+        contactInfo:
+          type: string
+          maxLength: 255
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, REUNITED]
+        location:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [zipCode, city, state]
+          properties:
+            zipCode:
+              type: string
+              pattern: '^\d{5}$'
+            city:
+              type: string
+              maxLength: 100
+            state:
+              type: string
+              minLength: 2
+              maxLength: 2
 
     CreateReportResponse:
       type: object
