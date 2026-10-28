@@ -36,7 +36,15 @@ describe("lookupZip", () => {
 
     expect(result).toEqual({
       zipCode: "90210",
-      places: [{ city: "Beverly Hills", state: "California", stateCode: "CA", latitude: 34.0901, longitude: -118.4065 }],
+      places: [
+        {
+          city: "Beverly Hills",
+          state: "California",
+          stateCode: "CA",
+          latitude: 34.0901,
+          longitude: -118.4065,
+        },
+      ],
     });
   });
 

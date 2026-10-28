@@ -13,4 +13,3 @@ export const zipCodeSchema = Joi.string()
 export const zipParamsSchema = Joi.object({
   zip: zipCodeSchema.required(),
 });
-
