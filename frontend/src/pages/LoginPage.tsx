@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate } from 'react-router';
+import { PATHS } from '../app/paths';
 import type { Location } from 'react-router';
 import { useAuth } from '../context/useAuth';
 import { ApiError } from '../services/api';
@@ -11,7 +12,7 @@ import { loginRules } from '../validation/authRules';
 import { describeLoginError } from './loginErrors';
 import './LoginPage.css';
 
-const DEFAULT_REDIRECT = '/dashboard';
+const DEFAULT_REDIRECT = PATHS.dashboard;
 // Long enough to read the success message
 const REDIRECT_DELAY_MS = 1000;
 
