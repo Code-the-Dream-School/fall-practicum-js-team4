@@ -9,7 +9,7 @@ import helloRoutes from "./routes/hello.routes";
 import authRoutes from "./routes/auth.routes";
 import docsRoutes from "./routes/docs.routes";
 import reportRoutes from "./routes/report.routes";
-import locationRouter from "./routes/location.routes";
+import locationRoutes from "./routes/location.routes";
 import notFound from "./middleware/notFound";
 import errorHandler from "./middleware/errorHandler";
 import AppError from "./utils/AppError";
@@ -42,7 +42,7 @@ app.use("/api/hello", helloRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/docs", docsRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("/api/locations", locationRouter)
+app.use("/api/locations", locationRoutes);
 
 // Root route
 app.get("/", (req, res) => {
