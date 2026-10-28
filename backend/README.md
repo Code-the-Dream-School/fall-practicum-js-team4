@@ -170,13 +170,14 @@ owns a resource is your code's job; answer `403 FORBIDDEN` if they don't.
 
 Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
 
-| Method | Path                | Auth | Purpose                                                   |
-| ------ | ------------------- | ---- | --------------------------------------------------------- |
-| `POST` | `/api/reports`      | yes  | Create a lost or found report owned by the signed-in user |
-| `GET`  | `/api/reports/mine` | yes  | The signed-in user's reports, newest first, with `total`  |
+| Method  | Path                | Auth | Purpose                                                   |
+| ------- | ------------------- | ---- | --------------------------------------------------------- |
+| `POST`  | `/api/reports`      | yes  | Create a lost or found report owned by the signed-in user |
+| `GET`   | `/api/reports/mine` | yes  | The signed-in user's reports, newest first, with `total`  |
+| `PATCH` | `/api/reports/:id`  | yes  | Update a report owned by the signed-in user               |
 
 - The owner is always the signed-in user (`req.user.id`). Sending `userId`,
-  `status`, ids or timestamps in the body is a `400`.
+  `status` (on create), ids or timestamps in the body is a `400`.
 - A user can have at most 100 reports (`403 REPORT_LIMIT_REACHED`).
 - `GET /mine` isn't paginated. Optional `?search=` is a case-insensitive
   partial match on pet name, breed, color, distinctive features or city
@@ -184,6 +185,10 @@ Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
 - `GET /mine` is owner-only: it includes contact info, so it is sent with
   `Cache-Control: private, no-store`. A future public listing needs its own
   query that selects only public fields.
+- `PATCH /:id` allows the owner to update any report field (including `status`
+  between `ACTIVE` and `REUNITED`, and adding, updating or clearing `location`
+  with `null`). Editing another user's report returns `403 FORBIDDEN`; a missing
+  report returns `404 NOT_FOUND`.
 - Photos aren't supported yet (`photos` in the body is a `400`); they will be
   uploaded as files in a separate story.
 
