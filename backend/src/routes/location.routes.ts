@@ -1,6 +1,6 @@
 import { Router } from "express";
 import validate from "../middleware/validate";
-import { zipParamsSchema } from "../validators/location.validator";
+import { zipParamsSchema } from "../validators/location.validators";
 import { getZipLocation } from "../controllers/location.controller";
 
 const router = Router();
