@@ -7,6 +7,7 @@ import type { Agent, ApiUser } from "./helpers/types";
 
 // Report fields these tests read from API responses
 interface ApiReport {
+  petReportId: number;
   petName: string | null;
   userId: string;
 }
@@ -409,6 +410,304 @@ describe("GET /api/reports/mine", () => {
       expect(res.body.code).toBe("VALIDATION_ERROR");
       expect(prisma.petReport.findMany).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("PATCH /api/reports/:id", () => {
+  let agent: Agent;
+  let me: ApiUser;
+  let myReportId: number;
+
+  const signUp = async (email: string): Promise<{ agent: Agent; user: ApiUser }> => {
+    const userAgent = request.agent(app);
+    const res = await userAgent
+      .post("/api/auth/register")
+      .send({ name: "Test User", email, password: "password123!" });
+    return { agent: userAgent, user: res.body.data.user };
+  };
+
+  const baseReport = {
+    reportType: "LOST",
+    petType: "DOG",
+    petName: "Buddy",
+    breed: "Golden Retriever",
+    color: "Golden",
+    size: "LARGE",
+    gender: "MALE",
+    distinctiveFeatures: "Blue collar with bell",
+    eventDate: "2026-10-20T10:00:00.000Z",
+    contactInfo: "+1234567890",
+    location: {
+      zipCode: "10001",
+      city: "New York",
+      state: "NY",
+    },
+  };
+
+  beforeEach(async () => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+
+    ({ agent, user: me } = await signUp("me@example.com"));
+    const created = await agent.post("/api/reports").send(baseReport);
+    myReportId = (created.body.data as ApiReport).petReportId;
+    jest.clearAllMocks();
+  });
+
+  it("rejects unauthenticated requests (401)", async () => {
+    const res = await request(app).patch(`/api/reports/${myReportId}`).send({ petName: "Max" });
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("UNAUTHENTICATED");
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
+  describe("a cookie claiming to be me", () => {
+    const tokens = {
+      "signed with a guessed secret": () => jwt.sign({ sub: me.id, ver: 0 }, "wrong-secret"),
+      "unsigned (alg: none)": () => jwt.sign({ sub: me.id, ver: 0 }, null, { algorithm: "none" }),
+      expired: () => jwt.sign({ sub: me.id, ver: 0, exp: 1 }, "test-secret"),
+      "issued before a password change": () => {
+        prisma._users.find((u) => u.id === me.id)!.tokenVersion = 1;
+        return jwt.sign({ sub: me.id, ver: 0 }, "test-secret");
+      },
+      "garbage text": () => "not-a-jwt",
+    };
+
+    it.each(Object.keys(tokens) as (keyof typeof tokens)[])(
+      "is rejected when %s (401)",
+      async (name) => {
+        const token = tokens[name]();
+
+        const res = await request(app)
+          .patch(`/api/reports/${myReportId}`)
+          .set("Cookie", `token=${token}`)
+          .send({ petName: "Hacked" });
+
+        expect(res.status).toBe(401);
+        expect(res.body.code).toBe("UNAUTHENTICATED");
+        expect(prisma.petReport.update).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it("stops working after logout (401)", async () => {
+    await agent.post("/api/auth/logout");
+
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({ petName: "Max" });
+
+    expect(res.status).toBe(401);
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 FORBIDDEN when trying to edit another user's report", async () => {
+    const other = await signUp("other@example.com");
+
+    const res = await other.agent
+      .patch(`/api/reports/${myReportId}`)
+      .send({ petName: "Stolen", status: "REUNITED" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      success: false,
+      code: "FORBIDDEN",
+      message: "You can only edit your own reports",
+    });
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 NOT_FOUND when the report does not exist", async () => {
+    const res = await agent.patch("/api/reports/99999").send({ petName: "Ghost" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      success: false,
+      code: "NOT_FOUND",
+      message: "Report not found",
+    });
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
+  it.each(["abc", "0", "-5", "1.5", "9999999999"])(
+    "rejects an invalid report id %s in the URL (400)",
+    async (badId) => {
+      const res = await agent.patch(`/api/reports/${badId}`).send({ petName: "Max" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(res.body.details[0].field).toBe("id");
+      expect(prisma.petReport.findUnique).not.toHaveBeenCalled();
+    },
+  );
+
+  it("updates editable fields and returns the updated report (200)", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({
+      petName: "Max",
+      color: "Cream",
+      size: "MEDIUM",
+      status: "REUNITED",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: myReportId,
+      userId: me.id,
+      petName: "Max",
+      color: "Cream",
+      size: "MEDIUM",
+      status: "REUNITED",
+      breed: "Golden Retriever",
+    });
+    expect(res.headers["cache-control"]).toBe("private, no-store");
+  });
+
+  it("clears optional text fields to null when sent as empty strings or null", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({
+      petName: "",
+      breed: null,
+      distinctiveFeatures: "   ",
+      contactInfo: "",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      petName: null,
+      breed: null,
+      distinctiveFeatures: null,
+      contactInfo: null,
+    });
+  });
+
+  it("updates an existing location via upsert and clears stale coordinates (200)", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({
+      location: { zipCode: "27701", city: "Durham", state: "nc" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.location).toMatchObject({
+      zipCode: "27701",
+      city: "Durham",
+      state: "NC",
+    });
+    expect(prisma.petReport.update).toHaveBeenCalledWith({
+      where: { petReportId: myReportId },
+      data: {
+        location: {
+          upsert: {
+            create: { zipCode: "27701", city: "Durham", state: "NC" },
+            update: {
+              zipCode: "27701",
+              city: "Durham",
+              state: "NC",
+              latitude: null,
+              longitude: null,
+            },
+          },
+        },
+      },
+      include: { location: true },
+    });
+  });
+
+  it("adds a location to a report that was created without one (200)", async () => {
+    const createdWithoutLocation = await agent.post("/api/reports").send({
+      reportType: "FOUND",
+      petType: "CAT",
+      color: "Black",
+      size: "SMALL",
+      gender: "UNKNOWN",
+      eventDate: "2026-10-21T08:00:00.000Z",
+    });
+    const reportId = (createdWithoutLocation.body.data as ApiReport).petReportId;
+    jest.clearAllMocks();
+
+    const res = await agent.patch(`/api/reports/${reportId}`).send({
+      location: { zipCode: "10001", city: "New York", state: "NY" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.location).toMatchObject({
+      zipCode: "10001",
+      city: "New York",
+      state: "NY",
+    });
+  });
+
+  it("removes the location when location is set to null (200)", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({
+      location: null,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.location).toBeNull();
+    expect(prisma.petReport.update).toHaveBeenCalledWith({
+      where: { petReportId: myReportId },
+      data: { location: { delete: true } },
+      include: { location: true },
+    });
+  });
+
+  it("does not issue a location delete when location is already null (200)", async () => {
+    const createdWithoutLocation = await agent.post("/api/reports").send({
+      reportType: "FOUND",
+      petType: "CAT",
+      color: "Black",
+      size: "SMALL",
+      gender: "UNKNOWN",
+      eventDate: "2026-10-21T08:00:00.000Z",
+    });
+    const reportId = (createdWithoutLocation.body.data as ApiReport).petReportId;
+    jest.clearAllMocks();
+
+    const res = await agent.patch(`/api/reports/${reportId}`).send({
+      location: null,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.location).toBeNull();
+    expect(prisma.petReport.update).toHaveBeenCalledWith({
+      where: { petReportId: reportId },
+      data: {},
+      include: { location: true },
+    });
+  });
+
+  it("rejects an empty update body (400)", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects an event date in the future (400)", async () => {
+    const res = await agent
+      .patch(`/api/reports/${myReportId}`)
+      .send({ eventDate: "2099-01-01T00:00:00.000Z" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["another user's id", { userId: "00000000-0000-0000-0000-000000000000" }],
+    ["a report id", { petReportId: 999 }],
+    ["createdAt", { createdAt: "2020-01-01T00:00:00.000Z" }],
+    ["updatedAt", { updatedAt: "2020-01-01T00:00:00.000Z" }],
+    ["photos", { photos: ["https://images.example.com/buddy.jpg"] }],
+    [
+      "coordinates in location",
+      { location: { zipCode: "10001", city: "New York", state: "NY", latitude: 40.7 } },
+    ],
+  ])("rejects a body that attempts to set %s (400)", async (_, forbiddenField) => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send(forbiddenField);
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
   });
 });
 
