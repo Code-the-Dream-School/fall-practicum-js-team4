@@ -22,6 +22,8 @@ export interface FakeReport {
   petReportId: number;
   userId: string;
   createdAt?: Date;
+  updatedAt?: Date;
+  location?: Record<string, unknown> | null;
   [field: string]: unknown;
 }
 
@@ -92,6 +94,38 @@ export const createFakePrisma = () => {
         reports.push(report);
         return report;
       }),
+      findUnique: jest.fn(async ({ where }: { where: { petReportId: number } }) => {
+        return reports.find((r) => r.petReportId === where.petReportId) ?? null;
+      }),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { petReportId: number };
+          data: Record<string, unknown>;
+        }) => {
+          const report = reports.find((r) => r.petReportId === where.petReportId)!;
+          const { location, ...fields } = data as {
+            location?: {
+              delete?: boolean;
+              upsert?: { create: Record<string, unknown>; update: Record<string, unknown> };
+            };
+          } & Record<string, unknown>;
+
+          Object.assign(report, fields, { updatedAt: new Date() });
+
+          if (location?.delete) {
+            report.location = null;
+          } else if (location?.upsert) {
+            report.location = report.location
+              ? { ...report.location, ...location.upsert.update }
+              : { locationId: 1, petReportId: report.petReportId, ...location.upsert.create };
+          }
+
+          return report;
+        },
+      ),
       count: jest.fn(
         async ({ where }: { where: { userId: string } }) =>
           reports.filter((r) => r.userId === where.userId).length,
