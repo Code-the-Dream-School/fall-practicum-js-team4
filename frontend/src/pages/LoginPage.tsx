@@ -18,12 +18,19 @@ const REDIRECT_DELAY_MS = 1000;
 type Feedback = { type: 'error' | 'success'; message: string } | null;
 
 export function LoginPage() {
-  const { status, setSession } = useAuth();
+  const { status, setSession, signedOutByUser, clearSignedOutByUser } =
+    useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [signedInUser, setSignedInUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (signedOutByUser) {
+      clearSignedOutByUser();
+    }
+  }, [signedOutByUser, clearSignedOutByUser]);
 
   const {
     register,

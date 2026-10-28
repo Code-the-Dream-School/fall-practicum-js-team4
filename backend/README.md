@@ -1,16 +1,18 @@
 # Lost & Found Pets — Backend
 
-Node.js + Express REST API for the Lost & Found Pets platform. It handles user
+Node.js + Express REST API for the Lost & Found Pets platform, written in
+TypeScript. It handles user
 accounts, authentication and pet reports today; photos, matching and analytics
 will be added on the same structure.
 
 - **Runtime:** Node.js 24 (see `.nvmrc`)
+- **Language:** TypeScript (`strict`), compiled to `dist/` with `tsc`; `tsx` in development
 - **Framework:** Express 4
 - **Database:** PostgreSQL via Prisma ORM
 - **Auth:** email/password, with a JWT in an httpOnly cookie
 - **Validation:** Joi
 - **Docs:** Swagger UI generated from `docs/openapi.yaml`
-- **Tests:** Jest + Supertest
+- **Tests:** Jest (via `ts-jest`) + Supertest
 
 ## Getting started
 
@@ -19,8 +21,11 @@ cd backend
 npm install            # also generates the Prisma client
 cp .env.example .env   # then fill in the values below
 npm run db:migrate     # create the tables in your local database
-npm run dev            # http://localhost:8080
+npm run dev            # http://localhost:8080 (runs the TypeScript directly with tsx)
 ```
+
+For production: `npm run build` compiles `src/` to `dist/`, then `npm start`
+runs `dist/server.js`.
 
 Check it's running: http://localhost:8080 returns `Backend API is running`, and
 the API docs are at http://localhost:8080/api/docs.
@@ -37,24 +42,24 @@ the API docs are at http://localhost:8080/api/docs.
 | `PORT`             | no       | Default `8080`                                                                                                                        |
 | `NODE_ENV`         | no       | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
 
-`.env` is gitignored. Never commit it or paste its values into chat. `MONGO_URI`
-and `POSTGRES_URI` in `.env.example` are unused leftovers from the starter template.
+`.env` is gitignored. Never commit it or paste its values into chat.
 
 ## Scripts
 
-| Command                | What it does                                                            |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `npm run dev`          | Start with auto-reload (nodemon). Restart manually after `.env` changes |
-| `npm start`            | Start without auto-reload                                               |
-| `npm test`             | Run all tests                                                           |
-| `npm run test:cov`     | Run tests and print a coverage table                                    |
-| `npm run lint`         | ESLint                                                                  |
-| `npm run typecheck`    | TypeScript type check (no build output)                                 |
-| `npm run format`       | Format all files with Prettier                                          |
-| `npm run format:check` | Fail if any file isn't formatted (for CI)                               |
-| `npm run db:migrate`   | Create and apply migrations, **local database only**                    |
-| `npm run db:deploy`    | Apply committed migrations, safe for shared/production databases        |
-| `npx prisma studio`    | Browse the database in the browser                                      |
+| Command                | What it does                                                                |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `npm run dev`          | Start with auto-reload (`tsx watch`). Restart manually after `.env` changes |
+| `npm run build`        | Compile `src/` to `dist/` (`tsconfig.build.json`)                           |
+| `npm start`            | Run the compiled app (`dist/server.js`); run `npm run build` first          |
+| `npm test`             | Run all tests                                                               |
+| `npm run test:cov`     | Run tests and print a coverage table                                        |
+| `npm run lint`         | ESLint                                                                      |
+| `npm run typecheck`    | Type-check `src/`, `test/` and the Prisma config (no output)                |
+| `npm run format`       | Format all files with Prettier                                              |
+| `npm run format:check` | Fail if any file isn't formatted (for CI)                                   |
+| `npm run db:migrate`   | Create and apply migrations, **local database only**                        |
+| `npm run db:deploy`    | Apply committed migrations, safe for shared/production databases            |
+| `npx prisma studio`    | Browse the database in the browser                                          |
 
 Before opening a PR, run `npm run lint && npm run typecheck && npm run format:check && npm test`.
 
@@ -67,17 +72,23 @@ backend/
 │   ├── schema.prisma        # database models
 │   └── migrations/          # generated SQL, committed to git
 ├── src/
-│   ├── app.js               # Express app: middleware, routes, error handling
+│   ├── server.ts            # loads .env and starts the server
+│   ├── app.ts               # Express app: middleware, routes, error handling
 │   ├── config/              # Prisma client, session/cookie settings
 │   ├── routes/              # URL + HTTP method → middleware + controller
 │   ├── controllers/         # read the request, call a service, send the response
 │   ├── services/            # business logic and database access (Prisma)
 │   ├── validators/          # Joi schemas for request bodies
 │   ├── middleware/          # requireAuth, validate, notFound, errorHandler
-│   └── utils/               # AppError, asyncHandler, JWT, passwords
-├── test/                    # Jest + Supertest tests
-└── server.js                # loads .env and starts the server
+│   ├── utils/               # AppError, asyncHandler, JWT, passwords
+│   └── types/               # adds req.user to Express's Request type
+├── test/                    # Jest + Supertest tests (helpers/: fake Prisma, shared types)
+├── tsconfig.json            # type-checks everything (npm run typecheck)
+└── tsconfig.build.json      # compiles src/ to dist/ (npm run build)
 ```
+
+`server.ts` lives in `src/` so `dist/` keeps the same folder depth: compiled
+files find `docs/openapi.yaml` with the same relative path as the source.
 
 A request flows **route → middleware (auth, validation) → controller → service →
 Prisma**. Keep database code in services, and HTTP details (status codes,
@@ -145,11 +156,11 @@ How it works:
 
 ### Protecting a route
 
-```js
-const requireAuth = require("../middleware/requireAuth");
+```ts
+import requireAuth from "../middleware/requireAuth";
 
 router.post("/", requireAuth, validate(createReportSchema), asyncHandler(controller.create));
-// In the controller: req.user.id is the signed-in user
+// In the controller: req.user!.id is the signed-in user (requireAuth ran first)
 ```
 
 `requireAuth` answers `401 UNAUTHENTICATED` by itself. Checking that the user
@@ -187,7 +198,7 @@ Every response uses the same envelope:
 
 - `code` is stable and for frontend logic; `message` is for display.
 - To fail a request, `throw new AppError(status, code, message)` (from
-  `src/utils/AppError.js`). The central `errorHandler` turns it into the error
+  `src/utils/AppError.ts`). The central `errorHandler` turns it into the error
   response. Client errors raised by Express itself keep their status (e.g.
   `413 PAYLOAD_TOO_LARGE` for a body over 100 kB). Any other error becomes a
   generic `500 INTERNAL_ERROR`; the details are logged on the server, never sent
@@ -205,9 +216,10 @@ Every response uses the same envelope:
 2. **Service** in `src/services/` (Prisma queries, business rules, `AppError`s).
 3. **Controller** in `src/controllers/` (calls the service, sends the response).
 4. **Route** in `src/routes/` with `requireAuth` if needed, `validate(schema)` and
-   `asyncHandler(controller.fn)`; mount new routers in `src/app.js`.
-5. **Docs:** add the endpoint to `docs/openapi.yaml`. `test/docs.test.js` fails if
-   an auth route is missing; add new routers to that test too.
+   `asyncHandler(controller.fn)`; mount new routers in `src/app.ts`.
+5. **Docs:** add the endpoint to `docs/openapi.yaml`, including a `429` response.
+   `test/docs.test.ts` fails if an auth or reports route is missing or an
+   operation has no `429`; add new routers to that test too.
 6. **Tests** in `test/` for the success case and each error case.
 
 ## API docs and Postman
@@ -222,17 +234,17 @@ Every response uses the same envelope:
 ```bash
 npm test                      # all tests
 npm run test:cov              # with coverage (writes coverage/, gitignored)
-npx jest test/auth.test.js    # one file
+npx jest test/auth.test.ts    # one file
 ```
 
-Tests need no database: Prisma is replaced by an in-memory fake. Test files go in `test/` and end in
-`.test.js`.
+Tests need no database: Prisma is replaced by the typed in-memory fake in
+`test/helpers/fakePrisma.ts`. Test files go in `test/` and end in `.test.ts`.
 
 | To test…                         | Start from           |
 | -------------------------------- | -------------------- |
-| A simple endpoint                | `test/hello.test.js` |
-| Signed-in requests, database use | `test/auth.test.js`  |
-| A plain function                 | `test/jwt.test.js`   |
+| A simple endpoint                | `test/hello.test.ts` |
+| Signed-in requests, database use | `test/auth.test.ts`  |
+| A plain function                 | `test/jwt.test.ts`   |
 
 `request.agent(app)` keeps cookies between requests, so you can register or log
 in once and then call protected routes.

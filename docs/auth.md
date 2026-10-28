@@ -215,10 +215,10 @@ Backend routes that need a signed-in user use the `requireAuth` middleware. It
 sets `req.user` (the same public user object) or responds with
 `401 UNAUTHENTICATED`:
 
-```js
-const requireAuth = require("../middleware/requireAuth");
+```ts
+import requireAuth from "../middleware/requireAuth";
 
-router.post("/", requireAuth, createReport); // req.user.id is the owner
+router.post("/", requireAuth, createReport); // req.user!.id is the owner
 ```
 
 Checking that the user _owns_ a resource (e.g. editing a report) is the route's
