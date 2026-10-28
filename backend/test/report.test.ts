@@ -709,6 +709,28 @@ describe("PATCH /api/reports/:id", () => {
     expect(res.body.code).toBe("VALIDATION_ERROR");
     expect(prisma.petReport.update).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["empty color", { color: "" }, "color"],
+    ["null color", { color: null }, "color"],
+    ["invalid petType", { petType: "FISH" }, "petType"],
+    ["invalid status", { status: "DELETED" }, "status"],
+    ["petName over 100 characters", { petName: "a".repeat(101) }, "petName"],
+    ["incomplete location with only city", { location: { city: "X" } }, "location.zipCode"],
+    ["empty location object", { location: {} }, "location.zipCode"],
+    [
+      "zip code that isn't 5 digits",
+      { location: { zipCode: "1234", city: "New York", state: "NY" } },
+      "location.zipCode",
+    ],
+  ])("rejects invalid field value: %s (400)", async (_, invalidPayload, expectedField) => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send(invalidPayload);
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details[0].field).toBe(expectedField);
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("reportService.getUserReports", () => {
