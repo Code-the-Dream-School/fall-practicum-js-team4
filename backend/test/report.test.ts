@@ -452,6 +452,16 @@ describe("PATCH /api/reports/:id", () => {
     },
   };
 
+  // What every report response includes: location, and photos without the
+  // internal Cloudinary publicId
+  const REPORT_INCLUDE = {
+    location: true,
+    photos: {
+      select: { petPhotoId: true, imageUrl: true, createdAt: true },
+      orderBy: { petPhotoId: "asc" },
+    },
+  };
+
   beforeEach(async () => {
     prisma._users.length = 0;
     prisma._reports.length = 0;
@@ -461,6 +471,31 @@ describe("PATCH /api/reports/:id", () => {
     const created = await agent.post("/api/reports").send(baseReport);
     myReportId = (created.body.data as ApiReport).petReportId;
     jest.clearAllMocks();
+  });
+
+  it("returns the report's photos, like create and GET /mine, without publicId (200)", async () => {
+    const stored = prisma._reports.find((r) => r.petReportId === myReportId)!;
+    stored.photos = [
+      {
+        petPhotoId: 7,
+        petReportId: myReportId,
+        imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+        publicId: "pawradar/reports/buddy",
+        createdAt: new Date(),
+      },
+    ];
+
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({ petName: "Max" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.petName).toBe("Max");
+    expect(res.body.data.photos).toEqual([
+      {
+        petPhotoId: 7,
+        imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+        createdAt: expect.any(String),
+      },
+    ]);
   });
 
   it("rejects unauthenticated requests (401)", async () => {
@@ -615,7 +650,7 @@ describe("PATCH /api/reports/:id", () => {
           },
         },
       },
-      include: { location: true },
+      include: REPORT_INCLUDE,
     });
   });
 
@@ -653,7 +688,7 @@ describe("PATCH /api/reports/:id", () => {
     expect(prisma.petReport.update).toHaveBeenCalledWith({
       where: { petReportId: myReportId },
       data: { location: { delete: true } },
-      include: { location: true },
+      include: REPORT_INCLUDE,
     });
   });
 
@@ -678,7 +713,7 @@ describe("PATCH /api/reports/:id", () => {
     expect(prisma.petReport.update).toHaveBeenCalledWith({
       where: { petReportId: reportId },
       data: {},
-      include: { location: true },
+      include: REPORT_INCLUDE,
     });
   });
 

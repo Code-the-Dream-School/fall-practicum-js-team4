@@ -135,9 +135,11 @@ export const createFakePrisma = () => {
         async ({
           where,
           data,
+          include,
         }: {
           where: { petReportId: number };
           data: Record<string, unknown>;
+          include?: ReportInclude;
         }) => {
           const report = reports.find((r) => r.petReportId === where.petReportId)!;
           const { location, ...fields } = data as {
@@ -157,7 +159,8 @@ export const createFakePrisma = () => {
               : { locationId: 1, petReportId: report.petReportId, ...location.upsert.create };
           }
 
-          return report;
+          // Apply the photo `select` like Prisma does
+          return withSelectedPhotos(report, include);
         },
       ),
       count: jest.fn(

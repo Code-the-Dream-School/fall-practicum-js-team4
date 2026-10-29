@@ -112,6 +112,7 @@ export const updateReport = async (
   petReportId: number,
   data: UpdateReportInput,
 ) => {
+  // Only for the existence and ownership checks below: photos aren't needed here
   const existing = await prisma.petReport.findUnique({
     where: { petReportId },
     include: { location: true },
@@ -155,11 +156,10 @@ export const updateReport = async (
     }
   }
 
+  // Same shape as create and GET /mine: location plus photos (without publicId)
   return prisma.petReport.update({
     where: { petReportId },
     data: updateData,
-    include: {
-      location: true,
-    },
+    include: { location: true, photos: PHOTOS },
   });
 };

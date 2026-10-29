@@ -205,6 +205,18 @@ describe("POST /api/reports with photos", () => {
     expect(mostAtOnce).toBe(1);
   });
 
+  it("keeps the photos when the report is edited later", async () => {
+    const created = await send([await png()]);
+    const id = created.body.data.petReportId;
+
+    const res = await agent.patch(`/api/reports/${id}`).send({ petName: "Milo Jr" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.petName).toBe("Milo Jr");
+    expect(res.body.data.photos).toEqual(created.body.data.photos);
+    expect(res.body.data.photos[0]).not.toHaveProperty("publicId");
+  });
+
   it("accepts a multipart report without photos", async () => {
     const res = await send([]);
 
