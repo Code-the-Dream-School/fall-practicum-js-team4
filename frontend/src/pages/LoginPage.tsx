@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { PATHS } from '../app/paths';
 import type { Location } from 'react-router';
 import { useAuth } from '../context/useAuth';
@@ -213,6 +213,10 @@ export function LoginPage() {
             <span>{isSubmitting ? 'Signing in…' : 'Sign In to PawRadar'}</span>
           </button>
         </form>
+
+        <p className="login__signup">
+          Don't have an account? <Link to={PATHS.register}>Sign Up</Link>
+        </p>
 
         <p className="login__note">
           <Icon name="verified_user" className="login__note-icon" />
