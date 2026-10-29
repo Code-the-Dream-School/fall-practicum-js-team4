@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router';
+import { PATHS } from './app/paths';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoggedInPage } from './pages/LoggedInPage';
@@ -16,27 +17,27 @@ import { ReportsDirectoryPage } from './pages/ReportsDirectoryPage';
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route path={PATHS.home} element={<Layout />}>
         {/* Public routes*/}
         <Route index element={<HomePage />} />
         <Route
-          path="lost-pets"
+          path={PATHS.lostPets}
           element={<ReportsDirectoryPage key="lost" reportType="LOST" />}
         />
         <Route
-          path="found-pets"
+          path={PATHS.foundPets}
           element={<ReportsDirectoryPage key="found" reportType="FOUND" />}
         />
-        <Route path="pets/:id" element={<PetDetailsPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
+        <Route path={PATHS.petDetails(':id')} element={<PetDetailsPage />} />
+        <Route path={PATHS.analytics} element={<AnalyticsPage />} />
+        <Route path={PATHS.login} element={<LoginPage />} />
+        <Route path={PATHS.register} element={<RegisterPage />} />
 
         {/* Signed-in only routes*/}
         <Route element={<ProtectedRoute />}>
-          <Route path="report-pet" element={<ReportPetPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="/dashboard" element={<LoggedInPage />} />
+          <Route path={PATHS.reportPet} element={<ReportPetPage />} />
+          <Route path={PATHS.profile} element={<ProfilePage />} />
+          <Route path={PATHS.dashboard} element={<LoggedInPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
