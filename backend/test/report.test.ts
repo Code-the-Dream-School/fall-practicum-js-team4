@@ -77,7 +77,8 @@ describe("POST /api/reports", () => {
       city: "New York",
       state: "NY",
     });
-    expect(res.body.data).not.toHaveProperty("photos");
+    // A JSON request has no files, so nothing is uploaded or saved as a photo
+    expect(prisma.petReport.create.mock.calls[0][0].data).not.toHaveProperty("photos");
   });
 
   it("supports FOUND reports without optional fields (201)", async () => {
@@ -111,7 +112,7 @@ describe("POST /api/reports", () => {
     expect(res.body.code).toBe("VALIDATION_ERROR");
   });
 
-  it("rejects photos until the photo-upload story is done (400)", async () => {
+  it("rejects photo URLs in JSON: photos must be uploaded as files (400)", async () => {
     const res = await agent
       .post("/api/reports")
       .send({ ...validReport, photos: ["https://images.example.com/buddy.jpg"] });
@@ -355,12 +356,19 @@ describe("GET /api/reports/mine", () => {
     expect(res.body.data.reports[1].location).toMatchObject({ city: "New York" });
   });
 
-  it("asks the database for the user's reports with location, newest first", async () => {
+  it("asks the database for the user's reports with location and photos, newest first", async () => {
     await agent.get("/api/reports/mine");
 
     expect(lastFindManyArgs()).toEqual({
       where: { userId: me.id },
-      include: { location: true },
+      include: {
+        location: true,
+        // publicId is left out on purpose: it's internal
+        photos: {
+          select: { petPhotoId: true, imageUrl: true, createdAt: true },
+          orderBy: { petPhotoId: "asc" },
+        },
+      },
       orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
     });
   });
@@ -444,6 +452,16 @@ describe("PATCH /api/reports/:id", () => {
     },
   };
 
+  // What every report response includes: location, and photos without the
+  // internal Cloudinary publicId
+  const REPORT_INCLUDE = {
+    location: true,
+    photos: {
+      select: { petPhotoId: true, imageUrl: true, createdAt: true },
+      orderBy: { petPhotoId: "asc" },
+    },
+  };
+
   beforeEach(async () => {
     prisma._users.length = 0;
     prisma._reports.length = 0;
@@ -453,6 +471,31 @@ describe("PATCH /api/reports/:id", () => {
     const created = await agent.post("/api/reports").send(baseReport);
     myReportId = (created.body.data as ApiReport).petReportId;
     jest.clearAllMocks();
+  });
+
+  it("returns the report's photos, like create and GET /mine, without publicId (200)", async () => {
+    const stored = prisma._reports.find((r) => r.petReportId === myReportId)!;
+    stored.photos = [
+      {
+        petPhotoId: 7,
+        petReportId: myReportId,
+        imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+        publicId: "pawradar/reports/buddy",
+        createdAt: new Date(),
+      },
+    ];
+
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({ petName: "Max" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.petName).toBe("Max");
+    expect(res.body.data.photos).toEqual([
+      {
+        petPhotoId: 7,
+        imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+        createdAt: expect.any(String),
+      },
+    ]);
   });
 
   it("rejects unauthenticated requests (401)", async () => {
@@ -607,7 +650,7 @@ describe("PATCH /api/reports/:id", () => {
           },
         },
       },
-      include: { location: true },
+      include: REPORT_INCLUDE,
     });
   });
 
@@ -645,7 +688,7 @@ describe("PATCH /api/reports/:id", () => {
     expect(prisma.petReport.update).toHaveBeenCalledWith({
       where: { petReportId: myReportId },
       data: { location: { delete: true } },
-      include: { location: true },
+      include: REPORT_INCLUDE,
     });
   });
 
@@ -670,7 +713,7 @@ describe("PATCH /api/reports/:id", () => {
     expect(prisma.petReport.update).toHaveBeenCalledWith({
       where: { petReportId: reportId },
       data: {},
-      include: { location: true },
+      include: REPORT_INCLUDE,
     });
   });
 

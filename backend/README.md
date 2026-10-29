@@ -1,16 +1,17 @@
 # Lost & Found Pets — Backend
 
 Node.js + Express REST API for the Lost & Found Pets platform, written in
-TypeScript. It handles user
-accounts, authentication and pet reports today; photos, matching and analytics
-will be added on the same structure.
+TypeScript. It handles user accounts, authentication, pet reports and report
+photos today; matching and analytics will be added on the same structure.
 
-- **Runtime:** Node.js 24 (see `.nvmrc`)
+- **Runtime:** Node.js 24, version 24.22.1 or later (see `.nvmrc` and `engines` in `package.json`)
 - **Language:** TypeScript (`strict`), compiled to `dist/` with `tsc`; `tsx` in development
 - **Framework:** Express 4
 - **Database:** PostgreSQL via Prisma ORM
 - **Auth:** email/password, with a JWT in an httpOnly cookie
 - **Validation:** Joi
+- **Photos:** `multer` (uploads), `sharp` (cleaning and resizing), Cloudinary
+  (storage)
 - **Docs:** Swagger UI generated from `docs/openapi.yaml`
 - **Tests:** Jest (via `ts-jest`) + Supertest
 
@@ -32,15 +33,18 @@ the API docs are at http://localhost:8080/api/docs.
 
 ### Environment variables (`.env`)
 
-| Variable           | Required | Description                                                                                                                           |
-| ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`     | yes      | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
-| `JWT_SECRET`       | yes      | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
-| `CLIENT_URL`       | no       | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
-| `COOKIE_SAME_SITE` | no       | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
-| `TRUST_PROXY`      | no       | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
-| `PORT`             | no       | Default `8080`                                                                                                                        |
-| `NODE_ENV`         | no       | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
+| Variable                | Required   | Description                                                                                                                           |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | yes        | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
+| `JWT_SECRET`            | yes        | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
+| `CLIENT_URL`            | no         | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
+| `COOKIE_SAME_SITE`      | no         | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
+| `TRUST_PROXY`           | no         | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
+| `CLOUDINARY_CLOUD_NAME` | for photos | From the Cloudinary dashboard (API Keys page). Only photo uploads need the three Cloudinary values                                    |
+| `CLOUDINARY_API_KEY`    | for photos | Same page. Never commit it                                                                                                            |
+| `CLOUDINARY_API_SECRET` | for photos | Same page. Never commit it or put it in frontend code                                                                                 |
+| `PORT`                  | no         | Default `8080`                                                                                                                        |
+| `NODE_ENV`              | no         | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
 
 `.env` is gitignored. Never commit it or paste its values into chat.
 
@@ -74,12 +78,12 @@ backend/
 ├── src/
 │   ├── server.ts            # loads .env and starts the server
 │   ├── app.ts               # Express app: middleware, routes, error handling
-│   ├── config/              # Prisma client, session/cookie settings
+│   ├── config/              # Prisma client, session/cookie settings, Cloudinary
 │   ├── routes/              # URL + HTTP method → middleware + controller
 │   ├── controllers/         # read the request, call a service, send the response
-│   ├── services/            # business logic and database access (Prisma)
-│   ├── validators/          # Joi schemas for request bodies
-│   ├── middleware/          # requireAuth, validate, notFound, errorHandler
+│   ├── services/            # business logic, database access (Prisma), photo storage
+│   ├── validators/          # Joi schemas for request bodies and query strings
+│   ├── middleware/          # requireAuth, validate, photoUpload, notFound, errorHandler
 │   ├── utils/               # AppError, asyncHandler, JWT, passwords
 │   └── types/               # adds req.user to Express's Request type
 ├── test/                    # Jest + Supertest tests (helpers/: fake Prisma, shared types)
@@ -152,7 +156,8 @@ How it works:
   (N=2^17, r=8, p=1); the settings are stored with each hash, and older hashes
   are upgraded automatically on the next successful login.
 - Register, login and change-password are limited to 20 attempts per IP
-  per 15 minutes; all routes together to 100.
+  per 15 minutes; creating reports to 20 per signed-in user per 15 minutes;
+  all routes together to 100 per IP.
 
 ### Protecting a route
 
@@ -189,8 +194,61 @@ Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
   between `ACTIVE` and `REUNITED`, and adding, updating or clearing `location`
   with `null`). Editing another user's report returns `403 FORBIDDEN`; a missing
   report returns `404 NOT_FOUND`.
-- Photos aren't supported yet (`photos` in the body is a `400`); they will be
-  uploaded as files in a separate story.
+- Photos are uploaded as files with `multipart/form-data` (see below). Photo
+  URLs in a JSON body are a `400`. Reports return
+  `photos: [{ petPhotoId, imageUrl, createdAt }]`; Cloudinary's `publicId` is
+  stored but never sent.
+
+### Photos
+
+`POST /api/reports` accepts up to 5 photos when sent as `multipart/form-data`:
+a `report` field with the report as JSON text, plus `photos` files.
+
+```js
+// Frontend
+const form = new FormData();
+form.append("report", JSON.stringify(report));
+for (const file of fileInput.files) form.append("photos", file);
+await fetch(`${API_URL}/api/reports`, { method: "POST", body: form, credentials: "include" });
+// Don't set Content-Type yourself: the browser adds the multipart boundary
+```
+
+```bash
+# curl (with a saved session cookie)
+curl -b cookies.txt -F 'report={"reportType":"LOST","petType":"DOG","color":"Golden","size":"LARGE","gender":"MALE","eventDate":"2026-10-20"}' \
+  -F photos=@milo.jpg -F photos=@milo2.png http://localhost:8080/api/reports
+```
+
+How it works (`src/middleware/photoUpload.ts`, `src/services/photo.service.ts`):
+
+1. `multer` keeps files in memory: at most 5, 5 MB each.
+2. `sharp` reads each file's header first: it must really be a JPEG, PNG or WebP
+   (from its contents, not the name) and at most 25 megapixels. A small file can
+   decode to hundreds of MB, so oversized photos are refused before decoding.
+3. Photos are then decoded **one at a time** (a request's peak memory is one
+   photo, not five): `sharp` applies the phone's rotation, **removes all metadata
+   including GPS location**, resizes to at most 1600 px and converts to WebP.
+4. The images go to Cloudinary (`pawradar/reports` folder). The report and its
+   photos (`imageUrl` plus Cloudinary's `publicId`) are saved together.
+5. If an upload or the database save fails, photos already uploaded for that
+   request are deleted from Cloudinary, so nothing is left behind.
+
+Errors tell the user what went wrong:
+
+| Problem                                          | Response                                        |
+| ------------------------------------------------ | ----------------------------------------------- |
+| More than 5 photos                               | `400` "You can upload at most 5 photos"         |
+| A photo over 5 MB                                | `400` "Each photo must be 5 MB or smaller"      |
+| Not a JPEG, PNG or WebP (or an empty file)       | `400` "Photo must be a JPEG, PNG or WebP image" |
+| Damaged file (broken header or image data)       | `400` "Photo file is damaged and can't be read" |
+| Over 25 megapixels                               | `400` "Photo is too large (max 25 megapixels)"  |
+| Image processing fails on our side (e.g. memory) | `500 INTERNAL_ERROR`, logged on the server      |
+| Cloudinary is down or rejects the upload         | `502 PHOTO_UPLOAD_FAILED`; nothing is saved     |
+| More than 20 reports in 15 minutes (per user)    | `429 TOO_MANY_REQUESTS`                         |
+
+Use `accept="image/jpeg,image/png,image/webp"` on the file input: iPhones then
+send JPEG instead of HEIC, which the server can't read. Tests mock Cloudinary,
+so `npm test` needs no Cloudinary account.
 
 ## API conventions
 
@@ -210,8 +268,8 @@ Every response uses the same envelope:
   to the client.
 - Wrap async controllers in `asyncHandler(...)`. Express 4 doesn't catch errors
   from async functions on its own.
-- Validate every request body with a Joi schema and the `validate()` middleware.
-  Unknown fields are rejected.
+- Validate every request body with a Joi schema and the `validate()` middleware,
+  and query strings with `validate(schema, "query")`. Unknown fields are rejected.
 - Never return password hashes or other internal fields; send users through
   `toPublicUser()`.
 
@@ -245,11 +303,12 @@ npx jest test/auth.test.ts    # one file
 Tests need no database: Prisma is replaced by the typed in-memory fake in
 `test/helpers/fakePrisma.ts`. Test files go in `test/` and end in `.test.ts`.
 
-| To test…                         | Start from           |
-| -------------------------------- | -------------------- |
-| A simple endpoint                | `test/hello.test.ts` |
-| Signed-in requests, database use | `test/auth.test.ts`  |
-| A plain function                 | `test/jwt.test.ts`   |
+| To test…                         | Start from                  |
+| -------------------------------- | --------------------------- |
+| A simple endpoint                | `test/hello.test.ts`        |
+| Signed-in requests, database use | `test/auth.test.ts`         |
+| A plain function                 | `test/jwt.test.ts`          |
+| File uploads, a mocked service   | `test/reportPhotos.test.ts` |
 
 `request.agent(app)` keeps cookies between requests, so you can register or log
 in once and then call protected routes.
@@ -271,5 +330,9 @@ error messages, and `Cache-Control: private, no-store` on every signed-in
   `innerHTML` / `dangerouslySetInnerHTML` with user text is an XSS hole.
 - Owner-only queries (e.g. `getUserReports`) return contact info and exact
   coordinates. Public endpoints need their own `select` of public fields.
-- Keep secrets in `.env`, never in code.
+- Uploaded files are untrusted too: photos are checked by content, file size,
+  pixel count and number of files, then re-encoded so no metadata (e.g. GPS
+  location) is stored.
+- Keep secrets in `.env`, never in code. The Cloudinary API secret must never
+  reach frontend code.
 - Don't log tokens, passwords or full request bodies.

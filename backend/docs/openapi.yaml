@@ -211,6 +211,13 @@ paths:
         status, id and timestamps are always set by the server; sending them is a
         400. A user can have at most 100 reports. Text is stored exactly as sent, so
         clients must render it as text (never as HTML).
+
+
+        **With photos:** send `multipart/form-data` with the report as JSON text in a
+        `report` field and up to 5 `photos` files (JPEG, PNG or WebP, 5 MB and 25
+        megapixels each). The server removes all metadata (including GPS location),
+        applies the phone's rotation, resizes to at most 1600 px, converts to WebP and
+        stores the images on Cloudinary. Without photos, plain JSON works as before.
       security:
         - cookieAuth: []
       requestBody:
@@ -219,6 +226,23 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateReportRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [report]
+              properties:
+                report:
+                  type: string
+                  description: The report as JSON text (same fields as the JSON body)
+                  example: '{"reportType":"LOST","petType":"DOG","petName":"Milo","color":"Golden","size":"LARGE","gender":"MALE","eventDate":"2026-10-20T10:00:00.000Z"}'
+                photos:
+                  type: array
+                  maxItems: 5
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
+                  items:
+                    type: string
+                    format: binary
       responses:
         "201":
           description: Report created successfully
@@ -240,6 +264,18 @@ paths:
                 success: false
                 code: REPORT_LIMIT_REACHED
                 message: You can have at most 100 reports.
+        "502":
+          description: >-
+            The photo storage service failed. Nothing is saved, and any photos already
+            uploaded for this request are deleted; the client can retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PHOTO_UPLOAD_FAILED
+                message: Could not upload photos. Please try again.
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -500,15 +536,8 @@ components:
               type: string
               minLength: 2
               maxLength: 2
-        # TODO(photo-upload story): photos are not accepted yet; sending them is a 400.
-        # photos:
-        #   type: array
-        #   maxItems: 5
-        #   items:
-        #     type: string
-        #     format: uri
-        #     maxLength: 2048
-        #     example: "https://example.com/pet.jpg"
+        # Photos aren't part of the JSON body: upload them as files with
+        # multipart/form-data (see the request body of POST /api/reports)
 
     UpdateReportRequest:
       type: object
@@ -614,6 +643,7 @@ components:
           eventDate,
           status,
           createdAt,
+          photos,
         ]
       properties:
         petReportId:
@@ -682,23 +712,22 @@ components:
               type: string
               nullable: true
               example: "-74.0060000"
-        # TODO(photo-upload story): photos are not returned yet.
-        # photos:
-        #   type: array
-        #   items:
-        #     type: object
-        #     properties:
-        #       petPhotoId:
-        #         type: integer
-        #       petReportId:
-        #         type: integer
-        #       imageUrl:
-        #         type: string
-        #         format: uri
-        #         example: "https://example.com/pet.jpg"
-        #       createdAt:
-        #         type: string
-        #         format: date-time
+        photos:
+          type: array
+          description: In upload order; an empty array when the report has none
+          items:
+            type: object
+            required: [petPhotoId, imageUrl, createdAt]
+            properties:
+              petPhotoId:
+                type: integer
+              imageUrl:
+                type: string
+                format: uri
+                example: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/abc123.webp"
+              createdAt:
+                type: string
+                format: date-time
 
     Error:
       type: object
@@ -721,6 +750,7 @@ components:
             - UNSUPPORTED_MEDIA_TYPE
             - TOO_MANY_REQUESTS
             - REPORT_LIMIT_REACHED
+            - PHOTO_UPLOAD_FAILED
             - INTERNAL_ERROR
         message:
           type: string
@@ -764,7 +794,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes.
+        attempts per IP per 15 minutes, and creating reports is limited to 20 per
+        signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -782,3 +813,9 @@ components:
                 success: false
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
+            reports:
+              summary: Over 20 reports created by one user in 15 minutes
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many reports, please try again later
