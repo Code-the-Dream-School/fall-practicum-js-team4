@@ -213,6 +213,13 @@ paths:
         status, id and timestamps are always set by the server; sending them is a
         400. A user can have at most 100 reports. Text is stored exactly as sent, so
         clients must render it as text (never as HTML).
+
+
+        **With photos:** send `multipart/form-data` with the report as JSON text in a
+        `report` field and up to 5 `photos` files (JPEG, PNG or WebP, 5 MB and 25
+        megapixels each). The server removes all metadata (including GPS location),
+        applies the phone's rotation, resizes to at most 1600 px, converts to WebP and
+        stores the images on Cloudinary. Without photos, plain JSON works as before.
       security:
         - cookieAuth: []
       requestBody:
@@ -221,6 +228,23 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateReportRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [report]
+              properties:
+                report:
+                  type: string
+                  description: The report as JSON text (same fields as the JSON body)
+                  example: '{"reportType":"LOST","petType":"DOG","petName":"Milo","color":"Golden","size":"LARGE","gender":"MALE","eventDate":"2026-10-20T10:00:00.000Z"}'
+                photos:
+                  type: array
+                  maxItems: 5
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
+                  items:
+                    type: string
+                    format: binary
       responses:
         "201":
           description: Report created successfully
@@ -242,6 +266,18 @@ paths:
                 success: false
                 code: REPORT_LIMIT_REACHED
                 message: You can have at most 100 reports.
+        "502":
+          description: >-
+            The photo storage service failed. Nothing is saved, and any photos already
+            uploaded for this request are deleted; the client can retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PHOTO_UPLOAD_FAILED
+                message: Could not upload photos. Please try again.
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -278,6 +314,71 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/reports/{id}:
+    patch:
+      tags: [Reports]
+      operationId: updateReport
+      summary: Update a pet report owned by the signed-in user
+      description: >-
+        Partially updates a pet report. Only the user who created the report can
+        edit it (403 FORBIDDEN otherwise). At least one editable field must be
+        provided. Owner, id, timestamps and coordinates cannot be changed.
+        Sent with `Cache-Control: private, no-store`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the pet report to update
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportRequest"
+            example:
+              status: REUNITED
+              distinctiveFeatures: Reunited with family near Central Park
+      responses:
+        "200":
+          description: Report updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReportResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: The signed-in user does not own this report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: FORBIDDEN
+                message: You can only edit your own reports
+        "404":
+          description: No report exists with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: NOT_FOUND
+                message: Report not found
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -503,15 +604,68 @@ components:
               type: string
               minLength: 2
               maxLength: 2
-        # TODO(photo-upload story): photos are not accepted yet; sending them is a 400.
-        # photos:
-        #   type: array
-        #   maxItems: 5
-        #   items:
-        #     type: string
-        #     format: uri
-        #     maxLength: 2048
-        #     example: "https://example.com/pet.jpg"
+        # Photos aren't part of the JSON body: upload them as files with
+        # multipart/form-data (see the request body of POST /api/reports)
+
+    UpdateReportRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        reportType:
+          type: string
+          enum: [LOST, FOUND]
+        petType:
+          type: string
+          enum: [DOG, CAT, BIRD, OTHER]
+        petName:
+          type: string
+          maxLength: 100
+          nullable: true
+        breed:
+          type: string
+          maxLength: 100
+          nullable: true
+        color:
+          type: string
+          maxLength: 100
+        size:
+          type: string
+          enum: [SMALL, MEDIUM, LARGE]
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        distinctiveFeatures:
+          type: string
+          maxLength: 1000
+          nullable: true
+        eventDate:
+          type: string
+          format: date
+          example: "2026-10-22"
+        contactInfo:
+          type: string
+          maxLength: 255
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, REUNITED]
+        location:
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [zipCode, city, state]
+          properties:
+            zipCode:
+              type: string
+              pattern: '^\d{5}$'
+            city:
+              type: string
+              maxLength: 100
+            state:
+              type: string
+              minLength: 2
+              maxLength: 2
 
     CreateReportResponse:
       type: object
@@ -557,6 +711,7 @@ components:
           eventDate,
           status,
           createdAt,
+          photos,
         ]
       properties:
         petReportId:
@@ -625,23 +780,22 @@ components:
               type: string
               nullable: true
               example: "-74.0060000"
-        # TODO(photo-upload story): photos are not returned yet.
-        # photos:
-        #   type: array
-        #   items:
-        #     type: object
-        #     properties:
-        #       petPhotoId:
-        #         type: integer
-        #       petReportId:
-        #         type: integer
-        #       imageUrl:
-        #         type: string
-        #         format: uri
-        #         example: "https://example.com/pet.jpg"
-        #       createdAt:
-        #         type: string
-        #         format: date-time
+        photos:
+          type: array
+          description: In upload order; an empty array when the report has none
+          items:
+            type: object
+            required: [petPhotoId, imageUrl, createdAt]
+            properties:
+              petPhotoId:
+                type: integer
+              imageUrl:
+                type: string
+                format: uri
+                example: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/abc123.webp"
+              createdAt:
+                type: string
+                format: date-time
 
     ZipPlace:
       type: object
@@ -708,6 +862,7 @@ components:
             - UNSUPPORTED_MEDIA_TYPE
             - TOO_MANY_REQUESTS
             - REPORT_LIMIT_REACHED
+            - PHOTO_UPLOAD_FAILED
             - ZIP_NOT_FOUND
             - ZIP_SERVICE_UNAVAILABLE
             - INTERNAL_ERROR
@@ -753,7 +908,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes.
+        attempts per IP per 15 minutes, and creating reports is limited to 20 per
+        signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -771,3 +927,9 @@ components:
                 success: false
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
+            reports:
+              summary: Over 20 reports created by one user in 15 minutes
+              value:
+                success: false
+                code: TOO_MANY_REQUESTS
+                message: Too many reports, please try again later

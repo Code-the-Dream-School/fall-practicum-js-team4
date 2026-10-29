@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import type { Schema } from "joi";
 import AppError from "../utils/AppError";
 
-// Validates req.body, req.query and req.params against a Joi schema and replaces it with the cleaned value
+// Validates req.body, req.query, or req.params against a Joi schema and replaces it with the cleaned value
 const validate =
   (schema: Schema, source: "body" | "query" | "params" = "body"): RequestHandler =>
   (req, res, next) => {

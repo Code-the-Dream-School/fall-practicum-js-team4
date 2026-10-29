@@ -28,8 +28,10 @@ describe("API docs", () => {
     const routes = (router.stack as RouteLayer[]).flatMap(({ route }) =>
       route
         ? Object.keys(route.methods).map((method) => {
-            // "/" is documented as the prefix itself, e.g. /api/reports
-            const path = route.path === "/" ? prefix : `${prefix}${route.path}`;
+            // "/" is documented as the prefix itself, e.g. /api/reports;
+            // Express ":id" params are documented as "{id}" in OpenAPI
+            const rawPath = route.path === "/" ? prefix : `${prefix}${route.path}`;
+            const path = rawPath.replace(/:([^/]+)/g, "{$1}");
             return `${method} ${path}`;
           })
         : [],

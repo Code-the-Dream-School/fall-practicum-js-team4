@@ -146,9 +146,14 @@ export function Navbar({ isMobile }: NavbarProps) {
           )}
 
           {status === 'unauthenticated' && (
-            <Link to={PATHS.login} style={buttonStyles.outline}>
-              Sign In
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Link to={PATHS.login} style={buttonStyles.outline}>
+                Sign In
+              </Link>
+              <Link to={PATHS.register} style={buttonStyles.outline}>
+                Register
+              </Link>
+            </div>
           )}
         </div>
       </div>

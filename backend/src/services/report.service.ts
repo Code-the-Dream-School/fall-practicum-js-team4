@@ -1,13 +1,30 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
-import type { CreateReportInput, MyReportsQuery } from "../validators/report.validators";
+import { deleteImages, storePhotos } from "./photo.service";
+import type {
+  CreateReportInput,
+  MyReportsQuery,
+  UpdateReportInput,
+} from "../validators/report.validators";
 
 // Stops one account (or a script) from filling the database and making
 // GET /api/reports/mine huge, since that list isn't paginated
 export const MAX_REPORTS_PER_USER = 100;
 
-export const createReport = async (userId: string, data: CreateReportInput) => {
+// Photo fields sent to clients; publicId (Cloudinary's id) stays internal
+const PHOTOS = {
+  select: { petPhotoId: true, imageUrl: true, createdAt: true },
+  // Same order the files were uploaded in
+  orderBy: { petPhotoId: "asc" },
+} satisfies Prisma.PetReport$photosArgs;
+
+// files: uploaded photos from multer ([] for JSON requests)
+export const createReport = async (
+  userId: string,
+  data: CreateReportInput,
+  files: Express.Multer.File[],
+) => {
   // Count-then-create isn't atomic: parallel requests can pass the check together
   // and go a few over. Fine for a cap whose job is to stop abuse, not to be exact.
   const existing = await prisma.petReport.count({ where: { userId } });
@@ -40,13 +57,22 @@ export const createReport = async (userId: string, data: CreateReportInput) => {
     };
   }
 
-  return prisma.petReport.create({
-    data: reportData,
-    // Photos are left out until the photo-upload story (PetPhoto table stays)
-    include: {
-      location: true,
-    },
-  });
+  // After the checks above, so a rejected report never uploads anything
+  const photos = await storePhotos(files);
+  if (photos.length > 0) {
+    reportData.photos = { createMany: { data: photos } };
+  }
+
+  try {
+    return await prisma.petReport.create({
+      data: reportData,
+      include: { location: true, photos: PHOTOS },
+    });
+  } catch (err) {
+    // Don't leave images in Cloudinary that no report points to
+    await deleteImages(photos.map((photo) => photo.publicId));
+    throw err;
+  }
 };
 
 // Text fields a search matches against (case-insensitive, partial match)
@@ -72,10 +98,68 @@ export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) 
 
   return prisma.petReport.findMany({
     where,
-    include: {
-      location: true,
-    },
+    include: { location: true, photos: PHOTOS },
     // petReportId breaks ties between reports created in the same millisecond
     orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+  });
+};
+
+// Optional text fields where an empty string clears the stored value to null
+const NULLABLE_TEXT_FIELDS = ["petName", "breed", "distinctiveFeatures", "contactInfo"] as const;
+
+export const updateReport = async (
+  userId: string,
+  petReportId: number,
+  data: UpdateReportInput,
+) => {
+  // Only for the existence and ownership checks below: photos aren't needed here
+  const existing = await prisma.petReport.findUnique({
+    where: { petReportId },
+    include: { location: true },
+  });
+
+  if (!existing) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  if (existing.userId !== userId) {
+    throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
+  }
+
+  const { location, ...fields } = data;
+  const updateData: Prisma.PetReportUpdateInput = { ...fields };
+
+  for (const field of NULLABLE_TEXT_FIELDS) {
+    if (field in fields) {
+      updateData[field] = fields[field] || null;
+    }
+  }
+
+  if (location !== undefined) {
+    if (location === null) {
+      if (existing.location) {
+        updateData.location = { delete: true };
+      }
+    } else {
+      const locationFields = {
+        zipCode: location.zipCode,
+        city: location.city,
+        state: location.state,
+      };
+      updateData.location = {
+        upsert: {
+          create: locationFields,
+          // Clear any old coordinates so they never point to a previous address
+          update: { ...locationFields, latitude: null, longitude: null },
+        },
+      };
+    }
+  }
+
+  // Same shape as create and GET /mine: location plus photos (without publicId)
+  return prisma.petReport.update({
+    where: { petReportId },
+    data: updateData,
+    include: { location: true, photos: PHOTOS },
   });
 };

@@ -110,6 +110,9 @@ model PetPhoto {
   petPhotoId  Int        @id @default(autoincrement()) @map("pet_photo_id")
   petReportId Int        @map("pet_report_id")
   imageUrl    String     @db.Text @map("image_url")
+  // Cloudinary public_id, used to delete the image. Null for photos saved as
+  // plain URLs before uploads existed.
+  publicId    String?    @db.VarChar(255) @map("public_id")
   createdAt   DateTime   @default(now()) @map("created_at")
 
   petReport   PetReport  @relation(fields: [petReportId], references: [petReportId], onDelete: Cascade)
