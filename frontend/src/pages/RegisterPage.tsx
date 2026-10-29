@@ -7,7 +7,7 @@ import './RegisterPage.css';
 
 export function RegisterPage() {
   return (
-    <main className="register-page">
+    <div className="register-page">
       <section className="register-page__card">
         <header className="register-page__header">
           <span className="register-page__eyebrow">
@@ -32,6 +32,6 @@ export function RegisterPage() {
           Already have an account? <Link to="/login">Sign In</Link>
         </p>
       </section>
-    </main>
+    </div>
   );
 }

@@ -74,6 +74,7 @@
 }
 
 .register-page__signin a {
+  margin-left: 0.125rem;
   color: var(--color-secondary);
   font-weight: 600;
   text-decoration: none;

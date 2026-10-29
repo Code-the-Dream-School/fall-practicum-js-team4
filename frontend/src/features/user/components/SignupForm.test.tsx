@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -84,6 +84,31 @@ describe('SignupForm', () => {
     ).toBeInTheDocument();
   });
 
+  it('clears the mismatch error when the original password is corrected', async () => {
+    const user = setup();
+    await fillForm(user);
+
+    const confirm = screen.getByLabelText(/^confirm password$/i);
+    await user.clear(confirm);
+    await user.type(confirm, 'different-password');
+
+    await submit(user);
+
+    expect(
+      await screen.findByText('Passwords do not match'),
+    ).toBeInTheDocument();
+
+    const password = screen.getByLabelText(/^password$/i);
+    await user.clear(password);
+    await user.type(password, 'different-password');
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Passwords do not match'),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it('creates an account successfully', async () => {
     let requestBody: unknown;
 
@@ -124,7 +149,7 @@ describe('SignupForm', () => {
   it('shows an error for an existing email', async () => {
     server.use(
       http.post(`${API}/api/auth/register`, () =>
-        errorResponse(409, 'EMAIL_EXISTS'),
+        errorResponse(409, 'EMAIL_TAKEN'),
       ),
     );
 
@@ -137,10 +162,26 @@ describe('SignupForm', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows an error when registration is rate limited', async () => {
+    server.use(
+      http.post(`${API}/api/auth/register`, () =>
+        errorResponse(429, 'TOO_MANY_REQUESTS'),
+      ),
+    );
+
+    const user = setup();
+    await fillForm(user);
+    await submit(user);
+
+    expect(
+      await screen.findByText('Too many attempts. Please try again later.'),
+    ).toBeInTheDocument();
+  });
+
   it('clears previous server feedback when client-side validation fails', async () => {
     server.use(
       http.post(`${API}/api/auth/register`, () =>
-        errorResponse(409, 'EMAIL_EXISTS'),
+        errorResponse(409, 'EMAIL_TAKEN'),
       ),
     );
 

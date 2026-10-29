@@ -106,16 +106,13 @@ export function SignupForm() {
       }
 
       let message = 'Unable to create your account. Please try again.';
-
       if (error instanceof ApiError) {
-        if (error.status === 409) {
+        if (error.code === 'EMAIL_TAKEN') {
           message = 'An account with this email already exists.';
-        } else if (error.status === 429) {
+        } else if (error.code === 'TOO_MANY_REQUESTS') {
           message = 'Too many attempts. Please try again later.';
         } else if (error.code === 'NETWORK_ERROR') {
           message = error.message;
-        } else if (error.status === 400 || error.status === 422) {
-          message = 'Please check your information and try again.';
         }
       }
 
@@ -197,6 +194,7 @@ export function SignupForm() {
               errors.password ? 'signup-password-error' : undefined
             }
             {...register('password', {
+              deps: 'confirmPassword',
               required: 'Password is required',
               minLength: {
                 value: 8,
