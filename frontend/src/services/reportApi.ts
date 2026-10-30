@@ -49,11 +49,13 @@ export function describeReportError(err: unknown): string {
     case 'PHOTO_UPLOAD_FAILED':
       return 'Could not upload photos to storage. Please try again.';
     case 'REPORT_LIMIT_REACHED':
-      return 'You have reached the maximum of 100 active reports.';
+      return 'You have reached the maximum of 100 reports.';
     case 'TOO_MANY_REQUESTS':
       return 'Too many reports submitted recently. Please wait a few minutes and try again.';
     case 'VALIDATION_ERROR': {
-      const photoError = err.details.find((d) => d.field === 'photos');
+      const photoError = err.details.find(
+        (d) => d.field === 'photos' || d.field.startsWith('photos.'),
+      );
       if (photoError) {
         return photoError.message;
       }
