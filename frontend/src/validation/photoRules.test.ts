@@ -108,5 +108,36 @@ describe('photoRules', () => {
       expect(errors).toHaveLength(1);
       expect(errors[0]).toContain('unsupported format');
     });
+
+    it('rejects duplicate files against existing photos and within the same batch', () => {
+      const existing = new File(['img1'], 'dog.jpg', {
+        type: 'image/jpeg',
+        lastModified: 1000,
+      });
+      const duplicateOfExisting = new File(['img1'], 'dog.jpg', {
+        type: 'image/jpeg',
+        lastModified: 1000,
+      });
+      const fresh = new File(['img2'], 'cat.png', {
+        type: 'image/png',
+        lastModified: 2000,
+      });
+      const duplicateInBatch = new File(['img2'], 'cat.png', {
+        type: 'image/png',
+        lastModified: 2000,
+      });
+
+      const { validFiles, errors } = validatePhotoBatch(
+        [duplicateOfExisting, fresh, duplicateInBatch],
+        [existing],
+      );
+
+      expect(validFiles).toHaveLength(1);
+      expect(validFiles[0].name).toBe('cat.png');
+      expect(errors).toEqual([
+        '"dog.jpg" has already been added.',
+        '"cat.png" has already been added.',
+      ]);
+    });
   });
 });
