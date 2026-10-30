@@ -2,7 +2,6 @@ export const PHOTO_LIMITS = {
   maxPhotos: 5,
   maxSizeBytes: 5 * 1024 * 1024, // 5 MB
   allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'] as const,
-  allowedExtensions: ['.jpg', '.jpeg', '.png', '.webp'] as const,
 } as const;
 
 export type AllowedMimeType = (typeof PHOTO_LIMITS.allowedMimeTypes)[number];
@@ -10,6 +9,10 @@ export type AllowedMimeType = (typeof PHOTO_LIMITS.allowedMimeTypes)[number];
 export interface PhotoValidationResult {
   valid: boolean;
   error?: string;
+}
+
+export function getPhotoKey(file: File): string {
+  return `${file.name}|${file.size}|${file.lastModified}`;
 }
 
 export function validatePhotoFile(file: File): PhotoValidationResult {
@@ -42,10 +45,13 @@ export function validatePhotoFile(file: File): PhotoValidationResult {
 
 export function validatePhotoBatch(
   newFiles: File[],
-  currentPhotosCount: number,
+  existingPhotos: File[] | number = [],
 ): { validFiles: File[]; errors: string[] } {
   const errors: string[] = [];
   const validFiles: File[] = [];
+
+  const currentPhotosCount =
+    typeof existingPhotos === 'number' ? existingPhotos : existingPhotos.length;
 
   const availableSlots = PHOTO_LIMITS.maxPhotos - currentPhotosCount;
   if (availableSlots <= 0) {
@@ -57,9 +63,18 @@ export function validatePhotoBatch(
     };
   }
 
+  const seenKeys = new Set<string>(
+    typeof existingPhotos === 'number' ? [] : existingPhotos.map(getPhotoKey),
+  );
   let slotsRemaining = availableSlots;
 
   for (const file of newFiles) {
+    const key = getPhotoKey(file);
+    if (seenKeys.has(key)) {
+      errors.push(`"${file.name}" has already been added.`);
+      continue;
+    }
+
     if (slotsRemaining <= 0) {
       errors.push(
         `Only ${availableSlots} more photo(s) can be added (maximum ${PHOTO_LIMITS.maxPhotos}). "${file.name}" was skipped.`,
@@ -71,6 +86,7 @@ export function validatePhotoBatch(
     if (!result.valid && result.error) {
       errors.push(result.error);
     } else {
+      seenKeys.add(key);
       validFiles.push(file);
       slotsRemaining--;
     }
