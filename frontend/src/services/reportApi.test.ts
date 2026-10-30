@@ -98,7 +98,7 @@ describe('reportApi', () => {
         describeReportError(
           new ApiError(403, 'REPORT_LIMIT_REACHED', 'Limit reached'),
         ),
-      ).toContain('maximum of 100 active reports');
+      ).toContain('maximum of 100 reports');
 
       expect(
         describeReportError(
@@ -107,15 +107,30 @@ describe('reportApi', () => {
       ).toContain('Too many reports submitted recently');
     });
 
-    it('extracts field-specific photo validation error when present', () => {
-      const err = new ApiError(400, 'VALIDATION_ERROR', 'Invalid data', [
+    it('extracts field-specific photo validation error for both "photos" and "photos.N"', () => {
+      const multerErr = new ApiError(400, 'VALIDATION_ERROR', 'Invalid data', [
         {
           field: 'photos',
           message: 'Photo must be a JPEG, PNG or WebP image',
         },
       ]);
-      expect(describeReportError(err)).toBe(
+      expect(describeReportError(multerErr)).toBe(
         'Photo must be a JPEG, PNG or WebP image',
+      );
+
+      const storePhotosErr = new ApiError(
+        400,
+        'VALIDATION_ERROR',
+        'Invalid data',
+        [
+          {
+            field: 'photos.1',
+            message: 'Photo 2 is damaged or cannot be read',
+          },
+        ],
+      );
+      expect(describeReportError(storePhotosErr)).toBe(
+        'Photo 2 is damaged or cannot be read',
       );
     });
 
