@@ -1,7 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { describe, expect, it, vi } from 'vitest';
+import {
+  QueryClientProvider,
+  onlineManager,
+  useQuery,
+} from '@tanstack/react-query';
+import { act } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../services/api';
 import { createQueryClient } from '../app/queryClient';
 import { QueryView } from './QueryView';
@@ -39,6 +44,10 @@ const renderQuery = (
 const serverError = () => new ApiError(500, 'INTERNAL_ERROR', 'raw');
 
 describe('QueryView', () => {
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
   it('shows loading, then the data', async () => {
     renderQuery(async () => ['Milo', 'Luna']);
 
@@ -104,5 +113,38 @@ describe('QueryView', () => {
     );
     expect(screen.getByText('Milo')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  describe('when the browser is offline (requests are paused, not failed)', () => {
+    it('says it will load once back online, without a Retry that cannot help', async () => {
+      onlineManager.setOnline(false);
+      const queryFn = vi.fn().mockResolvedValue(['Milo']);
+      renderQuery(queryFn);
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        "You're offlineThis will load automatically when you're back online.",
+      );
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      expect(queryFn).not.toHaveBeenCalled();
+
+      act(() => onlineManager.setOnline(true));
+
+      expect(await screen.findByText('Milo')).toBeInTheDocument();
+    });
+
+    it('keeps the data on screen with an offline banner when a refresh is paused', async () => {
+      const queryFn = vi.fn().mockResolvedValue(['Milo']);
+      const client = renderQuery(queryFn);
+      expect(await screen.findByText('Milo')).toBeInTheDocument();
+
+      act(() => onlineManager.setOnline(false));
+      void client.refetchQueries({ queryKey: ['pets'] });
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        "You're offline. Showing earlier results.",
+      );
+      expect(screen.getByText('Milo')).toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
   });
 });

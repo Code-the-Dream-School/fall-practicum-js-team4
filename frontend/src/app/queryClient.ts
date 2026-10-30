@@ -35,8 +35,13 @@ export const createQueryClient = ({
         retry: shouldRetry,
         ...(retryDelay !== undefined && { retryDelay }),
       },
-      // POST/PATCH/DELETE change data: retrying could create a report twice
-      mutations: { retry: false },
+      mutations: {
+        // POST/PATCH/DELETE change data: retrying could create a report twice
+        retry: false,
+        // Offline, fail right away (the form shows its network error) instead
+        // of pausing and sending the change later without the user knowing
+        networkMode: 'always',
+      },
     },
   });
 };

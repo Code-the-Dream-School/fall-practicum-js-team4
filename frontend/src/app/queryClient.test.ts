@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { onlineManager } from '@tanstack/react-query';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../services/api';
 import { MAX_RETRIES, createQueryClient, shouldRetry } from './queryClient';
 
@@ -26,6 +27,8 @@ describe('shouldRetry', () => {
 });
 
 describe('createQueryClient', () => {
+  afterEach(() => onlineManager.setOnline(true));
+
   const setup = () => {
     const onSessionExpired = vi.fn();
     const client = createQueryClient({ onSessionExpired, retryDelay: 0 });
@@ -59,6 +62,21 @@ describe('createQueryClient', () => {
     const mutationFn = vi
       .fn()
       .mockRejectedValue(apiError(500, 'INTERNAL_ERROR'));
+
+    await expect(
+      client
+        .getMutationCache()
+        .build(client, { mutationFn })
+        .execute(undefined),
+    ).rejects.toThrow();
+
+    expect(mutationFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a mutation while offline instead of holding it for later', async () => {
+    onlineManager.setOnline(false);
+    const { client } = setup();
+    const mutationFn = vi.fn().mockRejectedValue(apiError(0, 'NETWORK_ERROR'));
 
     await expect(
       client

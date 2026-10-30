@@ -289,6 +289,7 @@ What each error does (`src/services/describeApiError.ts`, `src/app/queryClient.t
 
 | Error                     | User sees                                     | Retried automatically |
 | ------------------------- | --------------------------------------------- | --------------------- |
+| Browser offline           | "You're offline", loads when back online      | waits, then loads     |
 | Network (`NETWORK_ERROR`) | "You're offline" + Retry                      | up to 2×              |
 | `5xx`                     | "Something went wrong on our side" + Retry    | up to 2×              |
 | `401` `UNAUTHENTICATED`   | Signed out, then back to the page after login | no (handled globally) |
@@ -300,6 +301,9 @@ Rules:
 
 - Only queries retry; **mutations (`useMutation`) never retry**: a POST could
   create a report twice.
+- When the browser knows it's offline, queries wait instead of failing and load
+  by themselves once the connection is back. Mutations fail right away with
+  `NETWORK_ERROR`, so a change is never sent later without the user knowing.
 - Pick messages by error `code`, not status (see `docs/auth.md`).
 - Signing out (or an expired session) clears all cached data.
 - In tests, `renderApp()` already includes the query setup (without retry

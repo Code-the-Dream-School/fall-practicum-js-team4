@@ -13,6 +13,10 @@ interface ErrorStateProps {
   error: unknown;
   onRetry?: () => void;
   variant?: ErrorStateVariant;
+  // Replaces the standard explanation under the title (page variant)
+  message?: string;
+  // 'status' for a calm notice, e.g. waiting for the connection to come back
+  role?: 'alert' | 'status';
 }
 
 const ICONS: Record<ErrorKind, string> = {
@@ -45,9 +49,12 @@ export function ErrorState({
   error,
   onRetry,
   variant = 'page',
+  message: messageOverride,
+  role = 'alert',
 }: ErrorStateProps) {
-  const { kind, title, message, retryable, reference } =
-    describeApiError(error);
+  const described = describeApiError(error);
+  const { kind, title, retryable, reference } = described;
+  const message = messageOverride ?? described.message;
   const canRetry = retryable && onRetry !== undefined;
   const iconColor =
     kind === 'rate-limited' || kind === 'network'
@@ -90,7 +97,7 @@ export function ErrorState({
 
   if (variant === 'inline') {
     return (
-      <div role="alert" style={{ display: 'grid', gap: 6, fontSize: 14 }}>
+      <div role={role} style={{ display: 'grid', gap: 6, fontSize: 14 }}>
         <span
           style={{
             display: 'flex',
@@ -116,7 +123,7 @@ export function ErrorState({
 
   return (
     <div
-      role="alert"
+      role={role}
       style={{
         display: 'grid',
         justifyItems: 'center',
