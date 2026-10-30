@@ -220,4 +220,27 @@ describe('PhotoUpload', () => {
     fireEvent.keyDown(dropZone, { key: ' ', code: 'Space' });
     expect(clickSpy).toHaveBeenCalledTimes(3);
   });
+
+  it('rejects duplicate files when the same photo is selected again', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const existing = new File(['dog image'], 'golden.jpg', {
+      type: 'image/jpeg',
+      lastModified: 1000,
+    });
+    const duplicate = new File(['dog image'], 'golden.jpg', {
+      type: 'image/jpeg',
+      lastModified: 1000,
+    });
+
+    render(<PhotoUpload photos={[existing]} onChange={onChange} />);
+
+    const input = screen.getByLabelText(/upload pet photos/i);
+    await user.upload(input, duplicate);
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '"golden.jpg" has already been added.',
+    );
+  });
 });
