@@ -58,23 +58,30 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
 
   if (!res.ok) throw new ZipServiceUnavailableError(`Zip API responded ${res.status}`);
 
-  const body = await res.json();
-  const seenCities = new Set<string>();
-  const places: ZipPlace[] = (body.places ?? [])
-    .map((p: Record<string, string>) => ({
-      city: p["place name"],
-      state: p.state,
-      stateCode: p["state abbreviation"],
-      latitude: parseFloat(p.latitude),
-      longitude: parseFloat(p.longitude),
-    }))
-    .filter((p: ZipPlace) => {
-      const key = p.city.toLowerCase();
-      if (seenCities.has(key)) return false;
-      seenCities.add(key);
-      return true;
-    });
+  let places: ZipPlace[];
+  try {
+    const body = await res.json();
+    // As we know successful response must contain a places array; anything else is a broken response
+    if (!Array.isArray(body?.places)) throw new Error("Response has no places array");
 
+    const seenCities = new Set<string>();
+    places = body.places
+      .map((p: Record<string, string>) => ({
+        city: p["place name"],
+        state: p.state,
+        stateCode: p["state abbreviation"],
+        latitude: parseFloat(p.latitude),
+        longitude: parseFloat(p.longitude),
+      }))
+      .filter((p: ZipPlace) => {
+        const key = p.city.toLowerCase();
+        if (seenCities.has(key)) return false;
+        seenCities.add(key);
+        return true;
+      });
+  } catch (err) {
+    throw new ZipServiceUnavailableError("Zip API returned an invalid response", { cause: err });
+  }
   const data = places.length ? { zipCode, places } : null;
   setCached(zipCode, data);
   return data;
