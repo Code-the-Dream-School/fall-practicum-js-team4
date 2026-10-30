@@ -22,6 +22,7 @@ beforeEach(() => {
   process.env.ZIP_API_BASE_URL = "https://api.test/us";
   clearZipCache();
   mockFetch.mockReset();
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -112,5 +113,55 @@ describe("lookupZip", () => {
 
     await lookupZip("00000");
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+  it("treats invalid JSON as service unavailable", async () => {
+    const parseError = new SyntaxError("Unexpected token <");
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw parseError;
+      },
+    });
+
+    const promise = lookupZip("90210");
+    await expect(promise).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+    await expect(promise).rejects.toMatchObject({ cause: parseError });
+  });
+
+  it("treats a null body as service unavailable", async () => {
+    mockFetch.mockResolvedValue(okResponse(null));
+    await expect(lookupZip("90210")).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+  });
+
+  it("treats a body without places as service unavailable", async () => {
+    mockFetch.mockResolvedValue(okResponse({}));
+    await expect(lookupZip("90210")).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+  });
+
+  it("treats a place without a city name as service unavailable", async () => {
+    mockFetch.mockResolvedValue(okResponse({ places: [{ state: "California" }] }));
+    await expect(lookupZip("90210")).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+  });
+
+  it("does not cache malformed responses", async () => {
+    mockFetch.mockResolvedValueOnce(okResponse(null));
+    await expect(lookupZip("90210")).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+
+    mockFetch.mockResolvedValueOnce(okResponse({ places: [beverlyHills] }));
+    expect(await lookupZip("90210")).not.toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps and logs the original error on network failure", async () => {
+    const networkError = new TypeError("fetch failed");
+    mockFetch.mockRejectedValue(networkError);
+
+    await expect(lookupZip("90210")).rejects.toMatchObject({ cause: networkError });
+    expect(console.error).toHaveBeenCalledWith(
+      "Zip lookup failed:",
+      "Zip lookup service unavailable",
+      networkError,
+    );
   });
 });
