@@ -11,6 +11,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ReportPetPage } from './pages/ReportPetPage';
 import { ReportsDirectoryPage } from './pages/ReportsDirectoryPage';
+import { EditReportPage } from './pages/EditReportPage';
 
 // Kept apart from App so tests can render the routes inside a MemoryRouter
 export function AppRoutes() {
@@ -35,6 +36,7 @@ export function AppRoutes() {
         {/* Signed-in only routes*/}
         <Route element={<ProtectedRoute />}>
           <Route path="report-pet" element={<ReportPetPage />} />
+          <Route path="pets/:id/edit" element={<EditReportPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="/dashboard" element={<LoggedInPage />} />
         </Route>
