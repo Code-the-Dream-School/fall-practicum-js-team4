@@ -13,6 +13,11 @@ export interface ZipLookupResult {
 
 export class ZipServiceUnavailableError extends Error {}
 
+const serviceUnavailable = (message: string, cause?: unknown) => {
+  console.error("Zip lookup failed:", message, cause ?? "");
+  return new ZipServiceUnavailableError(message, { cause });
+};
+
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 export const CACHE_MAX_ENTRIES = 5000;
 const cache = new Map<string, { data: ZipLookupResult | null; expires: number }>();
@@ -47,8 +52,8 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
     res = await fetch(`${process.env.ZIP_API_BASE_URL}/${zipCode}`, {
       signal: AbortSignal.timeout(Number(process.env.ZIP_API_TIMEOUT_MS) || 3000),
     });
-  } catch {
-    throw new ZipServiceUnavailableError("Zip lookup service unavailable");
+  } catch (err) {
+    throw serviceUnavailable("Zip lookup service unavailable", err);
   }
 
   if (res.status === 404) {
@@ -56,7 +61,7 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
     return null;
   }
 
-  if (!res.ok) throw new ZipServiceUnavailableError(`Zip API responded ${res.status}`);
+  if (!res.ok) throw serviceUnavailable(`Zip API responded ${res.status}`);
 
   let places: ZipPlace[];
   try {
@@ -80,7 +85,7 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
         return true;
       });
   } catch (err) {
-    throw new ZipServiceUnavailableError("Zip API returned an invalid response", { cause: err });
+    throw serviceUnavailable("Zip API returned an invalid response", err);
   }
   const data = places.length ? { zipCode, places } : null;
   setCached(zipCode, data);
