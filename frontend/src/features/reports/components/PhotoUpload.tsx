@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -11,6 +10,7 @@ import {
 import { Icon } from '../../../components/Icon';
 import {
   PHOTO_LIMITS,
+  getPhotoKey,
   validatePhotoBatch,
 } from '../../../validation/photoRules';
 import './PhotoUpload.css';
@@ -42,13 +42,17 @@ function PhotoThumbnail({
   onRemove,
   disabled,
 }: PhotoThumbnailProps) {
-  const url = useMemo(() => URL.createObjectURL(file), [file]);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    if (imgRef.current) {
+      imgRef.current.src = objectUrl;
+    }
     return () => {
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
     };
-  }, [url]);
+  }, [file]);
 
   const isPrimary = index === 0;
 
@@ -56,7 +60,7 @@ function PhotoThumbnail({
     <div className="photo-upload__card">
       <div className="photo-upload__thumb-wrap">
         <img
-          src={url}
+          ref={imgRef}
           alt={`Uploaded pet preview ${index + 1}`}
           className="photo-upload__thumb"
         />
@@ -118,10 +122,7 @@ export function PhotoUpload({
       if (!incomingFiles || incomingFiles.length === 0 || isDisabled) return;
 
       const fileList = Array.from(incomingFiles);
-      const { validFiles, errors } = validatePhotoBatch(
-        fileList,
-        photos.length,
-      );
+      const { validFiles, errors } = validatePhotoBatch(fileList, photos);
 
       if (errors.length > 0) {
         setValidationErrors(errors);
@@ -289,7 +290,7 @@ export function PhotoUpload({
           <div className="photo-upload__grid">
             {photos.map((photo, index) => (
               <PhotoThumbnail
-                key={`${photo.name}-${photo.size}-${photo.lastModified}`}
+                key={getPhotoKey(photo)}
                 file={photo}
                 index={index}
                 onRemove={handleRemovePhoto}
