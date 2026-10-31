@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useAuth } from '../context/useAuth';
@@ -21,9 +21,18 @@ export function QueryProvider({ children, retryDelay }: QueryProviderProps) {
   );
 
   // Signed out (logout or expired session): forget every cached response, so
-  // the next person on this computer never sees the previous user's data
+  // the next person on this computer never sees the previous user's data.
+  // Only after being signed in: a visitor who never signed in keeps public data
+  // that loaded while the first sign-in check was still running.
+  const previousStatus = useRef(status);
   useEffect(() => {
-    if (status === 'unauthenticated') queryClient.clear();
+    if (
+      previousStatus.current === 'authenticated' &&
+      status === 'unauthenticated'
+    ) {
+      queryClient.clear();
+    }
+    previousStatus.current = status;
   }, [status, queryClient]);
 
   return (

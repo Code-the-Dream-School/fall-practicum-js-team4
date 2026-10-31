@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
-import { http } from 'msw';
+import { delay, http } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -83,6 +83,57 @@ describe('QueryProvider', () => {
       await screen.findByText('You have 3 reports', {}, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
+
+  it.each([
+    ['after the public list has loaded', 50, 0],
+    ['while the public list is still loading', 0, 50],
+  ])(
+    'keeps public data for a visitor who was never signed in (sign-in check ends %s)',
+    async (_, authDelay, petsDelay) => {
+      server.use(
+        http.get(`${API}/api/auth/me`, async () => {
+          await delay(authDelay);
+          return errorResponse(401, 'UNAUTHENTICATED', 'Please sign in');
+        }),
+        http.get(`${API}/api/pets`, async () => {
+          await delay(petsDelay);
+          return Response.json({ success: true, data: ['Milo'] });
+        }),
+      );
+      let queryClient: QueryClient | undefined;
+      function PublicPetsPage() {
+        const client = useQueryClient();
+        useEffect(() => {
+          queryClient = client;
+        });
+        const query = useQuery({
+          queryKey: ['pets'],
+          queryFn: () => apiRequest<string[]>('/api/pets'),
+        });
+        const { status } = useAuth();
+        return (
+          <>
+            <p>status: {status}</p>
+            <QueryView query={query}>
+              {(pets) => <p>{pets.join()}</p>}
+            </QueryView>
+          </>
+        );
+      }
+      render(
+        <AuthProvider>
+          <QueryProvider retryDelay={0}>
+            <PublicPetsPage />
+          </QueryProvider>
+        </AuthProvider>,
+      );
+
+      await screen.findByText('status: unauthenticated');
+      expect(await screen.findByText('Milo')).toBeInTheDocument();
+      // Still cached, so going back to the page doesn't load it again
+      expect(queryClient!.getQueryData(['pets'])).toEqual(['Milo']);
+    },
+  );
 
   it('forgets cached data when the user signs out', async () => {
     signedIn();
