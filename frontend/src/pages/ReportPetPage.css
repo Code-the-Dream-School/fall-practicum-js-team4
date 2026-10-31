@@ -1,0 +1,136 @@
+.report-pet-page {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 64px);
+  padding: 3rem 1rem 5rem;
+  background:
+    radial-gradient(circle at 50% 25%, rgb(0 210 255 / 0.08), transparent 55%),
+    radial-gradient(circle at 80% 85%, rgb(255 90 54 / 0.06), transparent 45%);
+}
+
+.report-pet-page__card {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 42rem;
+  padding: 2.5rem;
+  border: 1px solid rgb(0 210 255 / 0.16);
+  border-radius: 1rem;
+  background: rgb(11 14 20 / 0.92);
+  box-shadow: 0 24px 64px -8px rgb(0 0 0 / 0.75);
+}
+
+@media (max-width: 480px) {
+  .report-pet-page__card {
+    padding: 1.5rem;
+  }
+}
+
+.report-pet-page__card form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.report-pet-page__card form .report-form__section-title {
+  grid-column: 1/ -1;
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.report-pet-page__card
+  form
+  > :is(h2, .report-form__full-width, button, [role='alert'], [role='status']) {
+  grid-column: 1 / -1;
+}
+
+.report-pet-page__card form > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.report-pet-page__card form label {
+  color: var(--color-on-surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.report-pet-page__card form label:has(+ [aria-required='true'])::after {
+  content: ' *';
+  color: var(--color-primary);
+}
+
+.report-pet-page__card form :is(input, select, textarea) {
+  width: 100%;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 0.75rem;
+  background: var(--color-surface-low);
+  color: var(--color-on-surface);
+  font: inherit;
+  font-size: 1rem;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+
+.report-pet-page__card form :is(input, select, textarea):focus {
+  outline: none;
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgb(0 210 255 / 0.15);
+}
+
+.report-pet-page__card form [aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.report-pet-page__card form button[type='submit'] {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.report-pet-page__card form button[type='submit']:hover:not(:disabled) {
+  box-shadow: 0 0 24px rgb(255 90 54 / 0.3);
+}
+
+.report-pet-page__card form button[type='submit']:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 3px;
+}
+
+.report-pet-page__card form button[type='submit']:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.report-pet-page__card form p[role='alert'] {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 0.8125rem;
+}
+
+.report-pet-page__card form p[role='status'] {
+  margin: 0;
+  color: #4ade80;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 640px) {
+  .report-pet-page__card form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
