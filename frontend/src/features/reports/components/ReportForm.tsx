@@ -284,6 +284,7 @@ export function ReportForm({ reportType }: ReportFormProps) {
             errors.zipCode ? 'report-zip-code-error' : undefined
           }
           {...register('zipCode', {
+            deps: ['city', 'state'],
             validate: (value, formValues) => {
               const hasLocation = Boolean(
                 value?.trim() ||
@@ -319,6 +320,7 @@ export function ReportForm({ reportType }: ReportFormProps) {
           aria-invalid={Boolean(errors.city)}
           aria-describedby={errors.city ? 'report-city-error' : undefined}
           {...register('city', {
+            deps: ['zipCode', 'state'],
             maxLength: {
               value: 100,
               message: 'City must be 100 characters or fewer',
@@ -348,6 +350,7 @@ export function ReportForm({ reportType }: ReportFormProps) {
           aria-invalid={Boolean(errors.state)}
           aria-describedby={errors.state ? 'report-state-error' : undefined}
           {...register('state', {
+            deps: ['zipCode', 'city'],
             setValueAs: (value: string) => value.trim().toUpperCase(),
             validate: (value, formValues) => {
               const hasLocation = Boolean(
