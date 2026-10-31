@@ -14,11 +14,15 @@ describe('Navbar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows Sign In to a signed-out visitor', async () => {
+  it('shows Sign In and Register to a signed-out visitor', async () => {
     renderApp('/');
     expect(
       await screen.findByRole('link', { name: /sign in/i }),
     ).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: /^register$/i })).toHaveAttribute(
+      'href',
+      '/register',
+    );
     expect(
       screen.queryByRole('button', { name: /log out/i }),
     ).not.toBeInTheDocument();

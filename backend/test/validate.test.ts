@@ -40,3 +40,17 @@ describe("validate(schema, 'query')", () => {
     expect(next).toHaveBeenCalledWith();
   });
 });
+
+describe("validate(schema, 'params')", () => {
+  const schema = Joi.object({ id: Joi.number().integer().positive().required() });
+
+  it("converts and replaces req.params with the validated value", () => {
+    const req = { params: { id: "42" } } as unknown as Request;
+    const next = jest.fn();
+
+    validate(schema, "params")(req, res, next);
+
+    expect(req.params).toEqual({ id: 42 });
+    expect(next).toHaveBeenCalledWith();
+  });
+});

@@ -17,17 +17,43 @@ export interface FakeUser {
   updatedAt: Date;
 }
 
+export interface FakePhoto {
+  petPhotoId: number;
+  petReportId: number;
+  imageUrl: string;
+  publicId: string | null;
+  createdAt: Date;
+}
+
 // Tests may add partial reports directly (e.g. to fill up the report limit)
 export interface FakeReport {
   petReportId: number;
   userId: string;
   createdAt?: Date;
+  photos?: FakePhoto[];
+  updatedAt?: Date;
+  location?: Record<string, unknown> | null;
   [field: string]: unknown;
+}
+
+// The `include` the report queries pass; photos.select picks fields like Prisma
+interface ReportInclude {
+  photos?: { select: Partial<Record<keyof FakePhoto, boolean>> };
+  [relation: string]: unknown;
 }
 
 type UserWhere = Partial<Pick<FakeUser, "id" | "email">>;
 // The report query's filter; OR holds the search conditions
 type FindManyWhere = { userId: string; OR?: Record<string, { contains: string }>[] };
+
+// A report as Prisma returns it: photos reduced to the selected fields
+const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
+  const select = include?.photos?.select;
+  if (!select) return report;
+  const pick = (photo: FakePhoto) =>
+    Object.fromEntries(Object.keys(select).map((key) => [key, photo[key as keyof FakePhoto]]));
+  return { ...report, photos: (report.photos ?? []).map(pick) };
+};
 // Prisma update values: a plain value, or { increment: n } for numbers
 type UpdateValue = unknown | { increment: number };
 
@@ -35,6 +61,7 @@ export const createFakePrisma = () => {
   const users: FakeUser[] = [];
   const reports: FakeReport[] = [];
   let nextReportId = 1;
+  let nextPhotoId = 1;
 
   const findUser = (where: UserWhere) =>
     users.find((u) =>
@@ -75,37 +102,83 @@ export const createFakePrisma = () => {
       ),
     },
     petReport: {
-      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
-        const petReportId = nextReportId++;
-        const { location, ...fields } = data as {
-          location?: { create: Record<string, unknown> };
-        } & Record<string, unknown>;
-        const report: FakeReport = {
-          ...fields,
-          petReportId,
-          userId: fields.userId as string,
-          status: "ACTIVE",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          location: location ? { locationId: 1, petReportId, ...location.create } : null,
-        };
-        reports.push(report);
-        return report;
+      create: jest.fn(
+        async ({ data, include }: { data: Record<string, unknown>; include?: ReportInclude }) => {
+          const petReportId = nextReportId++;
+          const { location, photos, ...fields } = data as {
+            location?: { create: Record<string, unknown> };
+            photos?: { createMany: { data: { imageUrl: string; publicId: string }[] } };
+          } & Record<string, unknown>;
+          const report: FakeReport = {
+            ...fields,
+            petReportId,
+            userId: fields.userId as string,
+            status: "ACTIVE",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            location: location ? { locationId: 1, petReportId, ...location.create } : null,
+            photos: (photos?.createMany.data ?? []).map((photo) => ({
+              petPhotoId: nextPhotoId++,
+              petReportId,
+              createdAt: new Date(),
+              ...photo,
+            })),
+          };
+          reports.push(report);
+          return withSelectedPhotos(report, include);
+        },
+      ),
+      findUnique: jest.fn(async ({ where }: { where: { petReportId: number } }) => {
+        return reports.find((r) => r.petReportId === where.petReportId) ?? null;
       }),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+          include,
+        }: {
+          where: { petReportId: number };
+          data: Record<string, unknown>;
+          include?: ReportInclude;
+        }) => {
+          const report = reports.find((r) => r.petReportId === where.petReportId)!;
+          const { location, ...fields } = data as {
+            location?: {
+              delete?: boolean;
+              upsert?: { create: Record<string, unknown>; update: Record<string, unknown> };
+            };
+          } & Record<string, unknown>;
+
+          Object.assign(report, fields, { updatedAt: new Date() });
+
+          if (location?.delete) {
+            report.location = null;
+          } else if (location?.upsert) {
+            report.location = report.location
+              ? { ...report.location, ...location.upsert.update }
+              : { locationId: 1, petReportId: report.petReportId, ...location.upsert.create };
+          }
+
+          // Apply the photo `select` like Prisma does
+          return withSelectedPhotos(report, include);
+        },
+      ),
       count: jest.fn(
         async ({ where }: { where: { userId: string } }) =>
           reports.filter((r) => r.userId === where.userId).length,
       ),
       // Filters by owner only and sorts like the real query; search filters are
       // checked through the arguments (and against a real database by hand)
-      findMany: jest.fn(async ({ where }: { where: FindManyWhere; [option: string]: unknown }) =>
-        reports
-          .filter((r) => r.userId === where.userId)
-          .sort(
-            (a, b) =>
-              (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
-              b.petReportId - a.petReportId,
-          ),
+      findMany: jest.fn(
+        async ({ where, include }: { where: FindManyWhere; include?: ReportInclude }) =>
+          reports
+            .filter((r) => r.userId === where.userId)
+            .sort(
+              (a, b) =>
+                (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
+                b.petReportId - a.petReportId,
+            )
+            .map((r) => withSelectedPhotos(r, include)),
       ),
     },
   };

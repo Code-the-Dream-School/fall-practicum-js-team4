@@ -7,6 +7,12 @@ export interface User {
   createdAt: string;
 }
 
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export interface LoginInput {
   email: string;
   password: string;
@@ -25,6 +31,15 @@ const userFrom = (data: { user?: User } | null) => {
   }
   return data.user;
 };
+
+//registration API
+export const register = async (input: RegisterInput) =>
+  userFrom(
+    await apiRequest<{ user?: User }>('/api/auth/register', {
+      method: 'POST',
+      body: input,
+    }),
+  );
 
 export const login = async (input: LoginInput) =>
   userFrom(

@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
+import { PATHS } from '../app/paths';
 import { useAuth } from '../context/useAuth';
 
 // Wrap routes that need a signed-in user. Signed-out visitors go to /login,
@@ -18,7 +19,7 @@ export function ProtectedRoute() {
   if (status === 'unauthenticated') {
     return (
       <Navigate
-        to="/login"
+        to={PATHS.login}
         replace
         state={signedOutByUser ? null : { from: location }}
       />

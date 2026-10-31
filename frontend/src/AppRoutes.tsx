@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router';
+import { PATHS } from './app/paths';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoggedInPage } from './pages/LoggedInPage';
@@ -11,32 +12,32 @@ import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ReportPetPage } from './pages/ReportPetPage';
 import { ReportsDirectoryPage } from './pages/ReportsDirectoryPage';
-import { EditReportPage } from './pages/EditReportPage';
+import { UpdateReportPage } from './pages/UpdateReportPage';
 
 // Kept apart from App so tests can render the routes inside a MemoryRouter
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route path={PATHS.home} element={<Layout />}>
         {/* Public routes*/}
         <Route index element={<HomePage />} />
         <Route
-          path="lost-pets"
+          path={PATHS.lostPets}
           element={<ReportsDirectoryPage key="lost" reportType="LOST" />}
         />
         <Route
-          path="found-pets"
+          path={PATHS.foundPets}
           element={<ReportsDirectoryPage key="found" reportType="FOUND" />}
         />
-        <Route path="pets/:id" element={<PetDetailsPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
+        <Route path={PATHS.petDetails(':id')} element={<PetDetailsPage />} />
+        <Route path={PATHS.analytics} element={<AnalyticsPage />} />
+        <Route path={PATHS.login} element={<LoginPage />} />
+        <Route path={PATHS.register} element={<RegisterPage />} />
 
         {/* Signed-in only routes*/}
         <Route element={<ProtectedRoute />}>
           <Route path="report-pet" element={<ReportPetPage />} />
-          <Route path="pets/:id/edit" element={<EditReportPage />} />
+          <Route path="pets/:id/edit" element={<UpdateReportPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="/dashboard" element={<LoggedInPage />} />
         </Route>

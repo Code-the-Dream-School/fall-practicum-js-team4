@@ -10,6 +10,23 @@ describe('AppRoutes', () => {
     ).toBeInTheDocument();
   });
 
+  it('renders the signup form at /register', async () => {
+    renderApp('/register');
+
+    expect(
+      await screen.findByRole('button', { name: 'Create Account' }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole('heading', { name: 'Create Your PawRadar Account' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByLabelText('Full Name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Email Address')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    expect(screen.getByLabelText('Confirm Password')).toBeInTheDocument();
+  });
+
   it.each([
     ['/lost-pets', /lost pets directory/i],
     ['/found-pets', /found pets directory/i],

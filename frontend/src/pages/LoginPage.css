@@ -400,6 +400,24 @@
   cursor: not-allowed;
 }
 
+.login__signup {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.login__signup a {
+  margin-left: 0.125rem;
+  color: var(--color-secondary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login__signup a:hover {
+  text-decoration: underline;
+}
+
 .login__note {
   display: flex;
   align-items: center;
