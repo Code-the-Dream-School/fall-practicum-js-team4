@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
 export interface FieldError {
   field: string;
@@ -37,13 +37,24 @@ export const apiRequest = async <T>(
   { method = 'GET', body }: { method?: string; body?: unknown } = {},
 ): Promise<T> => {
   let res: Response;
+  const isFormData =
+    typeof FormData !== 'undefined' && body instanceof FormData;
+
   try {
     res = await fetch(`${API_URL}${path}`, {
       method,
       // Sends the httpOnly session cookie
       credentials: 'include',
-      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers:
+        body === undefined || isFormData
+          ? {}
+          : { 'Content-Type': 'application/json' },
+      body:
+        body === undefined
+          ? undefined
+          : isFormData
+            ? (body as FormData)
+            : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(
