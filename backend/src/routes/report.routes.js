@@ -7,6 +7,8 @@ const { createReportSchema } = require("../validators/report.validators");
 
 const router = express.Router();
 
+router.get("/mine", requireAuth, asyncHandler(controller.getMyReports));
+
 router.post("/", requireAuth, validate(createReportSchema), asyncHandler(controller.createReport));
 
 module.exports = router;

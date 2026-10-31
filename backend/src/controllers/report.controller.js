@@ -8,6 +8,15 @@ const createReport = async (req, res) => {
   });
 };
 
+const getMyReports = async (req, res) => {
+  const reports = await reportService.getMyReports(req.user.id);
+  res.status(200).json({
+    success: true,
+    data: reports,
+  });
+};
+
 module.exports = {
   createReport,
+  getMyReports,
 };

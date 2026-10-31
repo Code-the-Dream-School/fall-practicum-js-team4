@@ -39,6 +39,20 @@ const createReport = async (userId, data) => {
   });
 };
 
+const getMyReports = async (userId) => {
+  return prisma.petReport.findMany({
+    where: { userId },
+    include: {
+      location: true,
+      photos: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+};
+
 module.exports = {
   createReport,
+  getMyReports,
 };

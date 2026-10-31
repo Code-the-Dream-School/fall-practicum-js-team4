@@ -62,6 +62,12 @@ jest.mock("../src/config/prisma", () => {
         reports.push(report);
         return report;
       }),
+
+      findMany: jest.fn(async ({ where }) => {
+        return reports
+          .filter((report) => report.userId === where.userId)
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }),
     },
   };
 });
@@ -214,5 +220,83 @@ describe("POST /api/reports", () => {
     expect(res.body.success).toBe(false);
     expect(res.body.code).toBe("VALIDATION_ERROR");
     expect(res.body.details).toBeDefined();
+  });
+
+  describe("GET /api/reports/mine", () => {
+    let agent;
+
+    beforeEach(async () => {
+      prisma._users.length = 0;
+      prisma._reports.length = 0;
+      jest.clearAllMocks();
+
+      agent = request.agent(app);
+
+      await agent.post("/api/auth/register").send({
+        name: "Alex Smith",
+        email: "alex.smith@example.com",
+        password: "password123!",
+      });
+    });
+
+    it("returns an empty list when the user has no reports", async () => {
+      const res = await agent.get("/api/reports/mine");
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual([]);
+    });
+
+    it("rejects unauthenticated requests", async () => {
+      const res = await request(app).get("/api/reports/mine");
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe("UNAUTHENTICATED");
+    });
+
+    it("returns only the signed-in user's reports", async () => {
+      // Create a report for the signed-in user.
+      await agent.post("/api/reports").send({
+        reportType: "LOST",
+        petType: "DOG",
+        petName: "Buddy",
+        color: "Brown",
+        size: "MEDIUM",
+        gender: "MALE",
+        eventDate: "2026-10-20",
+      });
+
+      // Register a second user with a separate session.
+      const agent2 = request.agent(app);
+
+      await agent2.post("/api/auth/register").send({
+        name: "Taylor Smith",
+        email: "taylor@example.com",
+        password: "password123!",
+      });
+
+      // Create a report for the second user.
+      await agent2.post("/api/reports").send({
+        reportType: "FOUND",
+        petType: "CAT",
+        petName: "Whiskers",
+        color: "Black",
+        size: "SMALL",
+        gender: "FEMALE",
+        eventDate: "2026-10-20",
+      });
+
+      // Request reports using the first user's session.
+      const res = await agent.get("/api/reports/mine");
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      // The first user should see Buddy, but not Whiskers.
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].petName).toBe("Buddy");
+      expect(res.body.data[0].reportType).toBe("LOST");
+    });
   });
 });
