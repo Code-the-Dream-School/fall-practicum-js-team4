@@ -19,8 +19,13 @@ const REDIRECT_DELAY_MS = 1000;
 type Feedback = { type: 'error' | 'success'; message: string } | null;
 
 export function LoginPage() {
-  const { status, setSession, signedOutByUser, clearSignedOutByUser } =
-    useAuth();
+  const {
+    status,
+    setSession,
+    signedOutByUser,
+    sessionExpired,
+    clearSignedOutByUser,
+  } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -125,6 +130,13 @@ export function LoginPage() {
             follow your reports in real time.
           </p>
         </header>
+
+        {sessionExpired && !feedback && (
+          <div className="login__feedback login__feedback--info" role="status">
+            <Icon name="schedule" />
+            <span>Your session expired. Sign in again to continue.</span>
+          </div>
+        )}
 
         {feedback && (
           <div

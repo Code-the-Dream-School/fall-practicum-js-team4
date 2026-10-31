@@ -9,6 +9,9 @@ export const colors = {
   lost: '#f97316',
   found: '#06b6d4',
   success: '#10b981',
+  // Error states: "wait / temporary" and "failed"
+  warning: '#f59e0b',
+  danger: '#f87171',
 } as const;
 
 export const layout = {

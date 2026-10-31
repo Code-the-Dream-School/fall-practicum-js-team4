@@ -249,11 +249,66 @@ Optimize when you see real issues.
 
 - [ ] Components are small and focused
 - [ ] API logic lives in services
+- [ ] Data is loaded with `useQuery` and shown with `<QueryView>`
 - [ ] No unnecessary state
 - [ ] Side effects are cleaned up
 - [ ] Lists use stable keys
 - [ ] Environment variables are used correctly
 - [ ] `npm run lint && npm run typecheck && npm run format:check && npm test` passes
+
+## 🚦 Loading data and handling errors
+
+Load data with **TanStack Query** (`useQuery`), and show it with `<QueryView>`.
+Error handling is set up once, so every page behaves the same way (forms keep
+their own field errors).
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import { QueryView } from '../components/QueryView';
+import { apiRequest } from '../services/api';
+
+const query = useQuery({
+  queryKey: ['reports', 'mine'],
+  queryFn: () => apiRequest<MyReports>('/api/reports/mine'),
+});
+
+return (
+  <QueryView query={query}>
+    {(data) => <ReportList reports={data.reports} />}
+  </QueryView>
+);
+// For one card or section of a page: <QueryView query={query} variant="inline">
+```
+
+`<QueryView>` shows "Loading…" (and "trying again" while retrying), the error
+when nothing has loaded, or keeps the data on screen with a banner when a
+refresh fails. For anything else, use `<ErrorState error={error} onRetry={...} />`
+(`variant`: `page`, `inline` or `banner`) directly.
+
+What each error does (`src/services/describeApiError.ts`, `src/app/queryClient.ts`):
+
+| Error                     | User sees                                     | Retried automatically |
+| ------------------------- | --------------------------------------------- | --------------------- |
+| Browser offline           | "You're offline", loads when back online      | waits, then loads     |
+| Network (`NETWORK_ERROR`) | "You're offline" + Retry                      | up to 2×              |
+| `5xx`                     | "Something went wrong on our side" + Retry    | up to 2×              |
+| `401` `UNAUTHENTICATED`   | Signed out, then back to the page after login | no (handled globally) |
+| `403`, `404`, `429`       | A clear message, no Retry                     | no                    |
+| Other `4xx`               | "Couldn't load this"                          | no                    |
+| A component crashes       | "This page stopped working" + Reload          | no (error boundary)   |
+
+Rules:
+
+- Only queries retry; **mutations (`useMutation`) never retry**: a POST could
+  create a report twice.
+- When the browser knows it's offline, queries wait instead of failing and load
+  by themselves once the connection is back. Mutations fail right away with
+  `NETWORK_ERROR`, so a change is never sent later without the user knowing.
+- Pick messages by error `code`, not status (see `docs/auth.md`).
+- Signing out (or an expired session) clears all cached data.
+- In tests, `renderApp()` already includes the query setup (without retry
+  delays); for a component on its own, wrap it in
+  `<QueryClientProvider client={createQueryClient({ onSessionExpired, retryDelay: 0 })}>`.
 
 ## 🧪 Testing
 
