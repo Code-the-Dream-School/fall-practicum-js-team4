@@ -32,7 +32,7 @@ export interface PetReport {
 export interface UpdateReportInput {
   petType?: PetType;
   petName?: string | null;
-  breed: string | null;
+  breed?: string | null;
   color?: string;
   size?: PetSyze;
   gender?: PetGender;
