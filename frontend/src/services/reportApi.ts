@@ -64,6 +64,9 @@ export function describeReportError(err: unknown): string {
     case 'NETWORK_ERROR':
       return err.message;
     default:
-      return 'Something went wrong on our side. Please try again in a moment.';
+      return (
+        err.message ||
+        'Something went wrong on our side. Please try again in a moment.'
+      );
   }
 }
