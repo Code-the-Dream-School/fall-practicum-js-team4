@@ -71,7 +71,9 @@ describe("lookupZip", () => {
 
   it("throws ZipServiceUnavailableError when API responds with an error", async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
     await expect(lookupZip("90210")).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+    expect(console.error).toHaveBeenCalledWith("Zip lookup failed:", "Zip API responded 500");
   });
 
   it("does not cache API errors", async () => {
@@ -114,6 +116,7 @@ describe("lookupZip", () => {
     await lookupZip("00000");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
   it("treats invalid JSON as service unavailable", async () => {
     const parseError = new SyntaxError("Unexpected token <");
     mockFetch.mockResolvedValue({
@@ -136,7 +139,12 @@ describe("lookupZip", () => {
 
   it("treats a body without places as service unavailable", async () => {
     mockFetch.mockResolvedValue(okResponse({}));
-    await expect(lookupZip("90210")).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+
+    const promise = lookupZip("90210");
+    await expect(promise).rejects.toBeInstanceOf(ZipServiceUnavailableError);
+    await expect(promise).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: "Response has no places array" }),
+    });
   });
 
   it("treats a place without a city name as service unavailable", async () => {

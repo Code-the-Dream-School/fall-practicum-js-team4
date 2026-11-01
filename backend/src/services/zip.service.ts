@@ -14,7 +14,11 @@ export interface ZipLookupResult {
 export class ZipServiceUnavailableError extends Error {}
 
 const serviceUnavailable = (message: string, cause?: unknown) => {
-  console.error("Zip lookup failed:", message, cause ?? "");
+  if (cause === undefined) {
+    console.error("Zip lookup failed:", message);
+  } else {
+    console.error("Zip lookup failed:", message, cause);
+  }
   return new ZipServiceUnavailableError(message, { cause });
 };
 
@@ -66,7 +70,7 @@ export async function lookupZip(zipCode: string): Promise<ZipLookupResult | null
   let places: ZipPlace[];
   try {
     const body = await res.json();
-    // As we know successful response must contain a places array; anything else is a broken response
+    // A successful response always has a places array; anything else is a broken response
     if (!Array.isArray(body?.places)) throw new Error("Response has no places array");
 
     const seenCities = new Set<string>();
