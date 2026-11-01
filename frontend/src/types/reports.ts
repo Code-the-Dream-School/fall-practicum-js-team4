@@ -1,7 +1,7 @@
 export type ReportType = 'LOST' | 'FOUND';
 export type ReportStatus = 'ACTIVE' | 'REUNITED';
 export type PetType = 'DOG' | 'CAT' | 'BIRD' | 'OTHER';
-export type PetSyze = 'SMALL' | 'MEDIUM' | 'LARGE';
+export type PetSize = 'SMALL' | 'MEDIUM' | 'LARGE';
 export type PetGender = 'MALE' | 'FEMALE' | 'UNKNOWN';
 
 export interface ReportLocation {
@@ -10,6 +10,19 @@ export interface ReportLocation {
   state: string;
 }
 
+export interface CreateReportInput {
+  reportType: ReportType;
+  petType: PetType;
+  petName?: string;
+  breed?: string;
+  color: string;
+  size: PetSize;
+  gender: PetGender;
+  distinctiveFeatures?: string;
+  eventDate: string;
+  contactInfo?: string;
+  location?: ReportLocation;
+}
 export interface PetReport {
   petReportId: number;
   userId: string;
@@ -19,7 +32,7 @@ export interface PetReport {
   petName: string | null;
   breed: string | null;
   color: string;
-  size: PetSyze;
+  size: PetSize;
   gender: PetGender;
   distinctiveFeatures: string | null;
   eventDate: string;
@@ -34,7 +47,7 @@ export interface UpdateReportInput {
   petName?: string | null;
   breed?: string | null;
   color?: string;
-  size?: PetSyze;
+  size?: PetSize;
   gender?: PetGender;
   distinctiveFeatures?: string | null;
   eventDate?: string;
