@@ -437,8 +437,8 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         "503":
           description: >-
-            The external zip lookup API is unavailable or timed out. Locally, also
-            check that ZIP_API_BASE_URL is set in backend/.env.
+            The external zip lookup API is unavailable, timed out, or returned an
+            invalid response. Locally, also check that ZIP_API_BASE_URL is set in backend/.env.
           content:
             application/json:
               schema:
