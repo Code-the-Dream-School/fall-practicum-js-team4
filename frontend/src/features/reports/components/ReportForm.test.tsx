@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ReportForm } from './ReportForm';
 
@@ -296,6 +296,40 @@ describe('ReportForm', () => {
     ).toBeInTheDocument();
 
     expect(submissionCount).toBe(0);
+  });
+
+  it('clears location errors when all location fields are emptied', async () => {
+    const user = userEvent.setup();
+    render(<ReportForm reportType="LOST" />);
+
+    await user.type(
+      screen.getByLabelText('City (required if providing location)'),
+      'A',
+    );
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    expect(
+      await screen.findByText('ZIP code is required when providing a location'),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText('State is required when providing a location'),
+    ).toBeInTheDocument();
+
+    await user.clear(
+      screen.getByLabelText('City (required if providing location)'),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('ZIP code is required when providing a location'),
+      ).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText('State is required when providing a location'),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('prevents submission when the event date is in the future', async () => {
