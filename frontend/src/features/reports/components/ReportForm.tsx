@@ -6,9 +6,12 @@ import type { CreateReportInput, ReportType } from '../../../types/reports';
 
 interface ReportFormProps {
   reportType: ReportType;
+  initialValues?: Partial<ReportFormValues>;
+  onSubmit?: (values: ReportFormValues) => Promise<void>;
+  isSaving?: boolean;
 }
 
-interface ReportFormValues {
+export interface ReportFormValues {
   petName: string;
   breed?: string;
   distinctiveFeatures?: string;
@@ -32,17 +35,22 @@ function validateEventDate(value: string) {
   );
 }
 
-export function ReportForm({ reportType }: ReportFormProps) {
+export function ReportForm({
+  reportType,
+  initialValues,
+  onSubmit,
+  isSaving = false,
+}: ReportFormProps) {
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ReportFormValues>();
+  } = useForm<ReportFormValues>({ defaultValues: initialValues });
 
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
-  const onSubmit = async (values: ReportFormValues) => {
+  const handleCreate = async (values: ReportFormValues) => {
     const payload: CreateReportInput = {
       reportType,
       petType: values.petType,
@@ -84,7 +92,7 @@ export function ReportForm({ reportType }: ReportFormProps) {
     }
   };
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form onSubmit={handleSubmit(onSubmit ?? handleCreate)} noValidate>
       <h2 className="report-form__section-title">1. Pet Details</h2>
       <div>
         <label htmlFor="report-pet-name">Pet Name (optional)</label>
@@ -406,8 +414,17 @@ export function ReportForm({ reportType }: ReportFormProps) {
           </p>
         )}
       </div>
-      <button type="submit" disabled={isSubmitting || submissionSuccess}>
-        {isSubmitting ? 'Submitting...' : 'Submit Report'}
+      <button
+        type="submit"
+        disabled={isSubmitting || isSaving || (!onSubmit && submissionSuccess)}
+      >
+        {onSubmit
+          ? isSubmitting || isSaving
+            ? 'Saving...'
+            : 'Save Changes'
+          : isSubmitting
+            ? 'Submitting...'
+            : 'Submit Report'}
       </button>
 
       {submissionError && <p role="alert">{submissionError}</p>}
