@@ -1,5 +1,6 @@
 export type ReportType = 'LOST' | 'FOUND';
 export type ReportStatus = 'ACTIVE' | 'REUNITED';
+
 export type PetType = 'DOG' | 'CAT' | 'BIRD' | 'OTHER';
 export type PetSize = 'SMALL' | 'MEDIUM' | 'LARGE';
 export type PetGender = 'MALE' | 'FEMALE' | 'UNKNOWN';

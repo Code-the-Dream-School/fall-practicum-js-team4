@@ -1,4 +1,5 @@
-import { Outlet } from 'react-router';
+import { Outlet, useLocation } from 'react-router';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { Navbar } from './Navbar';
 import { BottomNav } from './BottomNav';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -6,6 +7,7 @@ import { layout } from '../../styles/theme';
 
 export function Layout() {
   const isMobile = useMediaQuery('(max-width: 1023px)');
+  const { pathname } = useLocation();
 
   return (
     <div
@@ -23,7 +25,10 @@ export function Layout() {
             : '24px 16px',
         }}
       >
-        <Outlet />
+        {/* A new key per page, so navigating away clears a crash */}
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       {isMobile && <BottomNav />}
     </div>

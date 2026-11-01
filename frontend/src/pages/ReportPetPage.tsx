@@ -1,19 +1,21 @@
-import { useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { PhotoUpload } from '../features/reports/components/PhotoUpload';
+import { ReportForm } from '../features/reports/components/ReportForm';
 import { textStyles } from '../styles/theme';
+
 import type { ReportType } from '../types/reports';
+import './ReportPetPage.css';
 
 export function ReportPetPage() {
   const [params] = useSearchParams();
-  const [photos, setPhotos] = useState<File[]>([]);
   const reportType: ReportType =
     params.get('type') === 'found' ? 'FOUND' : 'LOST';
 
   return (
-    <div>
-      <h1 style={textStyles.pageTitle}>Report a pet: {reportType}</h1>
-      <PhotoUpload photos={photos} onChange={setPhotos} />
+    <div className="report-pet-page">
+      <section className="report-pet-page__card">
+        <h1 style={textStyles.pageTitle}>Report a Pet: {reportType}</h1>
+        <ReportForm key={reportType} reportType={reportType} />
+      </section>
     </div>
   );
 }
