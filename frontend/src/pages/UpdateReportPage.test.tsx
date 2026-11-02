@@ -220,7 +220,7 @@ describe('UpdateReportPage', () => {
 
     renderApp(PATHS.editReport('100'));
 
-    const petNameInput = await screen.findByLabelText('Pet Name (optional');
+    const petNameInput = await screen.findByLabelText('Pet Name (optional)');
 
     await user.clear(petNameInput);
     await user.type(petNameInput, 'Chucha');

@@ -7,6 +7,7 @@ import {
   ReportForm,
   type ReportFormValues,
 } from '../features/reports/components/ReportForm';
+import './ReportPetPage.css';
 
 export function UpdateReportPage() {
   const { id } = useParams<{ id: string }>();
@@ -105,30 +106,32 @@ export function UpdateReportPage() {
   }
 
   return (
-    <div>
-      <h1 style={textStyles.pageTitle}>Update Pet Report</h1>
-      <p>Report ID: {report.petReportId}</p>
-      <ReportForm
-        reportType={report.reportType}
-        initialValues={{
-          petName: report.petName ?? '',
-          breed: report.breed ?? '',
-          petType: report.petType,
-          color: report.color,
-          size: report.size,
-          gender: report.gender,
-          distinctiveFeatures: report.distinctiveFeatures ?? '',
-          eventDate: report.eventDate.slice(0, 10),
-          contactInfo: report.contactInfo ?? '',
-          zipCode: report.location?.zipCode ?? '',
-          city: report.location?.city ?? '',
-          state: report.location?.state ?? '',
-        }}
-        onSubmit={handleUpdate}
-        isSaving={isSaving}
-      />
-      {error && <p role="alert">{error}</p>}
-      {success && <p role="status">{success}</p>}
+    <div className="report-pet-page">
+      <div className="report-pet-page__card">
+        <h1 style={textStyles.pageTitle}>Update Pet Report</h1>
+        <p>Report ID: {report.petReportId}</p>
+        <ReportForm
+          reportType={report.reportType}
+          initialValues={{
+            petName: report.petName ?? '',
+            breed: report.breed ?? '',
+            petType: report.petType,
+            color: report.color,
+            size: report.size,
+            gender: report.gender,
+            distinctiveFeatures: report.distinctiveFeatures ?? '',
+            eventDate: report.eventDate.slice(0, 10),
+            contactInfo: report.contactInfo ?? '',
+            zipCode: report.location?.zipCode ?? '',
+            city: report.location?.city ?? '',
+            state: report.location?.state ?? '',
+          }}
+          onSubmit={handleUpdate}
+          isSaving={isSaving}
+        />
+        {error && <p role="alert">{error}</p>}
+        {success && <p role="status">{success}</p>}
+      </div>
     </div>
   );
 }
