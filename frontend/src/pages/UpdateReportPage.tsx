@@ -108,10 +108,25 @@ export function UpdateReportPage() {
     <div>
       <h1 style={textStyles.pageTitle}>Update Pet Report</h1>
       <p>Report ID: {report.petReportId}</p>
-      <p>Pet Name: {report.petName ?? 'Unknown'}</p>
-      <p>Pet Type: {report.petType}</p>
-      <p>Color: {report.color}</p>
-
+      <ReportForm
+        reportType={report.reportType}
+        initialValues={{
+          petName: report.petName ?? '',
+          breed: report.breed ?? '',
+          petType: report.petType,
+          color: report.color,
+          size: report.size,
+          gender: report.gender,
+          distinctiveFeatures: report.distinctiveFeatures ?? '',
+          eventDate: report.eventDate.slice(0, 10),
+          contactInfo: report.contactInfo ?? '',
+          zipCode: report.location?.zipCode ?? '',
+          city: report.location?.city ?? '',
+          state: report.location?.state ?? '',
+        }}
+        onSubmit={handleUpdate}
+        isSaving={isSaving}
+      />
       {error && <p role="alert">{error}</p>}
       {success && <p role="status">{success}</p>}
     </div>
