@@ -1,8 +1,8 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
-import { API, server } from '../test/server';
+import { API, server, reportListResponse, testReports } from '../test/server';
 import { ApiError } from './api';
-import { createReport, describeReportError } from './reportApi';
+import { createReport, describeReportError, getReports } from './reportApi';
 import type { CreateReportInput } from '../types/reports';
 
 const sampleInput: CreateReportInput = {
@@ -151,6 +151,36 @@ describe('reportApi', () => {
       expect(describeReportError(new Error('boom'))).toBe(
         'Something went wrong. Please try again.',
       );
+    });
+  });
+});
+
+describe('getReports', () => {
+  it('asks for one report type and returns the list', async () => {
+    let requested: URL | undefined;
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        requested = new URL(request.url);
+        return reportListResponse(testReports);
+      }),
+    );
+
+    const data = await getReports({ type: 'LOST' });
+
+    expect(requested?.searchParams.get('type')).toBe('LOST');
+    expect(data.reports).toEqual(testReports);
+  });
+
+  it('rejects a success response without a report list', async () => {
+    server.use(
+      http.get(`${API}/api/reports`, () =>
+        HttpResponse.json({ success: true, data: {} }),
+      ),
+    );
+
+    await expect(getReports({ type: 'LOST' })).rejects.toMatchObject({
+      status: 500,
+      code: 'INTERNAL_ERROR',
     });
   });
 });
