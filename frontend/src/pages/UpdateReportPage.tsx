@@ -1,9 +1,12 @@
-//   /pets/:id/edit
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { textStyles } from '../styles/theme';
 import { getReportById, updateReport } from '../services/reportApi';
 import type { PetReport, UpdateReportInput } from '../types/reports';
+import {
+  ReportForm,
+  type ReportFormValues,
+} from '../features/reports/components/ReportForm';
 
 export function UpdateReportPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,10 +51,30 @@ export function UpdateReportPage() {
     };
   }, [id]);
 
-  async function handleUpdate(input: UpdateReportInput) {
+  async function handleUpdate(values: ReportFormValues) {
     if (!id) {
       return;
     }
+
+    const input: UpdateReportInput = {
+      petType: values.petType,
+      petName: values.petName?.trim() || null,
+      breed: values.breed?.trim() || null,
+      color: values.color.trim(),
+      size: values.size,
+      gender: values.gender,
+      distinctiveFeatures: values.distinctiveFeatures?.trim() || null,
+      eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
+      contactInfo: values.contactInfo?.trim() || null,
+      location:
+        values.zipCode?.trim() || values.city?.trim() || values.state?.trim()
+          ? {
+              zipCode: values.zipCode.trim(),
+              city: values.city.trim(),
+              state: values.state.trim().toUpperCase(),
+            }
+          : null,
+    };
 
     try {
       setIsSaving(true);
