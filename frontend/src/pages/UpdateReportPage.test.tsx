@@ -95,7 +95,7 @@ describe('UpdateReportPage', () => {
     expect(screen.queryByText('Loading report...')).not.toBeInTheDocument();
   });
 
-  it('3. updated an existing pet report successfully', async () => {
+  it('3. updates an existing pet report successfully', async () => {
     signedIn();
 
     const user = userEvent.setup();
@@ -141,6 +141,10 @@ describe('UpdateReportPage', () => {
     await waitFor(() => {
       expect(patchCalled).toBe(true);
     });
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Report updated successfully.',
+    );
   });
 
   it('4. displays a 404 error when the report is not found', async () => {
@@ -189,5 +193,43 @@ describe('UpdateReportPage', () => {
     expect(
       screen.queryByLabelText('Pet Name (optional)'),
     ).not.toBeInTheDocument();
+  });
+
+  it('6. displays an error when updating the report fails', async () => {
+    signedIn();
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () =>
+        HttpResponse.json({
+          success: true,
+          data: testReport,
+        }),
+      ),
+
+      http.patch(`${API}/api/reports/100`, () =>
+        HttpResponse.json(
+          {
+            success: false,
+            message: 'Internal Server Error.',
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    renderApp(PATHS.editReport('100'));
+
+    const petNameInput = await screen.findByLabelText('Pet Name (optional');
+
+    await user.clear(petNameInput);
+    await user.type(petNameInput, 'Chucha');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to update the report. Please try again.',
+    );
+
+    expect(petNameInput).toHaveValue('Chucha');
   });
 });
