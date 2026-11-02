@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ReportForm } from './ReportForm';
 
 import userEvent from '@testing-library/user-event';
@@ -368,5 +368,67 @@ describe('ReportForm', () => {
     ).toBeInTheDocument();
 
     expect(submissionCount).toBe(0);
+  });
+
+  it('submits attached photos as multipart/form-data when photos are selected', async () => {
+    globalThis.URL.createObjectURL = vi.fn(
+      (file: File) => `blob:mock-url/${file.name}`,
+    );
+    globalThis.URL.revokeObjectURL = vi.fn();
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { petReportId: 42 },
+        }),
+        { status: 201, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<ReportForm reportType="LOST" />);
+
+    await user.selectOptions(
+      screen.getByLabelText('Pet Type (required)'),
+      'DOG',
+    );
+    await user.type(screen.getByLabelText('Color (required)'), 'Golden');
+    await user.selectOptions(
+      screen.getByLabelText('Size (required)'),
+      'MEDIUM',
+    );
+    await user.selectOptions(
+      screen.getByLabelText('Gender (required)'),
+      'FEMALE',
+    );
+    fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
+      target: { value: '2026-10-20' },
+    });
+
+    const photoInput = screen.getByLabelText(/upload pet photos/i);
+    const photo = new File(['dog image'], 'bella.jpg', {
+      type: 'image/jpeg',
+    });
+    await user.upload(photoInput, photo);
+
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    expect(
+      await screen.findByText('Your pet report was submitted successfully!'),
+    ).toBeInTheDocument();
+
+    const [, calledInit] = fetchSpy.mock.calls[0];
+    const formData = calledInit?.body as FormData;
+    expect(formData).toBeInstanceOf(FormData);
+    expect(JSON.parse(formData.get('report') as string)).toMatchObject({
+      reportType: 'LOST',
+      petType: 'DOG',
+      color: 'Golden',
+      size: 'MEDIUM',
+      gender: 'FEMALE',
+    });
+    expect(formData.getAll('photos')).toHaveLength(1);
+    fetchSpy.mockRestore();
   });
 });

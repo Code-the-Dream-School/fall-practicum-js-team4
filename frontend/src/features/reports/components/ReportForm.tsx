@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
 import { useForm } from 'react-hook-form';
-import { ApiError, apiRequest } from '../../../services/api';
+import { createReport, describeReportError } from '../../../services/reportApi';
 import type { CreateReportInput, ReportType } from '../../../types/reports';
+import { PhotoUpload } from './PhotoUpload';
 
 interface ReportFormProps {
   reportType: ReportType;
@@ -39,6 +40,7 @@ export function ReportForm({ reportType }: ReportFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<ReportFormValues>();
 
+  const [photos, setPhotos] = useState<File[]>([]);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
@@ -69,18 +71,11 @@ export function ReportForm({ reportType }: ReportFormProps) {
     setSubmissionSuccess(false);
 
     try {
-      await apiRequest<unknown>('/api/reports', {
-        method: 'POST',
-        body: payload,
-      });
+      await createReport(payload, { photos });
 
       setSubmissionSuccess(true);
     } catch (error) {
-      setSubmissionError(
-        error instanceof ApiError
-          ? error.message
-          : 'Could not submit the report. Please try again',
-      );
+      setSubmissionError(describeReportError(error));
     }
   };
   return (
@@ -406,6 +401,15 @@ export function ReportForm({ reportType }: ReportFormProps) {
           </p>
         )}
       </div>
+
+      <div className="report-form__full-width">
+        <PhotoUpload
+          photos={photos}
+          onChange={setPhotos}
+          disabled={isSubmitting || submissionSuccess}
+        />
+      </div>
+
       <button type="submit" disabled={isSubmitting || submissionSuccess}>
         {isSubmitting ? 'Submitting...' : 'Submit Report'}
       </button>
