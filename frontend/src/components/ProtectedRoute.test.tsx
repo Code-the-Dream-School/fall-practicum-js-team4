@@ -29,7 +29,7 @@ describe('ProtectedRoute', () => {
 
   it.each([
     ['the session check returns 401', '/dashboard'],
-    ['the URL is unknown', '/no-such-page'],
+    ['opening the profile', '/profile'],
   ])('sends a signed-out user to login when %s', async (_, path) => {
     renderApp(path);
 

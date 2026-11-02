@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { PATHS } from '../app/paths';
 import type { Location } from 'react-router';
 import { useAuth } from '../context/useAuth';
 import { ApiError } from '../services/api';
@@ -11,19 +12,31 @@ import { loginRules } from '../validation/authRules';
 import { describeLoginError } from './loginErrors';
 import './LoginPage.css';
 
-const DEFAULT_REDIRECT = '/dashboard';
+const DEFAULT_REDIRECT = PATHS.dashboard;
 // Long enough to read the success message
 const REDIRECT_DELAY_MS = 1000;
 
 type Feedback = { type: 'error' | 'success'; message: string } | null;
 
 export function LoginPage() {
-  const { status, setSession } = useAuth();
+  const {
+    status,
+    setSession,
+    signedOutByUser,
+    sessionExpired,
+    clearSignedOutByUser,
+  } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [signedInUser, setSignedInUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (signedOutByUser) {
+      clearSignedOutByUser();
+    }
+  }, [signedOutByUser, clearSignedOutByUser]);
 
   const {
     register,
@@ -36,9 +49,10 @@ export function LoginPage() {
   });
 
   // Send the user back to the protected page that redirected them here
-  const from =
-    (location.state as { from?: Location } | null)?.from?.pathname ??
-    DEFAULT_REDIRECT;
+  const fromLocation = (location.state as { from?: Location } | null)?.from;
+  const from = fromLocation
+    ? `${fromLocation.pathname}${fromLocation.search}`
+    : DEFAULT_REDIRECT;
 
   useEffect(() => {
     if (!signedInUser) return;
@@ -86,7 +100,7 @@ export function LoginPage() {
   const busy = isSubmitting || signedInUser !== null;
 
   return (
-    <main className="login">
+    <div className="login">
       {/* Decorative background from the mockup */}
       <div className="login__glow login__glow--cyan" aria-hidden="true" />
       <div className="login__glow login__glow--orange" aria-hidden="true" />
@@ -116,6 +130,13 @@ export function LoginPage() {
             follow your reports in real time.
           </p>
         </header>
+
+        {sessionExpired && !feedback && (
+          <div className="login__feedback login__feedback--info" role="status">
+            <Icon name="schedule" />
+            <span>Your session expired. Sign in again to continue.</span>
+          </div>
+        )}
 
         {feedback && (
           <div
@@ -205,11 +226,15 @@ export function LoginPage() {
           </button>
         </form>
 
+        <p className="login__signup">
+          Don't have an account? <Link to={PATHS.register}>Sign Up</Link>
+        </p>
+
         <p className="login__note">
           <Icon name="verified_user" className="login__note-icon" />
           Your session is kept in a secure, HTTP-only cookie
         </p>
       </div>
-    </main>
+    </div>
   );
 }

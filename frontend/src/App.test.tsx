@@ -21,7 +21,7 @@ describe('App', () => {
 
   it('opens the dashboard for a signed-in user', async () => {
     signedIn();
-    openAt('/');
+    openAt('/dashboard');
     render(<App />);
 
     expect(await screen.findByText('Logged in')).toBeInTheDocument();

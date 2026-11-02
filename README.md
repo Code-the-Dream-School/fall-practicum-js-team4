@@ -8,8 +8,8 @@ A full-stack web application with a React frontend and a Node/Express backend th
 
 ## 🚀 Live Demo
 
-- **Frontend Live Site:** https://your-frontend-url.com  
-- **Frontend Repo:** /frontend  
+- **Frontend Live Site:** https://your-frontend-url.com
+- **Frontend Repo:** /frontend
 - **Backend Repo:** /backend
 
 ## 🧠 Problem Statement
@@ -35,26 +35,28 @@ Focus on the **user problem**, not the technology.
 
 Add screenshots or GIFs of key features here.
 
-
-
 ## 🛠 Tech Stack
 
 ### Frontend
+
 - React + TypeScript
 - Vite
 - React Router
 - React Hook Form
 
 ### Backend
-- Node.js + Express (REST API)
+
+- Node.js + Express (REST API), written in TypeScript
 - Authentication: email/password, with a JWT in an httpOnly cookie
 - Validation: Joi
 - API docs: Swagger UI (OpenAPI)
 
 ### Database
+
 - PostgreSQL with Prisma ORM (local Postgres or Neon)
 
 ### Tooling
+
 - Git & GitHub
 - dotenv (environment variables)
 - ESLint / Prettier / TypeScript type checking
@@ -84,9 +86,10 @@ project-root/
 │   │   ├── services/        # business logic and database access
 │   │   ├── utils/
 │   │   ├── validators/      # Joi request schemas
-│   │   └── app.js
-│   ├── test/                # Jest + Supertest
-│   ├── server.js
+│   │   ├── types/           # adds req.user to Express's Request type
+│   │   ├── app.ts
+│   │   └── server.ts
+│   ├── test/                # Jest + Supertest (TypeScript)
 │   └── package.json
 │
 ├── docs/
@@ -97,6 +100,7 @@ project-root/
 ## ⚙️ Setup & Installation
 
 ### Prerequisites
+
 - Node.js (v24 LTS recommended)
 - npm or yarn
 - PostgreSQL: installed locally, or a free hosted database on Neon (see below)
@@ -153,6 +157,7 @@ http://localhost:5173
 ## 🧪 Available Scripts
 
 ### Frontend
+
 ```bash
 npm run dev
 npm run build
@@ -164,9 +169,11 @@ npm run format:check  # Prettier: fail if anything is unformatted (for CI)
 ```
 
 ### Backend
+
 ```bash
-npm run dev           # Start with auto-reload (nodemon)
-npm start             # Start without auto-reload
+npm run dev           # Start with auto-reload (tsx watch, runs the TypeScript directly)
+npm run build         # Compile src/ to dist/
+npm start             # Run the compiled app (dist/server.js)
 npm test              # Run all tests (Jest)
 npm run test:cov      # Run tests and print a coverage report
 npm run lint          # ESLint
@@ -185,21 +192,22 @@ them from the `backend` folder:
 ```bash
 npm test          # all tests
 npm run test:cov  # tests + coverage table (also writes backend/coverage/, gitignored)
-npx jest test/auth.test.js   # a single file
+npx jest test/auth.test.ts   # a single file
 ```
 
 Tests don't need a database: Prisma is replaced with an in-memory fake.
 
-To add a test, create `backend/test/<name>.test.js`:
+To add a test, create `backend/test/<name>.test.ts`:
 
-- **Endpoint:** copy [test/hello.test.js](backend/test/hello.test.js), which calls the
+- **Endpoint:** copy [test/hello.test.ts](backend/test/hello.test.ts), which calls the
   app with Supertest, no running server needed.
 - **Endpoint that needs a signed-in user or the database:** follow
-  [test/auth.test.js](backend/test/auth.test.js). `request.agent(app)` keeps the auth
+  [test/auth.test.ts](backend/test/auth.test.ts). `request.agent(app)` keeps the auth
   cookie between requests.
-- **Plain function:** see [test/jwt.test.js](backend/test/jwt.test.js).
+- **Plain function:** see [test/jwt.test.ts](backend/test/jwt.test.ts).
 
-Frontend tests aren't set up yet.
+Frontend tests use Vitest and React Testing Library: see
+[frontend/README.md](frontend/README.md#-testing).
 
 ## 🔐 API Overview
 
@@ -221,16 +229,17 @@ response formats and error codes.
 ## 🤝 Team & Collaboration
 
 ### Team Members
+
 - Name — Role
 - Name — Role
 - Name — Role
 
 ### Workflow
+
 - GitHub Issues for task tracking
 - Feature branches for development
 - Pull Requests required for all merges
 - Code reviews before merging to `main`
-
 
 ## 🧩 Development Process
 

@@ -1,0 +1,14 @@
+{
+  // npm run build: compiles src/ to dist/ (tests and tooling are left out).
+  // rootDir is src/, so dist/ has the same depth and src/routes/docs.routes.ts
+  // still finds ../../docs/openapi.yaml after building.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": false,
+    "sourceMap": true,
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
