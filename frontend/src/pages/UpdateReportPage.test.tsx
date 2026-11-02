@@ -142,4 +142,52 @@ describe('UpdateReportPage', () => {
       expect(patchCalled).toBe(true);
     });
   });
+
+  it('4. displays a 404 error when the report is not found', async () => {
+    signedIn();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () => {
+        return HttpResponse.json(
+          {
+            success: false,
+            message: 'Unable to load the report. Please try again.',
+          },
+          { status: 404 },
+        );
+      }),
+    );
+    renderApp(PATHS.editReport('100'));
+
+    expect(
+      await screen.findByText(/unable to load the report/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Pet Name (optional)'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('5. displays an error when the server returns 500', async () => {
+    signedIn();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () => {
+        return HttpResponse.json(
+          {
+            success: false,
+            message: 'Internal Server Error.',
+          },
+          { status: 500 },
+        );
+      }),
+    );
+    renderApp(PATHS.editReport('100'));
+
+    expect(
+      await screen.findByText('Unable to load the report. Please try again.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Pet Name (optional)'),
+    ).not.toBeInTheDocument();
+  });
 });
