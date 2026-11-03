@@ -1,8 +1,20 @@
 import type { Request, Response } from "express";
 import * as reportService from "../services/report.service";
-import type { MyReportsQuery, ReportIdParam } from "../validators/report.validators";
+import type {
+  ListReportsQuery,
+  MyReportsQuery,
+  ReportIdParam,
+} from "../validators/report.validators";
 
-// All routes here use requireAuth, so req.user is always set
+export const listReports = async (req: Request, res: Response) => {
+  const data = await reportService.listReports(req.query as unknown as ListReportsQuery);
+  res.json({
+    success: true,
+    data,
+  });
+};
+
+// All routes below use requireAuth, so req.user is always set
 
 export const createReport = async (req: Request, res: Response) => {
   // req.files: photos from multer ([] or undefined for JSON requests)
