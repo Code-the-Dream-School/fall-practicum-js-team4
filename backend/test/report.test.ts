@@ -1,7 +1,7 @@
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import app from "../src/app";
-import { MAX_REPORTS_PER_USER, getUserReports } from "../src/services/report.service";
+import { MAX_REPORTS_PER_USER, getUserReports, listReports } from "../src/services/report.service";
 import type { FakePrisma } from "./helpers/fakePrisma";
 import type { Agent, ApiUser } from "./helpers/types";
 
@@ -776,12 +776,254 @@ describe("PATCH /api/reports/:id", () => {
   });
 });
 
+describe("GET /api/reports", () => {
+  const signUp = async (email: string): Promise<{ agent: Agent; user: ApiUser }> => {
+    const userAgent = request.agent(app);
+    const res = await userAgent
+      .post("/api/auth/register")
+      .send({ name: "Test User", email, password: "password123!" });
+    return { agent: userAgent, user: res.body.data.user };
+  };
+
+  const sampleReport = (overrides = {}) => ({
+    reportType: "LOST",
+    petType: "DOG",
+    petName: "Buddy",
+    breed: "Golden Retriever",
+    color: "Golden",
+    size: "LARGE",
+    gender: "MALE",
+    distinctiveFeatures: "Blue collar with bell",
+    eventDate: "2026-10-20T10:00:00.000Z",
+    contactInfo: "owner-secret@example.com",
+    location: {
+      zipCode: "10001",
+      city: "New York",
+      state: "NY",
+    },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+  });
+
+  it("allows anonymous access and returns an empty list when the database is empty (200)", async () => {
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      data: {
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+        reports: [],
+      },
+    });
+  });
+
+  it("filters out sensitive information (userId, contactInfo, exact coordinates, photo publicId) while keeping consistent summary shape", async () => {
+    const { agent } = await signUp("owner@example.com");
+    const created = await agent.post("/api/reports").send(sampleReport());
+    const reportId = (created.body.data as ApiReport).petReportId;
+
+    // Simulate stored coordinates and photo publicId in the database
+    const stored = prisma._reports.find((r) => r.petReportId === reportId)!;
+    stored.location = {
+      ...stored.location,
+      latitude: "40.7128000",
+      longitude: "-74.0060000",
+    };
+    stored.photos = [
+      {
+        petPhotoId: 10,
+        petReportId: reportId,
+        imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+        publicId: "pawradar/reports/buddy-secret-id",
+        createdAt: new Date("2026-10-20T12:00:00.000Z"),
+      },
+    ];
+
+    // Anonymous request (no cookies)
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.total).toBe(1);
+
+    const item = res.body.data.reports[0];
+    expect(item).toMatchObject({
+      petReportId: reportId,
+      reportType: "LOST",
+      petType: "DOG",
+      petName: "Buddy",
+      breed: "Golden Retriever",
+      color: "Golden",
+      size: "LARGE",
+      gender: "MALE",
+      distinctiveFeatures: "Blue collar with bell",
+      status: "ACTIVE",
+      location: {
+        locationId: 1,
+        petReportId: reportId,
+        zipCode: "10001",
+        city: "New York",
+        state: "NY",
+      },
+      photos: [
+        {
+          petPhotoId: 10,
+          imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+          createdAt: "2026-10-20T12:00:00.000Z",
+        },
+      ],
+    });
+
+    // Sensitive fields must never be exposed in public summaries
+    expect(item).not.toHaveProperty("userId");
+    expect(item).not.toHaveProperty("contactInfo");
+    expect(item.location).not.toHaveProperty("latitude");
+    expect(item.location).not.toHaveProperty("longitude");
+    expect(item.photos[0]).not.toHaveProperty("publicId");
+  });
+
+  it("orders reports newest first (createdAt desc, petReportId desc)", async () => {
+    const { agent: agent1 } = await signUp("user1@example.com");
+    const { agent: agent2 } = await signUp("user2@example.com");
+
+    await agent1.post("/api/reports").send(sampleReport({ petName: "Oldest" }));
+    await agent2.post("/api/reports").send(sampleReport({ petName: "Middle" }));
+    await agent1.post("/api/reports").send(sampleReport({ petName: "Newest" }));
+
+    // Force identical timestamps on Middle and Newest to verify petReportId tie-breaker
+    const sameTime = new Date("2026-10-25T15:00:00.000Z");
+    prisma._reports[0].createdAt = new Date("2026-10-24T10:00:00.000Z");
+    prisma._reports[1].createdAt = sameTime;
+    prisma._reports[2].createdAt = sameTime;
+
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+      "Newest",
+      "Middle",
+      "Oldest",
+    ]);
+    expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+        skip: 0,
+        take: 20,
+      }),
+    );
+  });
+
+  describe("pagination", () => {
+    beforeEach(async () => {
+      const { agent } = await signUp("pager@example.com");
+      for (let i = 1; i <= 5; i++) {
+        await agent.post("/api/reports").send(sampleReport({ petName: `Pet ${i}` }));
+      }
+    });
+
+    it("returns the requested page slice and pagination metadata (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ page: 2, limit: 2 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        total: 5,
+        page: 2,
+        limit: 2,
+        totalPages: 3,
+      });
+      // Reports newest first: Pet 5, Pet 4 (page 1), Pet 3, Pet 2 (page 2), Pet 1 (page 3)
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Pet 3",
+        "Pet 2",
+      ]);
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ skip: 2, take: 2 }),
+      );
+    });
+
+    it("returns an empty reports array when page is beyond totalPages (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ page: 10, limit: 2 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        total: 5,
+        page: 10,
+        limit: 2,
+        totalPages: 3,
+        reports: [],
+      });
+    });
+
+    it.each([
+      ["page is 0", "?page=0", "page"],
+      ["page is negative", "?page=-2", "page"],
+      ["page is not an integer", "?page=1.5", "page"],
+      ["page is non-numeric", "?page=abc", "page"],
+      ["limit is 0", "?limit=0", "limit"],
+      ["limit is negative", "?limit=-5", "limit"],
+      ["limit exceeds 100", "?limit=101", "limit"],
+      ["limit is non-numeric", "?limit=xyz", "limit"],
+      ["an unknown query parameter is sent", "?userId=123", "userId"],
+    ])("rejects invalid pagination query when %s (400)", async (_, query, expectedField) => {
+      const res = await request(app).get(`/api/reports${query}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(res.body.details[0].field).toBe(expectedField);
+      expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("handles unexpected database errors with a 500 INTERNAL_ERROR response", async () => {
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    prisma.petReport.findMany.mockRejectedValueOnce(new Error("Database connection lost"));
+
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({
+      success: false,
+      code: "INTERNAL_ERROR",
+      message: "Something went wrong",
+    });
+    consoleSpy.mockRestore();
+  });
+});
+
 describe("reportService.getUserReports", () => {
   it("lists every report of the user when called without options", async () => {
     await getUserReports("user-1");
 
     expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { userId: "user-1" } }),
+    );
+  });
+});
+
+describe("reportService.listReports", () => {
+  it("uses default page=1 and limit=20 when called without arguments", async () => {
+    prisma._reports.length = 0;
+    const result = await listReports();
+
+    expect(result).toEqual({
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 0,
+      reports: [],
+    });
+    expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skip: 0, take: 20 }),
     );
   });
 });
