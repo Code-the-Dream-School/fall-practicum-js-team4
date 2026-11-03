@@ -53,10 +53,16 @@ export const testReports: PublicReport[] = [
   },
 ];
 
-export const reportListResponse = (reports: PublicReport[]) =>
+export const reportListResponse = (reports: PublicReport[], limit = 20) =>
   HttpResponse.json({
     success: true,
-    data: { reports, total: reports.length, page: 1, limit: 12 },
+    data: {
+      total: reports.length,
+      page: 1,
+      limit,
+      totalPages: reports.length === 0 ? 0 : Math.ceil(reports.length / limit),
+      reports,
+    },
   });
 
 export const server = setupServer(
