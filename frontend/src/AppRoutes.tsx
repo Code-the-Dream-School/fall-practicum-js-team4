@@ -1,4 +1,6 @@
 import { Route, Routes } from 'react-router';
+import { MyReportsPage } from './pages/MyReportsPage';
+import { EditReportPage } from './pages/EditReportPage';
 import { PATHS } from './app/paths';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -38,6 +40,8 @@ export function AppRoutes() {
           <Route path={PATHS.reportPet} element={<ReportPetPage />} />
           <Route path={PATHS.profile} element={<ProfilePage />} />
           <Route path={PATHS.dashboard} element={<LoggedInPage />} />
+          <Route path={PATHS.myReports} element={<MyReportsPage />} />
+          <Route path={PATHS.editReport(':id')} element={<EditReportPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

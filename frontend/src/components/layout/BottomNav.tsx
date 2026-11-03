@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router';
 import { Icon } from '../Icon';
 import { PATHS } from '../../app/paths';
 import { colors, layout } from '../../styles/theme';
+import { useAuth } from '../../context/useAuth';
 
 const tabStyle = ({ isActive }: { isActive: boolean }): CSSProperties => ({
   flex: 1,
@@ -17,6 +18,7 @@ const tabStyle = ({ isActive }: { isActive: boolean }): CSSProperties => ({
 });
 
 export function BottomNav() {
+  const { status } = useAuth();
   return (
     <>
       <Link
@@ -69,6 +71,12 @@ export function BottomNav() {
           <Icon name="account_circle" />
           <span>Profile</span>
         </NavLink>
+        {status === 'authenticated' && (
+          <NavLink to={PATHS.myReports} style={tabStyle}>
+            <Icon name="pets" />
+            <span>My Reports</span>
+          </NavLink>
+        )}
         <NavLink to={PATHS.foundPets} style={tabStyle}>
           <Icon name="radar" />
           <span>Found</span>

@@ -1,5 +1,5 @@
 import { ApiError, apiRequest } from './api';
-import type { CreateReportInput, PetReport } from '../types/reports';
+import type { CreateReportInput, MyReportsResponse, PetReport } from '../types/reports';
 
 export interface CreateReportOptions {
   photos?: File[];
@@ -34,6 +34,13 @@ export async function createReport(
     method: 'POST',
     body: reportData,
   });
+}
+
+/**
+ * Fetches the signed-in user's pet reports.
+ */
+export async function getMyReports(): Promise<MyReportsResponse> {
+  return apiRequest<MyReportsResponse>('/api/reports/mine');
 }
 
 /**

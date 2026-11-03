@@ -124,6 +124,9 @@ export function Navbar({ isMobile }: NavbarProps) {
                   <Icon name="notifications" />
                 </button>
               )}
+              <NavLink to={PATHS.myReports} style={navLinkStyle}>
+                My Reports
+              </NavLink>
               <Link
                 to={PATHS.profile}
                 aria-label={`Profile (${user.name})`}

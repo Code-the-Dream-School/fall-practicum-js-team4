@@ -51,3 +51,8 @@ export interface CreateReportInput {
   contactInfo?: string | null;
   location?: ReportLocation | null;
 }
+
+export interface MyReportsResponse {
+  total: number;
+  reports: PetReport[];
+}
