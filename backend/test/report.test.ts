@@ -922,6 +922,98 @@ describe("GET /api/reports", () => {
     );
   });
 
+  describe("filtering by type and status", () => {
+    beforeEach(async () => {
+      const { agent } = await signUp("filter@example.com");
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Lost Dog 1", reportType: "LOST" }));
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Lost Dog 2", reportType: "LOST" }));
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Found Cat 1", reportType: "FOUND", petType: "CAT" }));
+      const reunitedRes = await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Reunited Dog", reportType: "LOST" }));
+      await agent
+        .patch(`/api/reports/${reunitedRes.body.data.petReportId}`)
+        .send({ status: "REUNITED" });
+      jest.clearAllMocks();
+    });
+
+    it("defaults to status=ACTIVE and returns both LOST and FOUND when type is omitted (200)", async () => {
+      const res = await request(app).get("/api/reports");
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(3);
+      expect(res.body.data.totalPages).toBe(1);
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Found Cat 1",
+        "Lost Dog 2",
+        "Lost Dog 1",
+      ]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: { status: "ACTIVE" },
+      });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: "ACTIVE" },
+        }),
+      );
+    });
+
+    it("filters by type=LOST and applies the same where to count and findMany (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ type: "LOST", limit: 1 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        total: 2,
+        page: 1,
+        limit: 1,
+        totalPages: 2,
+      });
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Lost Dog 2",
+      ]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: { status: "ACTIVE", reportType: "LOST" },
+      });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: "ACTIVE", reportType: "LOST" },
+        }),
+      );
+    });
+
+    it("filters by type=FOUND and status=REUNITED (200)", async () => {
+      const foundRes = await request(app).get("/api/reports").query({ type: "FOUND" });
+      expect(foundRes.status).toBe(200);
+      expect(foundRes.body.data.total).toBe(1);
+      expect(foundRes.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Found Cat 1",
+      ]);
+
+      const reunitedRes = await request(app)
+        .get("/api/reports")
+        .query({ type: "LOST", status: "REUNITED" });
+      expect(reunitedRes.status).toBe(200);
+      expect(reunitedRes.body.data.total).toBe(1);
+      expect(reunitedRes.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Reunited Dog",
+      ]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: { status: "REUNITED", reportType: "LOST" },
+      });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: "REUNITED", reportType: "LOST" },
+        }),
+      );
+    });
+  });
+
   describe("pagination", () => {
     beforeEach(async () => {
       const { agent } = await signUp("pager@example.com");
@@ -972,6 +1064,8 @@ describe("GET /api/reports", () => {
       ["limit is negative", "?limit=-5", "limit"],
       ["limit exceeds 100", "?limit=101", "limit"],
       ["limit is non-numeric", "?limit=xyz", "limit"],
+      ["type is invalid", "?type=ADOPTED", "type"],
+      ["status is invalid", "?status=CLOSED", "status"],
       ["an unknown query parameter is sent", "?userId=123", "userId"],
     ])("rejects invalid pagination query when %s (400)", async (_, query, expectedField) => {
       const res = await request(app).get(`/api/reports${query}`);
@@ -1011,7 +1105,7 @@ describe("reportService.getUserReports", () => {
 });
 
 describe("reportService.listReports", () => {
-  it("uses default page=1 and limit=20 when called without arguments", async () => {
+  it("uses default page=1, limit=20, and status=ACTIVE when called without arguments", async () => {
     prisma._reports.length = 0;
     const result = await listReports();
 
@@ -1022,8 +1116,15 @@ describe("reportService.listReports", () => {
       totalPages: 0,
       reports: [],
     });
+    expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+      where: { status: "ACTIVE" },
+    });
     expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ skip: 0, take: 20 }),
+      expect.objectContaining({
+        where: { status: "ACTIVE" },
+        skip: 0,
+        take: 20,
+      }),
     );
   });
 });

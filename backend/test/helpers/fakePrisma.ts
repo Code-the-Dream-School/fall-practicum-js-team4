@@ -45,7 +45,17 @@ interface ReportInclude {
 
 type UserWhere = Partial<Pick<FakeUser, "id" | "email">>;
 // The report query's filter; OR holds the search conditions
-type FindManyWhere = { userId?: string; OR?: Record<string, { contains: string }>[] };
+type FindManyWhere = {
+  userId?: string;
+  reportType?: string;
+  status?: string;
+  OR?: Record<string, { contains: string }>[];
+};
+
+const matchesReportWhere = (report: FakeReport, where?: FindManyWhere) =>
+  (!where?.userId || report.userId === where.userId) &&
+  (!where?.reportType || report.reportType === where.reportType) &&
+  (!where?.status || report.status === where.status);
 
 // A report as Prisma returns it: photos reduced to the selected fields
 const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
@@ -191,10 +201,11 @@ export const createFakePrisma = () => {
           return withSelectedPhotos(report, include);
         },
       ),
-      count: jest.fn(async ({ where }: { where?: { userId?: string } } = {}) =>
-        where?.userId ? reports.filter((r) => r.userId === where.userId).length : reports.length,
+      count: jest.fn(
+        async ({ where }: { where?: FindManyWhere } = {}) =>
+          reports.filter((r) => matchesReportWhere(r, where)).length,
       ),
-      // Filters by owner (when where.userId is given), sorts newest first, and
+      // Filters by where conditions, sorts newest first, and
       // applies skip/take/select/include like the real Prisma query
       findMany: jest.fn(
         async ({
@@ -210,9 +221,7 @@ export const createFakePrisma = () => {
           skip?: number;
           take?: number;
         }) => {
-          const filtered = where?.userId
-            ? reports.filter((r) => r.userId === where.userId)
-            : [...reports];
+          const filtered = reports.filter((r) => matchesReportWhere(r, where));
           const sorted = filtered.sort(
             (a, b) =>
               (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||

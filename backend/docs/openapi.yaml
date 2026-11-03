@@ -235,6 +235,23 @@ paths:
             maximum: 100
             default: 20
           example: 20
+        - name: type
+          in: query
+          required: false
+          description: Filter by report type (LOST or FOUND)
+          schema:
+            type: string
+            enum: [LOST, FOUND]
+          example: LOST
+        - name: status
+          in: query
+          required: false
+          description: Filter by report status (defaults to ACTIVE)
+          schema:
+            type: string
+            enum: [ACTIVE, REUNITED]
+            default: ACTIVE
+          example: ACTIVE
       responses:
         "200":
           description: Paginated list of public report summaries

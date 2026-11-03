@@ -43,6 +43,8 @@ export interface MyReportsQuery {
 export interface ListReportsQuery {
   page: number;
   limit: number;
+  type?: ReportType;
+  status: ReportStatus;
 }
 
 const locationSchema = Joi.object({
@@ -141,7 +143,7 @@ export const myReportsQuerySchema = Joi.object<MyReportsQuery>({
   }),
 });
 
-// Query string for GET /api/reports (public listing with pagination)
+// Query string for GET /api/reports (public listing with pagination and filters)
 export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
   page: Joi.number().integer().min(1).max(2147483647).default(1).messages({
     "number.base": "Page must be a positive integer",
@@ -154,5 +156,11 @@ export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
     "number.integer": "Limit must be an integer between 1 and 100",
     "number.min": "Limit must be at least 1",
     "number.max": "Limit must be at most 100",
+  }),
+  type: Joi.string().valid("LOST", "FOUND").messages({
+    "any.only": "Type must be either LOST or FOUND",
+  }),
+  status: Joi.string().valid("ACTIVE", "REUNITED").default("ACTIVE").messages({
+    "any.only": "Status must be either ACTIVE or REUNITED",
   }),
 });

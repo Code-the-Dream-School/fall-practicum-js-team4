@@ -48,12 +48,23 @@ const PUBLIC_REPORT_SELECT = {
   photos: PHOTOS,
 } satisfies Prisma.PetReportSelect;
 
-export const listReports = async ({ page = 1, limit = 20 }: Partial<ListReportsQuery> = {}) => {
+export const listReports = async ({
+  page = 1,
+  limit = 20,
+  type,
+  status = "ACTIVE",
+}: Partial<ListReportsQuery> = {}) => {
   const skip = (page - 1) * limit;
+  const where: Prisma.PetReportWhereInput = { status };
+
+  if (type) {
+    where.reportType = type;
+  }
 
   const [total, reports] = await Promise.all([
-    prisma.petReport.count(),
+    prisma.petReport.count({ where }),
     prisma.petReport.findMany({
+      where,
       select: PUBLIC_REPORT_SELECT,
       orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
       skip,
