@@ -4,6 +4,7 @@ import AppError from "../utils/AppError";
 import { deleteImages, storePhotos } from "./photo.service";
 import type {
   CreateReportInput,
+  ListReportsQuery,
   MyReportsQuery,
   UpdateReportInput,
 } from "../validators/report.validators";
@@ -18,6 +19,67 @@ const PHOTOS = {
   // Same order the files were uploaded in
   orderBy: { petPhotoId: "asc" },
 } satisfies Prisma.PetReport$photosArgs;
+
+// Public report summary fields for GET /api/reports: omits userId, contactInfo,
+// exact coordinates (latitude/longitude), and Cloudinary publicId
+const PUBLIC_REPORT_SELECT = {
+  petReportId: true,
+  reportType: true,
+  petType: true,
+  petName: true,
+  breed: true,
+  color: true,
+  size: true,
+  gender: true,
+  distinctiveFeatures: true,
+  eventDate: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  location: {
+    select: {
+      locationId: true,
+      petReportId: true,
+      zipCode: true,
+      city: true,
+      state: true,
+    },
+  },
+  photos: PHOTOS,
+} satisfies Prisma.PetReportSelect;
+
+export const listReports = async ({
+  page = 1,
+  limit = 20,
+  type,
+  status = "ACTIVE",
+}: Partial<ListReportsQuery> = {}) => {
+  const skip = (page - 1) * limit;
+  const where: Prisma.PetReportWhereInput = { status };
+
+  if (type) {
+    where.reportType = type;
+  }
+
+  const [total, reports] = await Promise.all([
+    prisma.petReport.count({ where }),
+    prisma.petReport.findMany({
+      where,
+      select: PUBLIC_REPORT_SELECT,
+      orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+      skip,
+      take: limit,
+    }),
+  ]);
+
+  return {
+    total,
+    page,
+    limit,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    reports,
+  };
+};
 
 // files: uploaded photos from multer ([] for JSON requests)
 export const createReport = async (

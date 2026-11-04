@@ -40,6 +40,13 @@ export interface MyReportsQuery {
   search?: string;
 }
 
+export interface ListReportsQuery {
+  page: number;
+  limit: number;
+  type?: ReportType;
+  status: ReportStatus;
+}
+
 const locationSchema = Joi.object({
   zipCode: Joi.string()
     .length(5)
@@ -133,5 +140,27 @@ export const updateReportSchema = Joi.object<UpdateReportInput>({
 export const myReportsQuerySchema = Joi.object<MyReportsQuery>({
   search: Joi.string().trim().max(100).allow("").messages({
     "string.max": "Search must be at most 100 characters",
+  }),
+});
+
+// Query string for GET /api/reports (public listing with pagination and filters)
+export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
+  page: Joi.number().integer().min(1).max(2147483647).default(1).messages({
+    "number.base": "Page must be a positive integer",
+    "number.integer": "Page must be a positive integer",
+    "number.min": "Page must be at least 1",
+    "number.max": "Page must be a positive integer",
+  }),
+  limit: Joi.number().integer().min(1).max(100).default(20).messages({
+    "number.base": "Limit must be an integer between 1 and 100",
+    "number.integer": "Limit must be an integer between 1 and 100",
+    "number.min": "Limit must be at least 1",
+    "number.max": "Limit must be at most 100",
+  }),
+  type: Joi.string().valid("LOST", "FOUND").messages({
+    "any.only": "Type must be either LOST or FOUND",
+  }),
+  status: Joi.string().valid("ACTIVE", "REUNITED").default("ACTIVE").messages({
+    "any.only": "Status must be either ACTIVE or REUNITED",
   }),
 });

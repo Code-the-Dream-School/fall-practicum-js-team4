@@ -36,15 +36,26 @@ export interface FakeReport {
   [field: string]: unknown;
 }
 
-// The `include` the report queries pass; photos.select picks fields like Prisma
+// The `include` or `select` the report queries pass; photos.select picks fields like Prisma
 interface ReportInclude {
   photos?: { select: Partial<Record<keyof FakePhoto, boolean>> };
+  location?: boolean | { select: Record<string, boolean> };
   [relation: string]: unknown;
 }
 
 type UserWhere = Partial<Pick<FakeUser, "id" | "email">>;
 // The report query's filter; OR holds the search conditions
-type FindManyWhere = { userId: string; OR?: Record<string, { contains: string }>[] };
+type FindManyWhere = {
+  userId?: string;
+  reportType?: string;
+  status?: string;
+  OR?: Record<string, { contains: string }>[];
+};
+
+const matchesReportWhere = (report: FakeReport, where?: FindManyWhere) =>
+  (!where?.userId || report.userId === where.userId) &&
+  (!where?.reportType || report.reportType === where.reportType) &&
+  (!where?.status || report.status === where.status);
 
 // A report as Prisma returns it: photos reduced to the selected fields
 const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
@@ -53,6 +64,33 @@ const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
   const pick = (photo: FakePhoto) =>
     Object.fromEntries(Object.keys(select).map((key) => [key, photo[key as keyof FakePhoto]]));
   return { ...report, photos: (report.photos ?? []).map(pick) };
+};
+
+// Applies a top-level Prisma `select` object (including nested location/photos select)
+const withSelectedFields = (report: FakeReport, select?: ReportInclude) => {
+  if (!select) return report;
+  const result: Record<string, unknown> = {};
+  for (const [key, spec] of Object.entries(select)) {
+    if (!spec) continue;
+    if (key === "photos" && typeof spec === "object" && "select" in spec) {
+      const photoSelect = (spec as { select: Record<string, boolean> }).select;
+      result.photos = (report.photos ?? []).map((photo) =>
+        Object.fromEntries(Object.keys(photoSelect).map((k) => [k, photo[k as keyof FakePhoto]])),
+      );
+    } else if (key === "location" && typeof spec === "object" && "select" in spec) {
+      if (!report.location) {
+        result.location = null;
+      } else {
+        const locSelect = (spec as { select: Record<string, boolean> }).select;
+        result.location = Object.fromEntries(
+          Object.keys(locSelect).map((k) => [k, report.location![k]]),
+        );
+      }
+    } else {
+      result[key] = report[key];
+    }
+  }
+  return result;
 };
 // Prisma update values: a plain value, or { increment: n } for numbers
 type UpdateValue = unknown | { increment: number };
@@ -164,21 +202,38 @@ export const createFakePrisma = () => {
         },
       ),
       count: jest.fn(
-        async ({ where }: { where: { userId: string } }) =>
-          reports.filter((r) => r.userId === where.userId).length,
+        async ({ where }: { where?: FindManyWhere } = {}) =>
+          reports.filter((r) => matchesReportWhere(r, where)).length,
       ),
-      // Filters by owner only and sorts like the real query; search filters are
-      // checked through the arguments (and against a real database by hand)
+      // Filters by where conditions, sorts newest first, and
+      // applies skip/take/select/include like the real Prisma query
       findMany: jest.fn(
-        async ({ where, include }: { where: FindManyWhere; include?: ReportInclude }) =>
-          reports
-            .filter((r) => r.userId === where.userId)
-            .sort(
-              (a, b) =>
-                (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
-                b.petReportId - a.petReportId,
-            )
-            .map((r) => withSelectedPhotos(r, include)),
+        async ({
+          where,
+          include,
+          select,
+          skip,
+          take,
+        }: {
+          where: FindManyWhere;
+          include?: ReportInclude;
+          select?: ReportInclude;
+          skip?: number;
+          take?: number;
+        }) => {
+          const filtered = reports.filter((r) => matchesReportWhere(r, where));
+          const sorted = filtered.sort(
+            (a, b) =>
+              (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
+              b.petReportId - a.petReportId,
+          );
+          const start = skip ?? 0;
+          const sliced =
+            take !== undefined ? sorted.slice(start, start + take) : sorted.slice(start);
+          return sliced.map((r) =>
+            select ? withSelectedFields(r, select) : withSelectedPhotos(r, include),
+          );
+        },
       ),
     },
   };
