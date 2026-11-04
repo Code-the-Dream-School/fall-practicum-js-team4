@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {getReports} from '../../../services/reportApi';
+import { getReports } from '../../../services/reportApi';
 import type { ReportListParams } from '../../../types/reports';
 
 export const reportKeys = {
