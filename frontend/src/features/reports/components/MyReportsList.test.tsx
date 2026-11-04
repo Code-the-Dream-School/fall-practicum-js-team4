@@ -1,67 +1,15 @@
 import { screen, within } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
-import {
-  API,
-  errorResponse,
-  server,
-  signedIn,
-  testUser,
-} from '../../../test/server';
+import { API, errorResponse, server, signedIn } from '../../../test/server';
 import { renderApp } from '../../../test/renderApp';
-import type { PetReport } from '../../../types/reports';
-
-const report = (fields: Partial<PetReport>): PetReport => ({
-  petReportId: 1,
-  userId: testUser.id,
-  reportType: 'LOST',
-  status: 'ACTIVE',
-  petType: 'DOG',
-  petName: 'Milo',
-  breed: 'Golden Retriever',
-  color: 'Golden',
-  size: 'LARGE',
-  gender: 'MALE',
-  eventDate: '2026-10-28T00:00:00.000Z',
-  createdAt: '2026-10-28T10:00:00.000Z',
-  updatedAt: '2026-10-28T10:00:00.000Z',
-  location: { zipCode: '90210', city: 'Beverly Hills', state: 'CA' },
-  photos: [],
-  ...fields,
-});
-
-const milo = report({});
-const luna = report({
-  petReportId: 2,
-  petName: 'Luna',
-  petType: 'CAT',
-  status: 'REUNITED',
-});
-const foundDog = report({ petReportId: 3, reportType: 'FOUND', petName: null });
-
-// GET /mine returns `reports`; PATCH updates them like the real API
-const mockMyReports = (initial: PetReport[]) => {
-  let reports = initial;
-  const patches: { id: string; body: unknown }[] = [];
-  server.use(
-    http.get(`${API}/api/reports/mine`, () =>
-      HttpResponse.json({
-        success: true,
-        data: { total: reports.length, reports },
-      }),
-    ),
-    http.patch(`${API}/api/reports/:id`, async ({ params, request }) => {
-      const body = (await request.json()) as Partial<PetReport>;
-      patches.push({ id: params.id as string, body });
-      reports = reports.map((r) =>
-        String(r.petReportId) === params.id ? { ...r, ...body } : r,
-      );
-      const updated = reports.find((r) => String(r.petReportId) === params.id);
-      return HttpResponse.json({ success: true, data: updated });
-    }),
-  );
-  return patches;
-};
+import {
+  foundDog,
+  luna,
+  milo,
+  mockMyReports,
+  report,
+} from '../../../test/reports';
 
 const card = async (name: string) =>
   (await screen.findByRole('heading', { name })).closest('li') as HTMLElement;
@@ -102,6 +50,9 @@ describe('My reports on the profile page', () => {
     expect(
       within(miloCard).getByText(/is milo back home\?/i),
     ).toBeInTheDocument();
+    expect(
+      within(miloCard).getByRole('button', { name: "Yes, we're reunited" }),
+    ).toHaveFocus();
     expect(patches).toHaveLength(0);
 
     await user.click(
@@ -113,6 +64,10 @@ describe('My reports on the profile page', () => {
       await within(miloCard).findByText('Reunited safe'),
     ).toBeInTheDocument();
     expect(within(miloCard).queryByText('Lost pet')).not.toBeInTheDocument();
+    // The buttons are gone: focus continues from the card's heading
+    expect(
+      within(miloCard).getByRole('heading', { name: 'Milo' }),
+    ).toHaveFocus();
     // Only the badge changes: the date stays (the design mockup overwrote it)
     expect(within(miloCard).getByText('Oct 28, 2026')).toBeInTheDocument();
     // No second click possible
@@ -136,7 +91,7 @@ describe('My reports on the profile page', () => {
 
     expect(
       within(miloCard).getByRole('button', { name: /mark reunited/i }),
-    ).toBeInTheDocument();
+    ).toHaveFocus();
     expect(within(miloCard).getByText('Lost pet')).toBeInTheDocument();
     expect(patches).toHaveLength(0);
   });
@@ -166,6 +121,9 @@ describe('My reports on the profile page', () => {
     );
     expect(within(miloCard).getByText('Lost pet')).toBeInTheDocument();
     expect(attempts).toBe(1);
+    expect(
+      within(miloCard).getByRole('button', { name: "Yes, we're reunited" }),
+    ).toHaveFocus();
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
@@ -190,25 +148,49 @@ describe('My reports on the profile page', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the profile card with the report counts', async () => {
+  it('links every card to its report page', async () => {
     signedIn();
-    mockMyReports([milo, luna, foundDog]);
+    mockMyReports([milo, luna]);
     renderApp('/profile');
 
-    const profile = await screen.findByRole('complementary', {
-      name: /your profile/i,
-    });
     expect(
-      within(profile).getByRole('heading', { level: 1, name: testUser.name }),
-    ).toBeInTheDocument();
-    expect(within(profile).getByText(testUser.email)).toBeInTheDocument();
-    expect(within(profile).getByText('Oct 2026')).toBeInTheDocument();
+      within(await card('Milo')).getByRole('link', {
+        name: 'View report for Milo',
+      }),
+    ).toHaveAttribute('href', '/pets/1');
+    expect(
+      within(await card('Luna')).getByRole('link', {
+        name: 'View report for Luna',
+      }),
+    ).toHaveAttribute('href', '/pets/2');
+  });
 
-    const stat = (label: string) =>
-      within(profile).getByText(label).previousElementSibling;
-    expect(await within(profile).findByText('3')).toBeInTheDocument();
-    expect(stat('Reports Filed')).toHaveTextContent('3');
-    expect(stat('Active')).toHaveTextContent('2');
-    expect(stat('Reunited')).toHaveTextContent('1');
+  it('says whether the date is when the pet was lost or found', async () => {
+    signedIn();
+    mockMyReports([milo, foundDog]);
+    renderApp('/profile');
+
+    expect(within(await card('Milo')).getByText(/lost on/i)).toHaveTextContent(
+      'Lost on Oct 28, 2026',
+    );
+    expect(
+      within(await card('Found dog')).getByText(/found on/i),
+    ).toHaveTextContent('Found on Oct 28, 2026');
+  });
+
+  it('shows the pet type, then the breed as a title', async () => {
+    signedIn();
+    mockMyReports([
+      report({ petName: 'Chester', petType: 'CAT', breed: 'siamese' }),
+      report({ petReportId: 2, petName: 'Rex', breed: null }),
+    ]);
+    renderApp('/profile');
+
+    expect(
+      within(await card('Chester')).getByText('• Cat • Siamese • Male'),
+    ).toBeInTheDocument();
+    expect(
+      within(await card('Rex')).getByText('• Dog • Male'),
+    ).toBeInTheDocument();
   });
 });

@@ -5,8 +5,13 @@
   gap: 24px;
   padding: 24px;
   border-radius: 12px;
-  background-color: rgb(25 28 34 / 80%);
-  box-shadow: 0 25px 50px -12px rgb(11 14 20 / 80%);
+  background-color: color-mix(
+    in srgb,
+    var(--color-surface-low) 80%,
+    transparent
+  );
+  box-shadow: 0 25px 50px -12px
+    color-mix(in srgb, var(--color-surface-lowest) 80%, transparent);
 }
 
 .profile-card__identity {
@@ -48,7 +53,8 @@
   height: 100%;
   border-radius: 50%;
   background-color: var(--color-surface-high);
-  box-shadow: 0 0 24px rgb(0 210 255 / 45%);
+  box-shadow: 0 0 24px
+    color-mix(in srgb, var(--color-secondary) 45%, transparent);
   color: var(--color-on-surface);
   font-size: 44px;
   font-weight: 700;
@@ -69,7 +75,11 @@
   gap: 4px;
   padding: 8px;
   border-radius: 12px;
-  background-color: rgb(11 14 20 / 80%);
+  background-color: color-mix(
+    in srgb,
+    var(--color-surface-lowest) 80%,
+    transparent
+  );
   text-align: center;
 }
 
@@ -80,7 +90,7 @@
   justify-content: center;
   padding: 8px 4px;
   border-radius: 8px;
-  background-color: rgb(29 32 38 / 40%);
+  background-color: color-mix(in srgb, var(--color-surface) 40%, transparent);
 }
 
 .profile-card__stat-value {
@@ -90,11 +100,11 @@
 }
 
 .profile-card__stat-value--found {
-  color: #a5e7ff;
+  color: var(--color-secondary-text);
 }
 
 .profile-card__stat-value--lost {
-  color: #ffb4a3;
+  color: var(--color-primary-text);
 }
 
 .profile-card__stat-value--success {
@@ -121,7 +131,7 @@
   gap: 8px;
   padding: 8px 16px;
   border-radius: 8px;
-  background-color: rgb(29 32 38 / 50%);
+  background-color: color-mix(in srgb, var(--color-surface) 50%, transparent);
 }
 
 .profile-card__detail .material-symbols-outlined {
@@ -129,7 +139,7 @@
 }
 
 .profile-card__detail-icon--found {
-  color: #a5e7ff;
+  color: var(--color-secondary-text);
 }
 
 .profile-card__detail-text {

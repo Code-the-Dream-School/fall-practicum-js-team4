@@ -1,10 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { Icon } from '../../../components/Icon';
 import { QueryView } from '../../../components/QueryView';
 import { Toast } from '../../../components/Toast';
 import { PATHS } from '../../../app/paths';
-import { colors } from '../../../styles/theme';
 import type { PetReport } from '../../../types/reports';
 import { useMyReports } from '../hooks/useMyReports';
 import { MarkReunitedButton } from './MarkReunitedButton';
@@ -21,6 +20,11 @@ const formatDate = (iso: string) =>
 
 const capitalize = (word: string) =>
   word.charAt(0) + word.slice(1).toLowerCase();
+
+// Breeds are typed by users ("siamese"): capitalize each word, keep the rest
+// as typed so abbreviations stay ("GSD mix" -> "GSD Mix")
+const titleCase = (text: string) =>
+  text.trim().replace(/(^|\s)(\S)/g, (_, space, c) => space + c.toUpperCase());
 
 // Reunited replaces the lost/found look, as in the design
 const cardVariant = (report: PetReport) => {
@@ -44,10 +48,17 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
     report.petName ||
     `${lost ? 'Lost' : 'Found'} ${report.petType.toLowerCase()}`;
   const details = [
-    report.breed || capitalize(report.petType),
+    capitalize(report.petType),
+    report.breed && titleCase(report.breed),
     report.gender !== 'UNKNOWN' && capitalize(report.gender),
   ].filter(Boolean);
   const { tone, label } = cardVariant(report);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The button that had focus is gone once reunited: continue from the card
+  const handleReunited = () => {
+    headingRef.current?.focus();
+    onReunited();
+  };
   const photo = report.photos?.[0]?.imageUrl;
   const place = report.location
     ? `${report.location.city}, ${report.location.state}`
@@ -68,7 +79,13 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
 
         <div className="my-report-card__info">
           <div className="my-report-card__heading">
-            <h3 className="my-report-card__title">{title}</h3>
+            <h3
+              ref={headingRef}
+              tabIndex={-1}
+              className="my-report-card__title"
+            >
+              {title}
+            </h3>
             <span className="my-report-card__details">
               {details.map((detail) => `• ${detail}`).join(' ')}
             </span>
@@ -87,7 +104,10 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
           <div className="my-report-card__meta">
             <span className="my-report-card__date">
               <Icon name={reunited ? 'event_available' : 'schedule'} />
-              {formatDate(report.eventDate)}
+              {lost ? 'Lost on' : 'Found on'}{' '}
+              <time dateTime={report.eventDate.slice(0, 10)}>
+                {formatDate(report.eventDate)}
+              </time>
             </span>
             {place && (
               <span className="my-report-card__place">
@@ -106,7 +126,15 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
       </div>
 
       <div className="my-report-card__actions">
-        <MarkReunitedButton report={report} onReunited={onReunited} />
+        <Link
+          to={PATHS.petDetails(String(report.petReportId))}
+          className="my-report-card__view"
+          aria-label={`View report for ${title}`}
+        >
+          <Icon name="visibility" />
+          View report
+        </Link>
+        <MarkReunitedButton report={report} onReunited={handleReunited} />
       </div>
     </li>
   );
@@ -149,19 +177,11 @@ export function MyReportsList() {
       <QueryView query={query} loading="Loading your reports…">
         {({ reports }) =>
           reports.length === 0 ? (
-            <p style={{ color: colors.textMuted }}>
+            <p className="my-reports-empty">
               You haven't reported any pets yet.
             </p>
           ) : (
-            <ul
-              style={{
-                display: 'grid',
-                gap: 12,
-                margin: 0,
-                padding: 0,
-                listStyle: 'none',
-              }}
-            >
+            <ul className="my-reports-list">
               {reports.map((report) => (
                 <MyReportCard
                   key={report.petReportId}

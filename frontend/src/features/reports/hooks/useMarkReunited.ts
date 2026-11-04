@@ -27,8 +27,12 @@ export function useMarkReunited() {
             }
           : old,
       );
-      // Lists and details elsewhere still show the report as lost
-      void queryClient.invalidateQueries({ queryKey: ['reports'] });
+      // Lists and details elsewhere still show the report as lost. "Mine" is
+      // already up to date from the line above: refetching it is a wasted request
+      void queryClient.invalidateQueries({
+        queryKey: ['reports'],
+        predicate: (query) => query.queryKey[1] !== myReportsKey[1],
+      });
     },
   });
 }

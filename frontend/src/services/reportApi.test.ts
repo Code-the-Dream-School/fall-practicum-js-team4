@@ -2,7 +2,11 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { API, server } from '../test/server';
 import { ApiError } from './api';
-import { createReport, describeReportError } from './reportApi';
+import {
+  createReport,
+  describeReportError,
+  describeReunitedError,
+} from './reportApi';
 import type { CreateReportInput } from '../types/reports';
 
 const sampleInput: CreateReportInput = {
@@ -152,5 +156,34 @@ describe('reportApi', () => {
         'Something went wrong. Please try again.',
       );
     });
+  });
+});
+
+describe('describeReunitedError', () => {
+  const unchanged = " The report wasn't changed.";
+
+  it.each([
+    [new ApiError(0, 'NETWORK_ERROR', 'raw'), "You're offline."],
+    [new ApiError(401, 'UNAUTHENTICATED', 'raw'), 'Your session expired.'],
+    [
+      new ApiError(403, 'FORBIDDEN', 'raw'),
+      'You can only update your own reports.',
+    ],
+    [new ApiError(404, 'NOT_FOUND', 'raw'), 'This report no longer exists.'],
+    [
+      new ApiError(429, 'TOO_MANY_REQUESTS', 'raw'),
+      'Too many requests. Please wait a moment.',
+    ],
+    [
+      new ApiError(500, 'INTERNAL_ERROR', 'raw'),
+      'Something went wrong on our side.',
+    ],
+    [
+      new ApiError(400, 'VALIDATION_ERROR', 'raw'),
+      "Couldn't save this change.",
+    ],
+    [new Error('bug'), 'Something went wrong.'],
+  ])('describes %s as a failed save', (error, title) => {
+    expect(describeReunitedError(error)).toBe(title + unchanged);
   });
 });

@@ -70,7 +70,7 @@ export function ProfileCard({ user }: { user: User }) {
             {user.name.charAt(0).toUpperCase()}
           </span>
         </div>
-        <h1 className="profile-card__name">{user.name}</h1>
+        <h2 className="profile-card__name">{user.name}</h2>
       </div>
 
       <div className="profile-card__stats">

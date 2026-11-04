@@ -8,9 +8,9 @@
   padding: 6px 16px;
   border: none;
   border-radius: 8px;
-  background-color: #00a854;
-  box-shadow: 0 0 14px rgb(0 228 117 / 35%);
-  color: #003918;
+  background-color: var(--color-success-container);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-success) 35%, transparent);
+  color: var(--color-on-success);
   font-family: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -30,7 +30,7 @@
 .reunited-button:hover:not(:disabled),
 .reunited-button:focus-visible {
   background-color: var(--color-success);
-  box-shadow: 0 0 20px rgb(0 228 117 / 55%);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--color-success) 55%, transparent);
 }
 
 .reunited-button:focus-visible {
@@ -43,8 +43,77 @@
   cursor: progress;
 }
 
+/* The confirmation step that replaces the button. In a row of actions it
+   takes a full line of its own, below the other buttons */
+.reunited-confirm {
+  display: grid;
+  flex-basis: 100%;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: color-mix(
+    in srgb,
+    var(--color-surface-lowest) 80%,
+    transparent
+  );
+}
+
+.reunited-confirm__question {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-on-surface);
+}
+
+.reunited-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reunited-confirm__cancel {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--color-surface-high);
+  color: var(--color-on-surface);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 200ms;
+}
+
+.reunited-confirm__cancel:hover:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-on-surface) 12%,
+    var(--color-surface-high)
+  );
+}
+
+.reunited-confirm__cancel:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+.reunited-confirm__cancel:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.reunited-confirm__error {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-error);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .reunited-button {
+  .reunited-button,
+  .reunited-confirm__cancel {
     transition: none;
   }
 }

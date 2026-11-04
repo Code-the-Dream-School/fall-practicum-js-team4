@@ -17,9 +17,9 @@
   max-width: 420px;
   padding: 12px 16px;
   border-radius: 12px;
-  background-color: #00a854;
-  box-shadow: 0 0 20px rgb(0 228 117 / 40%);
-  color: #003918;
+  background-color: var(--color-success-container);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--color-success) 40%, transparent);
+  color: var(--color-on-success);
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
