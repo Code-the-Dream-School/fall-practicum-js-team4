@@ -113,7 +113,7 @@ describe('LogoutButton', () => {
     const { user } = renderApp(PATHS.profile);
 
     expect(
-      await screen.findByRole('heading', { name: /profile & my reports/i }),
+      await screen.findByRole('heading', { level: 1, name: testUser.name }),
     ).toBeInTheDocument();
 
     await user.click(await screen.findByRole('button', { name: /log out/i }));
@@ -133,7 +133,7 @@ describe('LogoutButton', () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.queryByRole('heading', { name: /profile & my reports/i }),
+      screen.queryByRole('heading', { level: 1, name: testUser.name }),
     ).not.toBeInTheDocument();
   });
 
@@ -165,7 +165,7 @@ describe('LogoutButton', () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByRole('heading', { name: /profile & my reports/i }),
+      screen.getByRole('heading', { level: 1, name: testUser.name }),
     ).toBeInTheDocument();
   });
 
@@ -196,7 +196,7 @@ describe('LogoutButton', () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByRole('heading', { name: /profile & my reports/i }),
+      screen.getByRole('heading', { level: 1, name: testUser.name }),
     ).toBeInTheDocument();
   });
 
@@ -277,7 +277,7 @@ describe('LogoutButton', () => {
       await screen.findByRole('heading', { name: /welcome back to pawradar/i }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: /profile & my reports/i }),
+      screen.queryByRole('heading', { level: 1, name: testUser.name }),
     ).not.toBeInTheDocument();
   });
 });

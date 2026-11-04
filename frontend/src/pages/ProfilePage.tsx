@@ -1,9 +1,16 @@
 import { useAuth } from '../context/useAuth';
-import { textStyles } from '../styles/theme';
+import { MyReportsList } from '../features/reports/components/MyReportsList';
+import { ProfileCard } from '../features/user/components/ProfileCard';
+import './ProfilePage.css';
 
 export function ProfilePage() {
   const { user } = useAuth();
   return (
-    <h1 style={textStyles.pageTitle}>{user?.name}: profile & my reports</h1>
+    <div className="profile-page">
+      {user && <ProfileCard user={user} />}
+      <div className="profile-page__main">
+        <MyReportsList />
+      </div>
+    </div>
   );
 }

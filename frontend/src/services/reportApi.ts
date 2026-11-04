@@ -36,6 +36,21 @@ export async function createReport(
   });
 }
 
+export interface MyReports {
+  total: number;
+  reports: PetReport[];
+}
+
+// The signed-in user's reports, newest first
+export const getMyReports = () => apiRequest<MyReports>('/api/reports/mine');
+
+// The owner found their pet: closes the report
+export const markReportReunited = (id: number) =>
+  apiRequest<PetReport>(`/api/reports/${id}`, {
+    method: 'PATCH',
+    body: { status: 'REUNITED' },
+  });
+
 /**
  * Maps backend errors from POST /api/reports into user-friendly messages,
  * including specific photo upload errors (502 PHOTO_UPLOAD_FAILED, 400 photos validation).
