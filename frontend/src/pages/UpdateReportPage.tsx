@@ -4,6 +4,7 @@ import { textStyles } from '../styles/theme';
 import { getReportById, updateReport } from '../services/reportApi';
 import type { PetReport, UpdateReportInput } from '../types/reports';
 import { useAuth } from '../context/useAuth';
+import { ApiError } from '../services/api';
 import {
   ReportForm,
   type ReportFormValues,
@@ -50,8 +51,31 @@ export function UpdateReportPage() {
           return;
         }
         setReport(data);
-      } catch {
-        if (!cancelled) {
+      } catch (err: unknown) {
+        if (cancelled) return;
+
+        if (err instanceof ApiError) {
+          switch (err.code) {
+            case 'FORBIDDEN':
+              setError("You don't have permission to edit this report.");
+              break;
+
+            case 'NOT_FOUND':
+              setError('Report not found.');
+              break;
+
+            case 'UNATHORIZED':
+              setError('Please sign in to edit this report.');
+              break;
+
+            case 'NETWORK_ERROR':
+              setError(err.message);
+              break;
+
+            default:
+              setError('Unable to load the report. Please try again.');
+          }
+        } else {
           setError('Unable to load the report. Please try again.');
         }
       } finally {
