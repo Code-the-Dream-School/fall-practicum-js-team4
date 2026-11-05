@@ -350,7 +350,9 @@ server.use(
 server.use(http.get(`${API}/api/reports`, () => HttpResponse.error())); // network failure
 ```
 
-A request with no handler fails, so add a handler for every new endpoint a test
+`GET /api/reports/mine` returns no reports by default; for reports, use the
+fixtures in `src/test/reports.ts` (`report({...})`, `milo`, `mockMyReports([...])`). A request with no
+handler fails, so add a handler for every new endpoint a test
 calls.
 
 ## 📄 License

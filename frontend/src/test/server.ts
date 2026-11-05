@@ -92,6 +92,11 @@ export const server = setupServer(
       testReports.filter((report) => !type || report.reportType === type),
     );
   }),
+
+  // The profile page loads these; no reports unless a test says otherwise
+  http.get(`${API}/api/reports/mine`, () =>
+    HttpResponse.json({ success: true, data: { total: 0, reports: [] } }),
+  ),
 );
 
 // Makes GET /me answer as if the session cookie were valid

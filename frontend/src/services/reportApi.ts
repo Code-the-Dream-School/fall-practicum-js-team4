@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from './api';
+import { describeApiError, type ErrorKind } from './describeApiError';
 import type {
   CreateReportInput,
   PetReport,
@@ -40,6 +41,21 @@ export async function createReport(
     body: reportData,
   });
 }
+
+export interface MyReports {
+  total: number;
+  reports: PetReport[];
+}
+
+// The signed-in user's reports, newest first
+export const getMyReports = () => apiRequest<MyReports>('/api/reports/mine');
+
+// The owner found their pet: closes the report
+export const markReportReunited = (id: number) =>
+  apiRequest<PetReport>(`/api/reports/${id}`, {
+    method: 'PATCH',
+    body: { status: 'REUNITED' },
+  });
 
 /**
  * Maps backend errors from POST /api/reports into user-friendly messages,
@@ -95,3 +111,21 @@ export async function getReports({
     await apiRequest<ReportListResponse | null>(`/api/reports?${query}`),
   );
 }
+
+// What failed when saving a report's status, by the team's error kinds
+// (describeApiError). Its titles are written for loading data, so a failed
+// save gets its own wording.
+const SAVE_ERROR_TITLES: Record<ErrorKind, string> = {
+  network: "You're offline",
+  unauthenticated: 'Your session expired',
+  forbidden: 'You can only update your own reports',
+  'not-found': 'This report no longer exists',
+  'rate-limited': 'Too many requests. Please wait a moment',
+  server: 'Something went wrong on our side',
+  client: "Couldn't save this change",
+  unknown: 'Something went wrong',
+};
+
+/** Message for a failed "Mark Reunited": what happened, then that nothing changed. */
+export const describeReunitedError = (err: unknown): string =>
+  `${SAVE_ERROR_TITLES[describeApiError(err).kind]}. The report wasn't changed.`;
