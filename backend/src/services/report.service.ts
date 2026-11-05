@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { PetType, Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
 import { deleteImages, storePhotos } from "./photo.service";
@@ -48,25 +48,67 @@ const PUBLIC_REPORT_SELECT = {
   photos: PHOTOS,
 } satisfies Prisma.PetReportSelect;
 
+// Text fields a search matches against (case-insensitive, partial match)
+const SEARCH_FIELDS = ["petName", "breed", "color", "distinctiveFeatures"] as const;
+
+// Prisma passes `contains` to SQL LIKE without escaping, so "%" or "_" would
+// act as wildcards; backslash is PostgreSQL's default LIKE escape character
+const escapeLike = (text: string) => text.replace(/[\\%_]/g, "\\$&");
+
+// Words that name a pet type, singular or plural ("dog", "Dogs"). The type is
+// stored as an enum, which can't be partly matched like text
+const PET_TYPE_WORDS: Record<string, PetType> = {
+  dog: "DOG",
+  dogs: "DOG",
+  cat: "CAT",
+  cats: "CAT",
+  bird: "BIRD",
+  birds: "BIRD",
+};
+
+// Reports whose text fields or city contain `search`, or whose pet type it
+// names (all ignoring case)
+const searchWhere = (search: string): Prisma.PetReportWhereInput => {
+  const contains: Prisma.StringFilter = { contains: escapeLike(search), mode: "insensitive" };
+  const petType = PET_TYPE_WORDS[search.toLowerCase()];
+  return {
+    OR: [
+      ...SEARCH_FIELDS.map((field) => ({ [field]: contains })),
+      { location: { is: { city: contains } } },
+      ...(petType ? [{ petType }] : []),
+    ],
+  };
+};
+
 export const listReports = async ({
   page = 1,
   limit = 20,
   type,
   status = "ACTIVE",
+  search,
+  petType,
+  size,
+  gender,
+  sort = "newest",
 }: Partial<ListReportsQuery> = {}) => {
   const skip = (page - 1) * limit;
   const where: Prisma.PetReportWhereInput = { status };
 
-  if (type) {
-    where.reportType = type;
-  }
+  if (type) where.reportType = type;
+  if (petType) where.petType = petType;
+  if (size) where.size = size;
+  if (gender) where.gender = gender;
+  if (search) Object.assign(where, searchWhere(search));
+
+  const direction = sort === "oldest" ? "asc" : "desc";
 
   const [total, reports] = await Promise.all([
     prisma.petReport.count({ where }),
     prisma.petReport.findMany({
       where,
       select: PUBLIC_REPORT_SELECT,
-      orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+      // petReportId breaks ties between reports created in the same millisecond
+      orderBy: [{ createdAt: direction }, { petReportId: direction }],
       skip,
       take: limit,
     }),
@@ -137,26 +179,13 @@ export const createReport = async (
   }
 };
 
-// Text fields a search matches against (case-insensitive, partial match)
-const SEARCH_FIELDS = ["petName", "breed", "color", "distinctiveFeatures"] as const;
-
-// Prisma passes `contains` to SQL LIKE without escaping, so "%" or "_" would
-// act as wildcards; backslash is PostgreSQL's default LIKE escape character
-const escapeLike = (text: string) => text.replace(/[\\%_]/g, "\\$&");
-
 // Every report the user created, newest first. No pagination: one user has few reports.
 // OWNER-ONLY: returns every field, including contactInfo and exact coordinates.
 // A public listing must use its own query with a `select` of public fields.
 export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) => {
   const where: Prisma.PetReportWhereInput = { userId };
 
-  if (search) {
-    const contains: Prisma.StringFilter = { contains: escapeLike(search), mode: "insensitive" };
-    where.OR = [
-      ...SEARCH_FIELDS.map((field) => ({ [field]: contains })),
-      { location: { is: { city: contains } } },
-    ];
-  }
+  if (search) Object.assign(where, searchWhere(search));
 
   return prisma.petReport.findMany({
     where,

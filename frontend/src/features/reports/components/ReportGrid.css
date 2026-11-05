@@ -1,6 +1,10 @@
 .report-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* At most 3 columns, as in the design: a page of 6 is two full rows */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(260px, calc((100% - 32px) / 3)), 1fr)
+  );
   gap: 16px;
   margin: 0;
   padding: 0;
@@ -8,6 +12,8 @@
 }
 
 .report-card {
+  --accent: #f97316;
+
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -18,21 +24,28 @@
   color: #f1f5f9;
   text-decoration: none;
   transition:
-    transform 0.2s,
-    border-color 0.2s;
+    transform 300ms,
+    border-color 300ms,
+    box-shadow 300ms;
 }
-.report-card:hover {
-  transform: translateY(-2px);
+.report-card--found {
+  --accent: #06b6d4;
 }
-.report-card--lost:hover {
-  border-color: #f97316;
-}
-.report-card--found:hover {
-  border-color: #06b6d4;
+/* As in the design: the card lifts, glows in its colour and the photo zooms.
+   Keyboard focus gets the same cue */
+.report-card:hover,
+.report-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 12px 36px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .report-card:focus-visible {
-  outline: 2px solid #06b6d4;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+.report-card:hover .report-card__title,
+.report-card:focus-visible .report-card__title {
+  color: var(--accent);
 }
 
 .report-card__media {
@@ -48,6 +61,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 500ms;
+}
+.report-card:hover .report-card__media img,
+.report-card:focus-visible .report-card__media img {
+  transform: scale(1.05);
 }
 .report-card__no-photo {
   display: flex;
@@ -85,6 +103,7 @@
 }
 .report-card__title {
   margin: 0;
+  transition: color 300ms;
   font-size: 18px;
   font-weight: 700;
 }
@@ -140,10 +159,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .report-card {
+  .report-card,
+  .report-card__title,
+  .report-card__media img {
     transition: none;
   }
-  .report-card:hover {
+  .report-card:hover,
+  .report-card:focus-visible,
+  .report-card:hover .report-card__media img,
+  .report-card:focus-visible .report-card__media img {
     transform: none;
   }
 }
