@@ -1,15 +1,16 @@
 import { useState } from 'react';
-
 import { useForm } from 'react-hook-form';
-import { createReport, describeReportError } from '../../../services/reportApi';
-import type { CreateReportInput, ReportType } from '../../../types/reports';
+import type { ReportType } from '../../../types/reports';
+// import { createReport, describeReportError } from '../../../services/reportApi';
+// import type { CreateReportInput, ReportType } from '../../../types/reports';
 import { PhotoUpload } from './PhotoUpload';
 
 interface ReportFormProps {
   reportType: ReportType;
   initialValues?: Partial<ReportFormValues>;
-  onSubmit?: (values: ReportFormValues, photos: File[]) => Promise<void>;
+  onSubmit: (values: ReportFormValues, photos: File[]) => Promise<void>;
   isSaving?: boolean;
+  submitLabel?: string;
 }
 
 export interface ReportFormValues {
@@ -41,6 +42,7 @@ export function ReportForm({
   initialValues,
   onSubmit,
   isSaving = false,
+  submitLabel = 'Submit Report',
 }: ReportFormProps) {
   const {
     register,
@@ -49,48 +51,46 @@ export function ReportForm({
   } = useForm<ReportFormValues>({ defaultValues: initialValues });
 
   const [photos, setPhotos] = useState<File[]>([]);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  // const [submissionError, setSubmissionError] = useState<string | null>(null);
+  // const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
-  const handleCreate = async (values: ReportFormValues) => {
-    const payload: CreateReportInput = {
-      reportType,
-      petType: values.petType,
-      petName: values.petName.trim() || undefined,
-      breed: values.breed?.trim() || undefined,
-      color: values.color.trim(),
-      size: values.size,
-      gender: values.gender,
-      distinctiveFeatures: values.distinctiveFeatures?.trim() || undefined,
-      eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
-      contactInfo: values.contactInfo?.trim() || undefined,
-      ...(values.zipCode.trim() || values.city.trim() || values.state.trim()
-        ? {
-            location: {
-              zipCode: values.zipCode.trim(),
-              city: values.city.trim(),
-              state: values.state.trim().toUpperCase(),
-            },
-          }
-        : {}),
-    };
+  // const handleCreate = async (values: ReportFormValues) => {
+  //   const payload: CreateReportInput = {
+  //     reportType,
+  //     petType: values.petType,
+  //     petName: values.petName.trim() || undefined,
+  //     breed: values.breed?.trim() || undefined,
+  //     color: values.color.trim(),
+  //     size: values.size,
+  //     gender: values.gender,
+  //     distinctiveFeatures: values.distinctiveFeatures?.trim() || undefined,
+  //     eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
+  //     contactInfo: values.contactInfo?.trim() || undefined,
+  //     ...(values.zipCode.trim() || values.city.trim() || values.state.trim()
+  //       ? {
+  //           location: {
+  //             zipCode: values.zipCode.trim(),
+  //             city: values.city.trim(),
+  //             state: values.state.trim().toUpperCase(),
+  //           },
+  //         }
+  //       : {}),
+  //   };
 
-    setSubmissionError(null);
-    setSubmissionSuccess(false);
+  //   setSubmissionError(null);
+  //   setSubmissionSuccess(false);
 
-    try {
-      await createReport(payload, { photos });
+  //   try {
+  //     await createReport(payload, { photos });
 
-      setSubmissionSuccess(true);
-    } catch (error) {
-      setSubmissionError(describeReportError(error));
-    }
-  };
+  //     setSubmissionSuccess(true);
+  //   } catch (error) {
+  //     setSubmissionError(describeReportError(error));
+  //   }
+  // };
   return (
     <form
-      onSubmit={handleSubmit((values) =>
-        onSubmit ? onSubmit(values, photos) : handleCreate(values),
-      )}
+      onSubmit={handleSubmit((values) => onSubmit(values, photos))}
       noValidate
     >
       <h2 className="report-form__section-title">1. Pet Details</h2>
@@ -419,30 +419,23 @@ export function ReportForm({
         <PhotoUpload
           photos={photos}
           onChange={setPhotos}
-          disabled={
-            isSubmitting || isSaving || (!onSubmit && submissionSuccess)
-          }
+          disabled={isSubmitting || isSaving}
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={isSubmitting || isSaving || (!onSubmit && submissionSuccess)}
-      >
-        {onSubmit
-          ? isSubmitting || isSaving
+      <button type="submit" disabled={isSubmitting || isSaving}>
+        {isSubmitting || isSaving
+          ? submitLabel === 'Save Changes'
             ? 'Saving...'
-            : 'Save Changes'
-          : isSubmitting
-            ? 'Submitting...'
-            : 'Submit Report'}
+            : 'Submitting...'
+          : submitLabel}
       </button>
 
-      {submissionError && <p role="alert">{submissionError}</p>}
+      {/* {submissionError && <p role="alert">{submissionError}</p>}
 
       {submissionSuccess && (
         <p role="status">Your pet report was submitted successfully!</p>
-      )}
+      )} */}
     </form>
   );
 }
