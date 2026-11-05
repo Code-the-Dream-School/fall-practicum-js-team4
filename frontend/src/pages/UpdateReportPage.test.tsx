@@ -155,7 +155,8 @@ describe('UpdateReportPage', () => {
         return HttpResponse.json(
           {
             success: false,
-            message: 'Unable to load the report. Please try again.',
+            code: 'NOT_FOUND',
+            message: 'Report not found.',
           },
           { status: 404 },
         );
@@ -163,9 +164,9 @@ describe('UpdateReportPage', () => {
     );
     renderApp(PATHS.editReport('100'));
 
-    expect(
-      await screen.findByText(/unable to load the report/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Report not found.',
+    );
     expect(
       screen.queryByLabelText('Pet Name (optional)'),
     ).not.toBeInTheDocument();
@@ -231,5 +232,36 @@ describe('UpdateReportPage', () => {
     );
 
     expect(petNameInput).toHaveValue('Chucha');
+  });
+
+  it('7. shows an access denied message when the API returns 403 error', async () => {
+    signedIn();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () =>
+        HttpResponse.json(
+          {
+            success: false,
+            code: 'FORBIDDEN',
+            message: 'You can only view your own report.',
+          },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    renderApp(PATHS.editReport('100'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "You don't have permission to edit this report.",
+    );
+
+    expect(
+      screen.queryByRole('heading', { name: 'Update Pet Report' }),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole('button', { name: 'Save Changes' }),
+    ).not.toBeInTheDocument();
   });
 });
