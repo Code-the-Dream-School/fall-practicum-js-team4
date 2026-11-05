@@ -1,0 +1,130 @@
+.pet-details-page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 2rem 1rem 5rem;
+}
+
+.pet-details__back {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  color: #06b6d4;
+  text-decoration: none;
+}
+
+.pet-details__back:hover {
+  text-decoration: underline;
+}
+
+.pet-details__preview {
+  padding: 0.75rem 1rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #94a3b8;
+}
+
+.pet-details__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.pet-details__header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.pet-details__eyebrow {
+  margin: 0 0 0.5rem;
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+.pet-details__status {
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: #064e3b;
+  color: #a7f3d0;
+  font-weight: 600;
+}
+
+.pet-details__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.pet-details__card {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #1e293b;
+}
+
+.pet-details__card h2 {
+  margin: 0 0 1.5rem;
+  font-size: 1.2rem;
+}
+
+.pet-details__photo-placeholder {
+  dispay: grid;
+  place-items: center;
+  min-height: 280px;
+  border: 1px dashed #475569;
+  border-radius: 8px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.pet-details__photos {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pet-details__photos img {
+  width: 100;
+  height: auto;
+  border-radius: 8px;
+}
+
+.pet-details__facts {
+  display: grid;
+  grid-template: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin: 0;
+}
+
+.pet-details__facts dt {
+  margin-bottom: 0.35rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.pet-details__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pet-details__full-width {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .pet-details__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pet-details__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 400px) {
+  .pet-details__facts {
+    grid-template-columns: 1fr;
+  }
+}
