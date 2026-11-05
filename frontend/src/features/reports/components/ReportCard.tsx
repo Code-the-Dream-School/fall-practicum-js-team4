@@ -46,7 +46,6 @@ export function ReportCard({ report }: { report: PublicReport }) {
           </Link>
         </h2>
         <p className="report-card__summary">{reportSummary(report)}</p>
-
         <div className="report-card__facts">
           <p className="report-card__fact">
             <Icon
@@ -81,6 +80,25 @@ export function ReportCard({ report }: { report: PublicReport }) {
               </span>
             </p>
           )}
+        </div>
+        <div className="report-card__actions">
+          <Link
+            to={PATHS.petDetails(String(report.petReportId))}
+            className="report-card__view"
+            tabIndex={-1}
+            aria-hidden="true"
+          >
+            View report
+          </Link>
+          <button
+            type="button"
+            className="report-card__sighting"
+            disabled
+            title="Coming soon"
+          >
+            Report Sighting
+            <span className="visually-hidden"> (coming soon)</span>
+          </button>
         </div>
       </div>
     </li>
