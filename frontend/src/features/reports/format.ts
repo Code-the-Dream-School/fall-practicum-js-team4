@@ -3,8 +3,13 @@ import type {
   PetSize,
   PetType,
   PublicReport,
+  ReportType,
 } from '../../types/reports';
 
+export const REPORT_TYPE: Record<ReportType, string> = {
+  LOST: 'Lost',
+  FOUND: 'Found',
+};
 const PET_TYPE: Record<PetType, string> = {
   DOG: 'Dog',
   CAT: 'Cat',
@@ -25,7 +30,7 @@ const GENDER: Record<PetGender, string | null> = {
 
 export const reportTitle = (report: PublicReport) =>
   report.petName ||
-  `${report.reportType === 'LOST' ? 'Lost' : 'Found'} ${PET_TYPE[report.petType].toLowerCase()}`;
+  `${REPORT_TYPE[report.reportType]} ${PET_TYPE[report.petType].toLowerCase()}`;
 
 export const reportSummary = (report: PublicReport) =>
   [

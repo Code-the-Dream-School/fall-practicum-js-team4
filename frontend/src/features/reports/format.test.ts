@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { testReports } from '../../test/server';
 import {
+  REPORT_TYPE,
   formatEventDate,
   formatLocation,
   reportSummary,
@@ -10,6 +11,11 @@ import {
 const [lostDog, foundCat] = testReports;
 
 describe('report formatting', () => {
+  it('has display text for every report type', () => {
+    expect(REPORT_TYPE.LOST).toBe('Lost');
+    expect(REPORT_TYPE.FOUND).toBe('Found');
+  });
+
   it('uses the pet name as the title, or a fallback without one', () => {
     expect(reportTitle(lostDog)).toBe('Biscuit');
     expect(reportTitle(foundCat)).toBe('Found cat');
