@@ -3,6 +3,7 @@ import { useParams } from 'react-router';
 import { textStyles } from '../styles/theme';
 import { getReportById, updateReport } from '../services/reportApi';
 import type { PetReport, UpdateReportInput } from '../types/reports';
+import { useAuth } from '../context/useAuth';
 import {
   ReportForm,
   type ReportFormValues,
@@ -11,6 +12,7 @@ import './ReportPetPage.css';
 
 export function UpdateReportPage() {
   const { id } = useParams<{ id: string }>();
+  const { user, status } = useAuth();
   const [report, setReport] = useState<PetReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,13 +20,22 @@ export function UpdateReportPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    if (!id) {
+    if (status === 'loading') return;
+
+    if (status !== 'authenticated' || !user) {
+      setReport(null);
+      setError('Please sign in to edit this report.');
+      setLoading(false);
       return;
     }
 
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
-    async function loadReport(reportId: string) {
+    async function loadReport(reportId: string, currentUserId: string) {
       try {
         setLoading(true);
         setError(null);
@@ -32,9 +43,13 @@ export function UpdateReportPage() {
 
         const data = await getReportById(reportId);
 
-        if (!cancelled) {
-          setReport(data);
+        if (cancelled) return;
+
+        if (data.userId !== currentUserId) {
+          setError('You do not have permission to edit this report.');
+          return;
         }
+        setReport(data);
       } catch {
         if (!cancelled) {
           setError('Unable to load the report. Please try again.');
@@ -45,15 +60,15 @@ export function UpdateReportPage() {
         }
       }
     }
-    void loadReport(id);
+    void loadReport(id, user.id);
 
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, user, status]);
 
-  async function handleUpdate(values: ReportFormValues) {
-    if (!id) {
+  async function handleUpdate(values: ReportFormValues, photos: File[] = []) {
+    if (!id || !report || !user || report.userId !== user.id) {
       return;
     }
 
@@ -67,6 +82,7 @@ export function UpdateReportPage() {
       distinctiveFeatures: values.distinctiveFeatures?.trim() || null,
       eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
       contactInfo: values.contactInfo?.trim() || null,
+      status: report.status,
       location:
         values.zipCode?.trim() || values.city?.trim() || values.state?.trim()
           ? {
@@ -82,7 +98,7 @@ export function UpdateReportPage() {
       setError(null);
       setSuccess('');
 
-      const updatedReport = await updateReport(id, input);
+      const updatedReport = await updateReport(id, input, { photos });
       setReport(updatedReport);
       setSuccess('Report updated successfully.');
     } catch {
@@ -95,7 +111,7 @@ export function UpdateReportPage() {
   if (!id) {
     return <p role="alert">Report ID is missing.</p>;
   }
-  if (loading) {
+  if (status === 'loading' || loading) {
     return <p>Loading report...</p>;
   }
   if (error && !report) {

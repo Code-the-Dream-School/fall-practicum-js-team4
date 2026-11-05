@@ -5,23 +5,16 @@ export type PetSize = 'SMALL' | 'MEDIUM' | 'LARGE';
 export type PetGender = 'MALE' | 'FEMALE' | 'UNKNOWN';
 
 export interface ReportLocation {
+  locationId?: number;
   zipCode: string;
   city: string;
   state: string;
 }
 
-export interface CreateReportInput {
-  reportType: ReportType;
-  petType: PetType;
-  petName?: string;
-  breed?: string;
-  color: string;
-  size: PetSize;
-  gender: PetGender;
-  distinctiveFeatures?: string;
-  eventDate: string;
-  contactInfo?: string;
-  location?: ReportLocation;
+export interface ReportPhoto {
+  petPhotoId: number;
+  imageUrl: string;
+  createdAt: string;
 }
 export interface PetReport {
   petReportId: number;
@@ -38,10 +31,23 @@ export interface PetReport {
   eventDate: string;
   contactInfo: string | null;
   location: ReportLocation | null;
+  photos?: ReportPhoto[];
   createdAt: string;
   updatedAt: string;
 }
-
+export interface CreateReportInput {
+  reportType: ReportType;
+  petType: PetType;
+  petName?: string | null;
+  breed?: string | null;
+  color: string;
+  size: PetSize;
+  gender: PetGender;
+  distinctiveFeatures?: string | null;
+  eventDate: string;
+  contactInfo?: string | null;
+  location?: ReportLocation | null;
+}
 export interface UpdateReportInput {
   petType?: PetType;
   petName?: string | null;
@@ -52,5 +58,7 @@ export interface UpdateReportInput {
   distinctiveFeatures?: string | null;
   eventDate?: string;
   contactInfo?: string | null;
+  status: ReportStatus;
   location?: ReportLocation | null;
+  photos?: ReportPhoto[];
 }

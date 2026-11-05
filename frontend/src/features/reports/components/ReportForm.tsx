@@ -1,13 +1,14 @@
 import { useState } from 'react';
 
 import { useForm } from 'react-hook-form';
-import { ApiError, apiRequest } from '../../../services/api';
+import { createReport, describeReportError } from '../../../services/reportApi';
 import type { CreateReportInput, ReportType } from '../../../types/reports';
+import { PhotoUpload } from './PhotoUpload';
 
 interface ReportFormProps {
   reportType: ReportType;
   initialValues?: Partial<ReportFormValues>;
-  onSubmit?: (values: ReportFormValues) => Promise<void>;
+  onSubmit?: (values: ReportFormValues, photos: File[]) => Promise<void>;
   isSaving?: boolean;
 }
 
@@ -47,6 +48,7 @@ export function ReportForm({
     formState: { errors, isSubmitting },
   } = useForm<ReportFormValues>({ defaultValues: initialValues });
 
+  const [photos, setPhotos] = useState<File[]>([]);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
@@ -77,22 +79,20 @@ export function ReportForm({
     setSubmissionSuccess(false);
 
     try {
-      await apiRequest<unknown>('/api/reports', {
-        method: 'POST',
-        body: payload,
-      });
+      await createReport(payload, { photos });
 
       setSubmissionSuccess(true);
     } catch (error) {
-      setSubmissionError(
-        error instanceof ApiError
-          ? error.message
-          : 'Could not submit the report. Please try again',
-      );
+      setSubmissionError(describeReportError(error));
     }
   };
   return (
-    <form onSubmit={handleSubmit(onSubmit ?? handleCreate)} noValidate>
+    <form
+      onSubmit={handleSubmit((values) =>
+        onSubmit ? onSubmit(values, photos) : handleCreate(values),
+      )}
+      noValidate
+    >
       <h2 className="report-form__section-title">1. Pet Details</h2>
       <div>
         <label htmlFor="report-pet-name">Pet Name (optional)</label>
@@ -414,6 +414,17 @@ export function ReportForm({
           </p>
         )}
       </div>
+
+      <div className="report-form__full-width">
+        <PhotoUpload
+          photos={photos}
+          onChange={setPhotos}
+          disabled={
+            isSubmitting || isSaving || (!onSubmit && submissionSuccess)
+          }
+        />
+      </div>
+
       <button
         type="submit"
         disabled={isSubmitting || isSaving || (!onSubmit && submissionSuccess)}
