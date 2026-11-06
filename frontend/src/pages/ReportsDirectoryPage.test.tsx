@@ -39,12 +39,15 @@ describe('ReportsDirectoryPage', () => {
     expect(screen.getByText(/Location not given/)).toBeInTheDocument();
   });
 
-  it('links each card to the report details page', async () => {
+  it('links each card to the report details page by the pet name only', async () => {
     renderApp('/lost-pets');
 
-    const card = await screen.findByRole('link', { name: /Biscuit/ });
-    expect(card).toHaveAttribute('href', '/pets/1');
+    // Exact name: screen readers announce the pet's name, not the whole card
+    const link = await screen.findByRole('link', { name: 'Biscuit' });
+    expect(link).toHaveAttribute('href', '/pets/1');
+    expect(screen.getByText('Lost')).toBeInTheDocument();
     expect(screen.getByText(/Oct 30, 2026/)).toBeInTheDocument();
+    expect(screen.getByText('ID: #1')).toBeInTheDocument();
   });
 
   it('shows an empty state with a call to action', async () => {

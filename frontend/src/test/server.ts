@@ -140,6 +140,11 @@ export const server = setupServer(
   http.get(`${API}/api/reports`, ({ request }) =>
     pagedReportList(queryReports(testReports, request), request),
   ),
+
+  // The profile page loads these; no reports unless a test says otherwise
+  http.get(`${API}/api/reports/mine`, () =>
+    HttpResponse.json({ success: true, data: { total: 0, reports: [] } }),
+  ),
 );
 
 // Makes GET /me answer as if the session cookie were valid

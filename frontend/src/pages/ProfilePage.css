@@ -1,0 +1,24 @@
+/* Profile card on the left (320px), reports on the right; stacked on phones */
+.profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding-block: 24px;
+}
+
+.profile-page__main {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .profile-page {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .profile-page > .profile-card {
+    flex-shrink: 0;
+    width: 320px;
+  }
+}
