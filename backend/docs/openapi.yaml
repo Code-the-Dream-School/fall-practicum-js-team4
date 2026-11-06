@@ -204,6 +204,66 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
 
   /api/reports:
+    get:
+      tags: [Reports]
+      operationId: listReports
+      security: []
+      summary: List public pet report summaries with pagination
+      description: >-
+        Returns paginated pet report summaries ordered newest first (`createdAt`
+        desc, `petReportId` desc). Public endpoint (no authentication required).
+        Sensitive fields (`userId`, `contactInfo`, and exact `latitude`/`longitude`
+        coordinates) are omitted.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of reports per page (1 to 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: type
+          in: query
+          required: false
+          description: Filter by report type (LOST or FOUND)
+          schema:
+            type: string
+            enum: [LOST, FOUND]
+          example: LOST
+        - name: status
+          in: query
+          required: false
+          description: Filter by report status (defaults to ACTIVE)
+          schema:
+            type: string
+            enum: [ACTIVE, REUNITED]
+            default: ACTIVE
+          example: ACTIVE
+      responses:
+        "200":
+          description: Paginated list of public report summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicReportsResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
     post:
       tags: [Reports]
       operationId: createReport
@@ -696,6 +756,120 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Report"
+
+    PublicReportsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required: [total, page, limit, totalPages, reports]
+          properties:
+            total:
+              type: integer
+              description: Total number of reports in the database
+              example: 42
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            totalPages:
+              type: integer
+              example: 3
+            reports:
+              type: array
+              items:
+                $ref: "#/components/schemas/PublicReport"
+
+    PublicReport:
+      type: object
+      required:
+        [
+          petReportId,
+          reportType,
+          petType,
+          color,
+          size,
+          gender,
+          eventDate,
+          status,
+          createdAt,
+          photos,
+        ]
+      properties:
+        petReportId:
+          type: integer
+        reportType:
+          type: string
+          enum: [LOST, FOUND]
+        petType:
+          type: string
+          enum: [DOG, CAT, BIRD, OTHER]
+        petName:
+          type: string
+          nullable: true
+        breed:
+          type: string
+          nullable: true
+        color:
+          type: string
+        size:
+          type: string
+        gender:
+          type: string
+        distinctiveFeatures:
+          type: string
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [ACTIVE, REUNITED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        location:
+          type: object
+          nullable: true
+          properties:
+            locationId:
+              type: integer
+            petReportId:
+              type: integer
+            zipCode:
+              type: string
+              example: "10001"
+            city:
+              type: string
+              example: "New York"
+            state:
+              type: string
+              example: "NY"
+        photos:
+          type: array
+          description: In upload order; an empty array when the report has none
+          items:
+            type: object
+            required: [petPhotoId, imageUrl, createdAt]
+            properties:
+              petPhotoId:
+                type: integer
+              imageUrl:
+                type: string
+                format: uri
+                example: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/abc123.webp"
+              createdAt:
+                type: string
+                format: date-time
 
     Report:
       type: object

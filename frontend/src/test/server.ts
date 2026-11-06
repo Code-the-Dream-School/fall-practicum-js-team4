@@ -36,6 +36,10 @@ export const server = setupServer(
   http.post(`${API}/api/auth/logout`, () =>
     HttpResponse.json({ success: true, data: null }),
   ),
+  // The profile page loads these; no reports unless a test says otherwise
+  http.get(`${API}/api/reports/mine`, () =>
+    HttpResponse.json({ success: true, data: { total: 0, reports: [] } }),
+  ),
 );
 
 // Makes GET /me answer as if the session cookie were valid

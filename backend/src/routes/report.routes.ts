@@ -8,6 +8,7 @@ import AppError from "../utils/AppError";
 import { photoUpload } from "../middleware/photoUpload";
 import {
   createReportSchema,
+  listReportsQuerySchema,
   myReportsQuerySchema,
   reportIdParamSchema,
   updateReportSchema,
@@ -26,6 +27,9 @@ const createReportLimiter = rateLimit({
   handler: (req, res, next) =>
     next(new AppError(429, "TOO_MANY_REQUESTS", "Too many reports, please try again later")),
 });
+
+// Public report listing (anonymous access allowed)
+router.get("/", validate(listReportsQuerySchema, "query"), asyncHandler(controller.listReports));
 
 // JSON, or multipart/form-data with a "report" JSON field and up to 5 "photos" files.
 // requireAuth and the limiter first, so refused requests never have files read.
