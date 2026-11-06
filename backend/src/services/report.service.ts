@@ -225,3 +225,19 @@ export const updateReport = async (
     include: { location: true, photos: PHOTOS },
   });
 };
+
+export const getReportById = async (userId: string, petReportId: number) => {
+  const report = await prisma.petReport.findUnique({
+    where: { petReportId },
+    include: { location: true, photos: PHOTOS },
+  });
+
+  if (!report) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  if (report.userId !== userId) {
+    throw new AppError(403, "FORBIDDEN", "You can only view your own reports");
+  }
+  return report;
+};

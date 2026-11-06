@@ -48,10 +48,19 @@ router.get(
   validate(myReportsQuerySchema, "query"),
   asyncHandler(controller.getMyReports),
 );
+
+router.get(
+  "/:id",
+  requireAuth,
+  validate(reportIdParamSchema, "params"),
+  asyncHandler(controller.getReportById),
+);
+
 router.patch(
   "/:id",
   requireAuth,
   validate(reportIdParamSchema, "params"),
+  photoUpload,
   validate(updateReportSchema),
   asyncHandler(controller.updateReport),
 );

@@ -1,8 +1,15 @@
 import { ApiError, apiRequest } from './api';
+import type {
+  CreateReportInput,
+  PetReport,
+  UpdateReportInput,
+} from '../types/reports';
 import { describeApiError, type ErrorKind } from './describeApiError';
-import type { CreateReportInput, PetReport } from '../types/reports';
 
 export interface CreateReportOptions {
+  photos?: File[];
+}
+export interface UpdateReportOptions {
   photos?: File[];
 }
 
@@ -12,6 +19,7 @@ export interface CreateReportOptions {
  * a 'report' JSON string field and multiple 'photos' file fields as required by the backend.
  * Otherwise, sends standard JSON.
  */
+
 export async function createReport(
   reportData: CreateReportInput,
   options: CreateReportOptions = {},
@@ -51,6 +59,42 @@ export const markReportReunited = (id: number) =>
     method: 'PATCH',
     body: { status: 'REUNITED' },
   });
+
+/**
+ * Fetch and update an existing report
+ */
+
+export const getReportById = (id: string) =>
+  apiRequest<PetReport>(`/api/reports/${encodeURIComponent(id)}`);
+
+export const updateReport = (
+  id: string,
+  input: UpdateReportInput,
+  options: UpdateReportOptions = {},
+): Promise<PetReport> => {
+  const { photos = [] } = options;
+  const url = `/api/reports/${encodeURIComponent(id)}`;
+
+  if (photos.length > 0) {
+    const formData = new FormData();
+
+    formData.append('report', JSON.stringify(input));
+
+    photos.forEach((photo) => {
+      formData.append('photos', photo);
+    });
+
+    return apiRequest<PetReport>(url, {
+      method: 'PATCH',
+      body: formData,
+    });
+  }
+
+  return apiRequest<PetReport>(url, {
+    method: 'PATCH',
+    body: input,
+  });
+};
 
 /**
  * Maps backend errors from POST /api/reports into user-friendly messages,
