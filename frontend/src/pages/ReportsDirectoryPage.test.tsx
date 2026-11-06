@@ -38,6 +38,7 @@ describe('ReportsDirectoryPage', () => {
     expect(link).toHaveAttribute('href', '/pets/1');
     expect(screen.getByText('Lost')).toBeInTheDocument();
     expect(screen.getByText(/Oct 30, 2026/)).toBeInTheDocument();
+    expect(screen.getByText('ID: #1')).toBeInTheDocument();
   });
 
   it('shows an empty state with a call to action', async () => {

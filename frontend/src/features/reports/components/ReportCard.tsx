@@ -8,6 +8,7 @@ import {
   formatLocation,
   reportSummary,
   reportTitle,
+  timeAgo,
 } from '../format';
 
 export function ReportCard({ report }: { report: PublicReport }) {
@@ -32,19 +33,23 @@ export function ReportCard({ report }: { report: PublicReport }) {
           <span className="report-card__badge-dot" aria-hidden="true" />
           {typeLabel}
         </span>
+        <span className="report-card__id">ID: #{report.petReportId}</span>
       </div>
 
       <div className="report-card__body">
-        <h2 className="report-card__title">
-          {/* Only the pet's name is the link text, so screen readers announce
-              a short link. Its ::after covers the card to keep it clickable. */}
-          <Link
-            to={PATHS.petDetails(String(report.petReportId))}
-            className="report-card__link"
-          >
-            {reportTitle(report)}
-          </Link>
-        </h2>
+        <div className="report-card__heading">
+          <h2 className="report-card__title">
+            <Link
+              to={PATHS.petDetails(String(report.petReportId))}
+              className="report-card__link"
+            >
+              {reportTitle(report)}
+            </Link>
+          </h2>
+          <time className="report-card__posted" dateTime={report.createdAt}>
+            {timeAgo(report.createdAt)}
+          </time>
+        </div>
         <p className="report-card__summary">{reportSummary(report)}</p>
         <div className="report-card__facts">
           <p className="report-card__fact">
