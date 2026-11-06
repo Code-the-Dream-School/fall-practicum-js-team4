@@ -1,6 +1,11 @@
 import { ApiError, apiRequest } from './api';
 import { describeApiError, type ErrorKind } from './describeApiError';
-import type { CreateReportInput, PetReport } from '../types/reports';
+import type {
+  CreateReportInput,
+  PetReport,
+  ReportListParams,
+  ReportListResponse,
+} from '../types/reports';
 
 export interface CreateReportOptions {
   photos?: File[];
@@ -85,6 +90,26 @@ export function describeReportError(err: unknown): string {
         'Something went wrong on our side. Please try again in a moment.'
       );
   }
+}
+
+const reportListFrom = (data: ReportListResponse | null) => {
+  if (!data || !Array.isArray(data.reports)) {
+    throw new ApiError(
+      500,
+      'INTERNAL_ERROR',
+      'Unexpected response from the server.',
+    );
+  }
+  return data;
+};
+
+export async function getReports({
+  type,
+}: ReportListParams): Promise<ReportListResponse> {
+  const query = new URLSearchParams({ type });
+  return reportListFrom(
+    await apiRequest<ReportListResponse | null>(`/api/reports?${query}`),
+  );
 }
 
 // What failed when saving a report's status, by the team's error kinds

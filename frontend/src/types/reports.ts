@@ -51,3 +51,32 @@ export interface CreateReportInput {
   contactInfo?: string | null;
   location?: ReportLocation | null;
 }
+
+export interface PublicReport {
+  petReportId: number;
+  reportType: ReportType;
+  status: ReportStatus;
+  petType: PetType;
+  petName: string | null;
+  breed: string | null;
+  color: string;
+  size: PetSize;
+  gender: PetGender;
+  distinctiveFeatures: string | null;
+  eventDate: string;
+  createdAt: string;
+  location: ReportLocation | null;
+  photos: { petPhotoId: number; imageUrl: string }[];
+}
+
+export interface ReportListParams {
+  type: ReportType;
+}
+
+export interface ReportListResponse {
+  reports: PublicReport[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
