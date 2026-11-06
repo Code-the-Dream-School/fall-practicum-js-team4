@@ -56,6 +56,7 @@ router.patch(
   "/:id",
   requireAuth,
   validate(reportIdParamSchema, "params"),
+  photoUpload,
   validate(updateReportSchema),
   asyncHandler(controller.updateReport),
 );
