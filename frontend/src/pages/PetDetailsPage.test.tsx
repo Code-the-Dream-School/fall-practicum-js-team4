@@ -1,4 +1,4 @@
-
+import { useAuth } from '../context/useAuth';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -11,6 +11,12 @@ import type { ReportDetails } from '../types/reports';
 vi.mock('../services/reportApi', () => ({
   getReportDetails: vi.fn(),
 }));
+
+vi.mock('../context/useAuth', () => ({
+  useAuth: vi.fn(),
+}));
+
+const mockUseAuth = vi.mocked(useAuth);
 
 const mockGetReportDetails = vi.mocked(getReportDetails);
 
@@ -47,6 +53,17 @@ function renderDetails(path = '/pets/123') {
 describe('PetDetailsPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+
+    mockUseAuth.mockReturnValue({
+      user: null,
+      status: 'unauthenticated',
+      signedOutByUser: false,
+      sessionExpired: false,
+      setSession: vi.fn(),
+      signOut: vi.fn(async () => {}),
+      expireSession: vi.fn(),
+      clearSignedOutByUser: vi.fn(),
+    });
   });
 
   it('loads and displays a pet report', async () => {
@@ -64,9 +81,7 @@ describe('PetDetailsPage', () => {
 
     expect(screen.getByText('Mixed breed')).toBeInTheDocument();
     expect(screen.getByText('Brown and white')).toBeInTheDocument();
-    expect(
-      screen.getByText('Richmond, VA 23220'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Richmond, VA 23220')).toBeInTheDocument();
 
     expect(mockGetReportDetails).toHaveBeenCalledWith('123');
   });
@@ -143,9 +158,7 @@ describe('PetDetailsPage', () => {
       }),
     ).toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Try again' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Milo' }),
@@ -157,10 +170,73 @@ describe('PetDetailsPage', () => {
   it('rejects an invalid report ID without making a request', () => {
     renderDetails('/pets/not-a-number');
 
-    expect(
-      screen.getByRole('alert'),
-    ).toHaveTextContent('Invalid report link.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Invalid report link.');
 
     expect(mockGetReportDetails).not.toHaveBeenCalled();
+  });
+
+  it('does not show Edit to a guest, even if isOwner is true', async () => {
+    mockGetReportDetails.mockResolvedValue({
+      ...report,
+      isOwner: true,
+    });
+
+    renderDetails();
+
+    await screen.findByRole('heading', { name: 'Milo' });
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not show Edit to a logged-in non-owner', async () => {
+    mockUseAuth.mockReturnValue({
+      ...mockUseAuth(),
+      status: 'authenticated',
+      user: {
+        id: 'other-user',
+        email: 'other@example.com',
+        name: 'Other User',
+        createdAt: '2026-11-05T00:00:00.000Z',
+      },
+    });
+
+    mockGetReportDetails.mockResolvedValue({
+      ...report,
+      isOwner: false,
+    });
+
+    renderDetails();
+
+    await screen.findByRole('heading', { name: 'Milo' });
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows Edit to the authenticated report owner', async () => {
+    mockUseAuth.mockReturnValue({
+      ...mockUseAuth(),
+      status: 'authenticated',
+      user: {
+        id: 'report-owner',
+        email: 'owner@example.com',
+        name: 'Report Owner',
+        createdAt: '2026-11-05T00:00:00.000Z',
+      },
+    });
+
+    mockGetReportDetails.mockResolvedValue({
+      ...report,
+      isOwner: true,
+    });
+
+    renderDetails();
+
+    expect(
+      await screen.findByRole('link', { name: 'Edit report' }),
+    ).toHaveAttribute('href', '/pets/123/edit');
   });
 });

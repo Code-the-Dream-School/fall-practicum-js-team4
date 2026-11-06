@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/useAuth';
 import { Link, useParams } from 'react-router';
 import { PATHS } from '../app/paths';
 import { ApiError } from '../services/api';
@@ -6,36 +7,13 @@ import { getReportDetails } from '../services/reportApi';
 import type { ReportDetails } from '../types/reports';
 import './PetDetailsPage.css';
 
-// Temporary sample for local preview. Remove before the PR.
-
-const demoReport: ReportDetails = {
-  petReportId: 1,
-  reportType: 'LOST',
-  status: 'ACTIVE',
-  petType: 'DOG',
-  petName: 'Milo',
-  breed: 'Mixed breed',
-  color: 'Brown and white',
-  size: 'MEDIUM',
-  gender: 'MALE',
-  distinctiveFeatures: 'White patch on chest and blue collar.',
-  eventDate: '2026-11-02',
-  location: {
-    zipCode: '23220',
-    city: 'Richmond',
-    state: 'VA',
-  },
-  photos: [],
-};
-
-function ReportContent({
-  report,
-  preview = false,
-}: {
-  report: ReportDetails;
-  preview?: boolean;
-}) {
+function ReportContent({ report }: { report: ReportDetails }) {
   const isLost = report.reportType === 'LOST';
+
+  //visitor login confirmation & owner confirmation
+  const { status } = useAuth();
+  const canEdit = status === 'authenticated' && report.isOwner === true;
+
   const petName = report.petName || `${report.petType} Report`;
 
   const location = report.location
@@ -51,12 +29,6 @@ function ReportContent({
         ← Back to {isLost ? 'Lost' : 'Found'} Pets
       </Link>
 
-      {preview && (
-        <p className="pet-details__preview">
-          Sample preview - not a real pet report.
-        </p>
-      )}
-
       <header className="pet-details__header">
         <div>
           <p className="pet-details__eyebrow">
@@ -68,6 +40,15 @@ function ReportContent({
         <span className="pet-details__status">
           {report.status === 'REUNITED' ? 'Reunited' : 'Active'}
         </span>
+
+        {canEdit && (
+          <Link
+            to={`${PATHS.petDetails(String(report.petReportId))}/edit`}
+            className="pet-details__edit"
+          >
+            Edit report
+          </Link>
+        )}
       </header>
 
       <div className="pet-details__layout">
@@ -226,11 +207,6 @@ export function PetDetailsPage() {
         Invalid report link.
       </p>
     );
-  }
-
-  // Local preview only; normal report  IDs use the API.
-  if (import.meta.env.DEV && id === 'demo-1') {
-    return <ReportContent report={demoReport} preview />;
   }
 
   if (!/^[1-9]\d*$/.test(id)) {
