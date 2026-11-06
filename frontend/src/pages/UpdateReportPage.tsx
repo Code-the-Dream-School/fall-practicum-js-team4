@@ -62,7 +62,7 @@ export function UpdateReportPage() {
             case 'NOT_FOUND':
               setError('Report not found.');
               break;
-            case 'UNATHORIZED':
+            case 'UNAUTHORIZED':
               setError('Please sign in to edit this report.');
               break;
             case 'NETWORK_ERROR':
@@ -164,6 +164,7 @@ export function UpdateReportPage() {
           }}
           onSubmit={handleUpdate}
           isSaving={isSaving}
+          submitLabel="Save Changes"
         />
         {error && <p role="alert">{error}</p>}
         {success && <p role="status">{success}</p>}

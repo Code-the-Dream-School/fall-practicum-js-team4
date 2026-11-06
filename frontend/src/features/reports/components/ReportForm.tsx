@@ -10,6 +10,7 @@ interface ReportFormProps {
   initialValues?: Partial<ReportFormValues>;
   onSubmit: (values: ReportFormValues, photos: File[]) => Promise<void>;
   isSaving?: boolean;
+  isSubmitted?: boolean;
   submitLabel?: string;
 }
 
@@ -42,6 +43,7 @@ export function ReportForm({
   initialValues,
   onSubmit,
   isSaving = false,
+  isSubmitted = false,
   submitLabel = 'Submit Report',
 }: ReportFormProps) {
   const {
@@ -51,43 +53,7 @@ export function ReportForm({
   } = useForm<ReportFormValues>({ defaultValues: initialValues });
 
   const [photos, setPhotos] = useState<File[]>([]);
-  // const [submissionError, setSubmissionError] = useState<string | null>(null);
-  // const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
-  // const handleCreate = async (values: ReportFormValues) => {
-  //   const payload: CreateReportInput = {
-  //     reportType,
-  //     petType: values.petType,
-  //     petName: values.petName.trim() || undefined,
-  //     breed: values.breed?.trim() || undefined,
-  //     color: values.color.trim(),
-  //     size: values.size,
-  //     gender: values.gender,
-  //     distinctiveFeatures: values.distinctiveFeatures?.trim() || undefined,
-  //     eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
-  //     contactInfo: values.contactInfo?.trim() || undefined,
-  //     ...(values.zipCode.trim() || values.city.trim() || values.state.trim()
-  //       ? {
-  //           location: {
-  //             zipCode: values.zipCode.trim(),
-  //             city: values.city.trim(),
-  //             state: values.state.trim().toUpperCase(),
-  //           },
-  //         }
-  //       : {}),
-  //   };
-
-  //   setSubmissionError(null);
-  //   setSubmissionSuccess(false);
-
-  //   try {
-  //     await createReport(payload, { photos });
-
-  //     setSubmissionSuccess(true);
-  //   } catch (error) {
-  //     setSubmissionError(describeReportError(error));
-  //   }
-  // };
   return (
     <form
       onSubmit={handleSubmit((values) => onSubmit(values, photos))}
@@ -419,23 +385,19 @@ export function ReportForm({
         <PhotoUpload
           photos={photos}
           onChange={setPhotos}
-          disabled={isSubmitting || isSaving}
+          disabled={isSubmitting || isSaving || isSubmitted}
         />
       </div>
 
-      <button type="submit" disabled={isSubmitting || isSaving}>
-        {isSubmitting || isSaving
-          ? submitLabel === 'Save Changes'
-            ? 'Saving...'
-            : 'Submitting...'
-          : submitLabel}
+      <button type="submit" disabled={isSubmitting || isSaving || isSubmitted}>
+        {isSubmitted
+          ? 'Submitted'
+          : isSubmitting || isSaving
+            ? submitLabel === 'Save Changes'
+              ? 'Saving...'
+              : 'Submitting...'
+            : submitLabel}
       </button>
-
-      {/* {submissionError && <p role="alert">{submissionError}</p>}
-
-      {submissionSuccess && (
-        <p role="status">Your pet report was submitted successfully!</p>
-      )} */}
     </form>
   );
 }

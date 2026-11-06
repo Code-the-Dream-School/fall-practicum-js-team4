@@ -1,13 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import { ReportForm } from './ReportForm';
-
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ReportForm, type ReportFormValues } from './ReportForm';
 import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
-import { API, server } from '../../../test/server';
 
 describe('ReportForm', () => {
-  const mockSubmit = vi.fn(async () => {});
+  const mockSubmit = vi.fn<
+    (values: ReportFormValues, photos: File[]) => Promise<void>
+  >(async () => {});
+
+  beforeEach(() => {
+    mockSubmit.mockClear();
+  });
 
   it('renders required fields for a lost report', () => {
     render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
@@ -23,202 +26,17 @@ describe('ReportForm', () => {
     expect(screen.getByLabelText('Date Found (required)')).toBeInTheDocument();
   });
 
-  // it('submits a lost report successfully', async () => {
-  //   let requestBody: unknown;
-
-  //   server.use(
-  //     http.post(`${API}/api/reports`, async ({ request }) => {
-  //       requestBody = await request.json();
-
-  //       return HttpResponse.json(
-  //         { success: true, data: { petReportId: 1 } },
-  //         { status: 201 },
-  //       );
-  //     }),
-  //   );
-
-  //   const user = userEvent.setup();
-  //   render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
-
-  //   await user.selectOptions(
-  //     screen.getByLabelText('Pet Type (required)'),
-  //     'DOG',
-  //   );
-  //   await user.type(screen.getByLabelText('Color (required)'), 'Brown');
-  //   await user.selectOptions(screen.getByLabelText('Size (required)'), 'SMALL');
-  //   await user.selectOptions(
-  //     screen.getByLabelText('Gender (required)'),
-  //     'MALE',
-  //   );
-
-  //   fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
-  //     target: { value: '2026-10-20' },
-  //   });
-
-  //   await user.click(screen.getByRole('button', { name: 'Submit Report' }));
-
-  //   expect(
-  //     await screen.findByText('Your pet report was submitted successfully!'),
-  //   ).toBeInTheDocument();
-
-  //   expect(requestBody).toMatchObject({
-  //     reportType: 'LOST',
-  //     petType: 'DOG',
-  //     color: 'Brown',
-  //     size: 'SMALL',
-  //     gender: 'MALE',
-  //     eventDate: '2026-10-20T00:00:00.000Z',
-  //   });
-
-  //   expect(requestBody).not.toHaveProperty('location');
-
-  //   expect(
-  //     screen.getByRole('button', { name: 'Submit Report' }),
-  //   ).toBeDisabled();
-  // });
-
-  // it('submits a found report successfully', async () => {
-  //   let requestBody: unknown;
-
-  //   server.use(
-  //     http.post(`${API}/api/reports`, async ({ request }) => {
-  //       requestBody = await request.json();
-
-  //       return HttpResponse.json(
-  //         { success: true, data: { petReportId: 1 } },
-  //         { status: 201 },
-  //       );
-  //     }),
-  //   );
-
-  //   const user = userEvent.setup();
-  //   render(<ReportForm reportType="FOUND" onSubmit={mockSubmit} />);
-
-  //   await user.selectOptions(
-  //     screen.getByLabelText('Pet Type (required)'),
-  //     'DOG',
-  //   );
-  //   await user.type(screen.getByLabelText('Color (required)'), 'Brown');
-  //   await user.selectOptions(screen.getByLabelText('Size (required)'), 'SMALL');
-  //   await user.selectOptions(
-  //     screen.getByLabelText('Gender (required)'),
-  //     'MALE',
-  //   );
-
-  //   fireEvent.change(screen.getByLabelText('Date Found (required)'), {
-  //     target: { value: '2026-10-20' },
-  //   });
-
-  //   await user.type(screen.getByLabelText('ZIP Code (optional)'), '23220');
-  //   await user.type(
-  //     screen.getByLabelText('City (required if providing location)'),
-  //     'Richmond',
-  //   );
-
-  //   await user.type(
-  //     screen.getByLabelText('State (required if providing location)'),
-  //     'VA',
-  //   );
-
-  //   await user.click(screen.getByRole('button', { name: 'Submit Report' }));
-
-  //   expect(
-  //     await screen.findByText('Your pet report was submitted successfully!'),
-  //   ).toBeInTheDocument();
-
-  //   expect(requestBody).toMatchObject({
-  //     reportType: 'FOUND',
-  //     petType: 'DOG',
-  //     color: 'Brown',
-  //     size: 'SMALL',
-  //     gender: 'MALE',
-  //     eventDate: '2026-10-20T00:00:00.000Z',
-  //   });
-
-  //   expect(requestBody).toHaveProperty('location', {
-  //     zipCode: '23220',
-  //     city: 'Richmond',
-  //     state: 'VA',
-  //   });
-
-  //   expect(
-  //     screen.getByRole('button', { name: 'Submit Report' }),
-  //   ).toBeDisabled();
-  // });
-
-  // it('shows an error when report submission fails', async () => {
-  //   server.use(
-  //     http.post(`${API}/api/reports`, () =>
-  //       HttpResponse.json(
-  //         {
-  //           success: false,
-  //           code: 'INTERNAL_ERROR',
-  //           message: 'Unable to create report',
-  //         },
-  //         { status: 500 },
-  //       ),
-  //     ),
-  //   );
-
-  //   const user = userEvent.setup();
-  //   render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
-
-  //   await user.selectOptions(
-  //     screen.getByLabelText('Pet Type (required)'),
-  //     'DOG',
-  //   );
-  //   await user.type(screen.getByLabelText('Color (required)'), 'Brown');
-  //   await user.selectOptions(screen.getByLabelText('Size (required)'), 'SMALL');
-  //   await user.selectOptions(
-  //     screen.getByLabelText('Gender (required)'),
-  //     'MALE',
-  //   );
-
-  //   fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
-  //     target: { value: '2026-10-20' },
-  //   });
-
-  //   await user.click(screen.getByRole('button', { name: 'Submit Report' }));
-
-  //   expect(await screen.findByRole('alert')).toHaveTextContent(
-  //     'Unable to create report',
-  //   );
-  // });
-
   it('prevents submission when required fields are missing', async () => {
-    let submissionCount = 0;
-
-    server.use(
-      http.post(`${API}/api/reports`, () => {
-        submissionCount += 1;
-        return HttpResponse.json(
-          { success: true, data: { petReportId: 1 } },
-          { status: 201 },
-        );
-      }),
-    );
     const user = userEvent.setup();
     render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
 
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
     expect(await screen.findAllByRole('alert')).not.toHaveLength(0);
-    expect(submissionCount).toBe(0);
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
   it('prevents submission when location is incomplete', async () => {
-    let submissionCount = 0;
-
-    server.use(
-      http.post(`${API}/api/reports`, () => {
-        submissionCount += 1;
-        return HttpResponse.json(
-          { success: true, data: { petReportId: 1 } },
-          { status: 201 },
-        );
-      }),
-    );
-
     const user = userEvent.setup();
     render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
 
@@ -248,19 +66,10 @@ describe('ReportForm', () => {
       screen.getByText('State is required when providing a location'),
     ).toBeInTheDocument();
 
-    expect(submissionCount).toBe(0);
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
   it('prevents submission when city exceeds 100 characters', async () => {
-    let submissionCount = 0;
-
-    server.use(
-      http.post(`${API}/api/reports`, () => {
-        submissionCount += 1;
-        return HttpResponse.json({ success: true }, { status: 201 });
-      }),
-    );
-
     const user = userEvent.setup();
     render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
 
@@ -297,7 +106,7 @@ describe('ReportForm', () => {
       await screen.findByText('City must be 100 characters or fewer'),
     ).toBeInTheDocument();
 
-    expect(submissionCount).toBe(0);
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
   it('clears location errors when all location fields are emptied', async () => {
@@ -335,15 +144,6 @@ describe('ReportForm', () => {
   });
 
   it('prevents submission when the event date is in the future', async () => {
-    let submissionCount = 0;
-
-    server.use(
-      http.post(`${API}/api/reports`, () => {
-        submissionCount += 1;
-        return HttpResponse.json({ success: true }, { status: 201 });
-      }),
-    );
-
     const user = userEvent.setup();
     render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
 
@@ -369,68 +169,62 @@ describe('ReportForm', () => {
       await screen.findByText('Enter a valid date that is not in the future'),
     ).toBeInTheDocument();
 
-    expect(submissionCount).toBe(0);
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it('submits attached photos as multipart/form-data when photos are selected', async () => {
+  it('passes selected photos to the submit handler', async () => {
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+
     globalThis.URL.createObjectURL = vi.fn(
       (file: File) => `blob:mock-url/${file.name}`,
     );
     globalThis.URL.revokeObjectURL = vi.fn();
 
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          success: true,
-          data: { petReportId: 42 },
-        }),
-        { status: 201, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    try {
+      const user = userEvent.setup();
+      render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
 
-    const user = userEvent.setup();
-    render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
+      await user.selectOptions(
+        screen.getByLabelText('Pet Type (required)'),
+        'DOG',
+      );
+      await user.type(screen.getByLabelText('Color (required)'), 'Golden');
+      await user.selectOptions(
+        screen.getByLabelText('Size (required)'),
+        'MEDIUM',
+      );
+      await user.selectOptions(
+        screen.getByLabelText('Gender (required)'),
+        'FEMALE',
+      );
+      fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
+        target: { value: '2026-10-20' },
+      });
 
-    await user.selectOptions(
-      screen.getByLabelText('Pet Type (required)'),
-      'DOG',
-    );
-    await user.type(screen.getByLabelText('Color (required)'), 'Golden');
-    await user.selectOptions(
-      screen.getByLabelText('Size (required)'),
-      'MEDIUM',
-    );
-    await user.selectOptions(
-      screen.getByLabelText('Gender (required)'),
-      'FEMALE',
-    );
-    fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
-      target: { value: '2026-10-20' },
-    });
+      const photoInput = screen.getByLabelText(/upload pet photos/i);
+      const photo = new File(['dog image'], 'bella.jpg', {
+        type: 'image/jpeg',
+      });
+      await user.upload(photoInput, photo);
 
-    const photoInput = screen.getByLabelText(/upload pet photos/i);
-    const photo = new File(['dog image'], 'bella.jpg', {
-      type: 'image/jpeg',
-    });
-    await user.upload(photoInput, photo);
+      await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
-    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
-
-    expect(
-      await screen.findByText('Your pet report was submitted successfully!'),
-    ).toBeInTheDocument();
-
-    const [, calledInit] = fetchSpy.mock.calls[0];
-    const formData = calledInit?.body as FormData;
-    expect(formData).toBeInstanceOf(FormData);
-    expect(JSON.parse(formData.get('report') as string)).toMatchObject({
-      reportType: 'LOST',
-      petType: 'DOG',
-      color: 'Golden',
-      size: 'MEDIUM',
-      gender: 'FEMALE',
-    });
-    expect(formData.getAll('photos')).toHaveLength(1);
-    fetchSpy.mockRestore();
+      await waitFor(() => {
+        expect(mockSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            petType: 'DOG',
+            color: 'Golden',
+            size: 'MEDIUM',
+            gender: 'FEMALE',
+            eventDate: '2026-10-20',
+          }),
+          [photo],
+        );
+      });
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
   });
 });

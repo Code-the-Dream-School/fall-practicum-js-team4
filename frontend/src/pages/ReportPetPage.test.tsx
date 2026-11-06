@@ -1,13 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Link, Route, Routes } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { API, server } from '../test/server';
 import { ReportPetPage } from './ReportPetPage';
 
 describe('ReportPetPage', () => {
-  it('resets the form when switching from LOST to FOUND', async () => {
+  it('1. resets the form when switching from LOST to FOUND', async () => {
     const user = userEvent.setup();
 
     render(
@@ -33,7 +33,7 @@ describe('ReportPetPage', () => {
     expect(screen.getByLabelText('Pet Name (optional)')).toHaveValue('');
   });
 
-  it('submits a lost report successfully', async () => {
+  it('2. submits a lost report successfully', async () => {
     let requestBody: unknown;
 
     server.use(
@@ -86,12 +86,10 @@ describe('ReportPetPage', () => {
 
     expect(requestBody).not.toHaveProperty('location');
 
-    expect(
-      screen.getByRole('button', { name: 'Submit Report' }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submitted' })).toBeDisabled();
   });
 
-  it('submits a found report successfully', async () => {
+  it('3. submits a found report successfully', async () => {
     let requestBody: unknown;
 
     server.use(
@@ -159,12 +157,10 @@ describe('ReportPetPage', () => {
       state: 'VA',
     });
 
-    expect(
-      screen.getByRole('button', { name: 'Submitting...' }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submitted' })).toBeDisabled();
   });
 
-  it('shows an error when report submission fails', async () => {
+  it('4. shows an error when report submission fails', async () => {
     server.use(
       http.post(`${API}/api/reports`, () =>
         HttpResponse.json(
@@ -179,7 +175,11 @@ describe('ReportPetPage', () => {
     );
 
     const user = userEvent.setup();
-    render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
+    render(
+      <MemoryRouter initialEntries={['/report-pet?type=lost']}>
+        <ReportPetPage />
+      </MemoryRouter>,
+    );
 
     await user.selectOptions(
       screen.getByLabelText('Pet Type (required)'),
@@ -201,5 +201,117 @@ describe('ReportPetPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Unable to create report',
     );
+
+    expect(screen.getByRole('button', { name: 'Submit Report' })).toBeEnabled();
+  });
+
+  it('5. submits a report with photos as multipart/form-data', async () => {
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+
+    URL.createObjectURL = vi.fn(
+      (file: Blob) =>
+        `blob:mock-url/${file instanceof File ? file.name : 'photo'}`,
+    );
+
+    URL.revokeObjectURL = vi.fn();
+
+    let fetchSpy: ReturnType<typeof vi.spyOn> | undefined;
+    try {
+      // let receivedFormData: FormData | undefined;
+      // let contentType: string | null = null;
+
+      server.use(
+        http.post(`${API}/api/reports`, () =>
+          HttpResponse.json(
+            { success: true, data: { petReportId: 41 } },
+            { status: 201 },
+          ),
+        ),
+      );
+
+      const user = userEvent.setup();
+
+      const originalFetch = globalThis.fetch;
+      let capturedFormData: FormData | undefined;
+
+      fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation((input, init) => {
+          if (
+            typeof input === 'string' &&
+            input.endsWith('/api/reports') &&
+            init?.method === 'POST' &&
+            init.body instanceof FormData
+          ) {
+            capturedFormData = init.body;
+          }
+
+          return originalFetch(input, init);
+        });
+
+      render(
+        <MemoryRouter initialEntries={['/report-pet?type=lost']}>
+          <ReportPetPage />
+        </MemoryRouter>,
+      );
+
+      await user.selectOptions(
+        screen.getByLabelText('Pet Type (required)'),
+        'DOG',
+      );
+
+      await user.type(screen.getByLabelText('Color (required)'), 'Golden');
+
+      await user.selectOptions(
+        screen.getByLabelText('Size (required)'),
+        'MEDIUM',
+      );
+
+      await user.selectOptions(
+        screen.getByLabelText('Gender (required)'),
+        'FEMALE',
+      );
+
+      fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
+        target: { value: '2026-10-20' },
+      });
+
+      const photo = new File(['dog image'], 'bella.jpg', {
+        type: 'image/jpeg',
+      });
+
+      await user.upload(screen.getByLabelText(/upload pet photos/i), photo);
+
+      await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+      expect(
+        await screen.findByText('Your pet report was submitted successfully!'),
+      ).toBeInTheDocument();
+
+      expect(capturedFormData).toBeInstanceOf(FormData);
+
+      const formData = capturedFormData!;
+
+      expect(JSON.parse(formData.get('report') as string)).toMatchObject({
+        reportType: 'LOST',
+        petType: 'DOG',
+        color: 'Golden',
+        size: 'MEDIUM',
+        gender: 'FEMALE',
+        eventDate: '2026-10-20T00:00:00.000Z',
+      });
+
+      const uploadedPhotos = formData.getAll('photos');
+
+      expect(uploadedPhotos).toHaveLength(1);
+      expect(uploadedPhotos[0]).toBeInstanceOf(File);
+      expect((uploadedPhotos[0] as File).name).toBe('bella.jpg');
+      expect((uploadedPhotos[0] as File).type).toBe('image/jpeg');
+    } finally {
+      fetchSpy.mockRestore();
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
   });
 });

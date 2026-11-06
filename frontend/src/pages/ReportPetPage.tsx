@@ -46,9 +46,9 @@ export function ReportPetPage() {
 
     try {
       await createReport(payload, { photos });
-
       setSubmissionSuccess(true);
     } catch (error) {
+      console.error('Report submission error:', error);
       setSubmissionError(describeReportError(error));
     }
   };
@@ -61,7 +61,7 @@ export function ReportPetPage() {
           key={reportType}
           reportType={reportType}
           onSubmit={handleCreate}
-          isSaving={submissionSuccess}
+          isSubmitted={submissionSuccess}
         />
         {submissionError && <p role="alert">{submissionError}</p>}
 
