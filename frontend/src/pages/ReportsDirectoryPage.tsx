@@ -1,10 +1,13 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { PATHS } from '../app/paths';
 import { buttonStyles, textStyles } from '../styles/theme';
 import type { ReportType } from '../types/reports';
+import { Pagination } from '../components/Pagination';
 import { QueryView } from '../components/QueryView';
 import { ReportGrid, useReports } from '../features/reports';
+
+const REPORTS_PER_PAGE = 6;
 
 const CONTENT: Record<
   ReportType,
@@ -15,6 +18,7 @@ const CONTENT: Record<
     ctaTo: string;
     ctaStyle: CSSProperties;
     loading: string;
+    summaryLabel: string;
   }
 > = {
   LOST: {
@@ -24,6 +28,7 @@ const CONTENT: Record<
     ctaTo: PATHS.reportLost,
     ctaStyle: buttonStyles.lost,
     loading: 'Loading lost pets...',
+    summaryLabel: 'Active Lost Pet Reports',
   },
   FOUND: {
     title: 'Found Pets Directory',
@@ -32,6 +37,7 @@ const CONTENT: Record<
     ctaTo: PATHS.reportFound,
     ctaStyle: buttonStyles.found,
     loading: 'Loading found pets...',
+    summaryLabel: 'Active Found Pet Reports',
   },
 };
 
@@ -43,7 +49,16 @@ export function ReportsDirectoryPage({
   reportType,
 }: ReportsDirectoryPageProps) {
   const content = CONTENT[reportType];
-  const query = useReports({ type: reportType });
+  const [pageState, setPageState] = useState({ reportType, page: 1 });
+  const page = pageState.reportType === reportType ? pageState.page : 1;
+  const query = useReports({
+    type: reportType,
+    page,
+    limit: REPORTS_PER_PAGE,
+  });
+  const handlePageChange = (nextPage: number) => {
+    setPageState({ reportType, page: nextPage });
+  };
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -67,7 +82,20 @@ export function ReportsDirectoryPage({
 
       <QueryView query={query} loading={content.loading}>
         {(data) => (
-          <ReportGrid reports={data.reports} reportType={reportType} />
+          <>
+            <ReportGrid reports={data.reports} reportType={reportType} />
+            <Pagination
+              page={data.page}
+              totalPages={data.totalPages}
+              onPageChange={handlePageChange}
+            >
+              <span className="pagination__dot" aria-hidden="true" />
+              <span>
+                Showing <strong>{data.reports.length}</strong> of{' '}
+                <strong>{data.total}</strong> {content.summaryLabel}
+              </span>
+            </Pagination>
+          </>
         )}
       </QueryView>
     </section>
