@@ -71,6 +71,8 @@ export interface PublicReport {
 
 export interface ReportListParams {
   type: ReportType;
+  page?: number;
+  limit?: number;
 }
 
 export interface ReportListResponse {

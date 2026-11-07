@@ -105,8 +105,12 @@ const reportListFrom = (data: ReportListResponse | null) => {
 
 export async function getReports({
   type,
+  page,
+  limit,
 }: ReportListParams): Promise<ReportListResponse> {
   const query = new URLSearchParams({ type });
+  if (page !== undefined) query.set('page', String(page));
+  if (limit !== undefined) query.set('limit', String(limit));
   return reportListFrom(
     await apiRequest<ReportListResponse | null>(`/api/reports?${query}`),
   );

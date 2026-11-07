@@ -53,15 +53,19 @@ export const testReports: PublicReport[] = [
   },
 ];
 
-export const reportListResponse = (reports: PublicReport[], limit = 20) =>
+export const reportListResponse = (
+  reports: PublicReport[],
+  limit = 20,
+  page = 1,
+) =>
   HttpResponse.json({
     success: true,
     data: {
       total: reports.length,
-      page: 1,
+      page,
       limit,
       totalPages: reports.length === 0 ? 0 : Math.ceil(reports.length / limit),
-      reports,
+      reports: reports.slice((page - 1) * limit, page * limit),
     },
   });
 
@@ -85,11 +89,14 @@ export const server = setupServer(
     HttpResponse.json({ success: true, data: null }),
   ),
   http.get(`${API}/api/reports`, ({ request }) => {
-    const type = new URL(request.url).searchParams.get(
-      'type',
-    ) as ReportType | null;
+    const params = new URL(request.url).searchParams;
+    const type = params.get('type') as ReportType | null;
+    const page = Number(params.get('page') ?? 1);
+    const limit = Number(params.get('limit') ?? 20);
     return reportListResponse(
       testReports.filter((report) => !type || report.reportType === type),
+      limit,
+      page,
     );
   }),
 
