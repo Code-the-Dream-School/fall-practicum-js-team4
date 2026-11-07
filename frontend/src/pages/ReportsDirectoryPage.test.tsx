@@ -2,7 +2,13 @@ import { screen } from '@testing-library/react';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/renderApp';
-import { API, errorResponse, reportListResponse, server } from '../test/server';
+import {
+  API,
+  errorResponse,
+  reportListResponse,
+  server,
+  testReports,
+} from '../test/server';
 
 describe('ReportsDirectoryPage', () => {
   it('shows loading, then only lost reports on the lost page', async () => {
@@ -69,6 +75,59 @@ describe('ReportsDirectoryPage', () => {
 
     expect(
       await screen.findByRole('heading', { name: 'Biscuit' }),
+    ).toBeInTheDocument();
+  });
+
+  it('paginates through multiple pages of reports', async () => {
+    const lostReports = [
+      { ...testReports[0], petReportId: 1, petName: 'Biscuit' },
+      { ...testReports[0], petReportId: 2, petName: 'Milo' },
+      { ...testReports[0], petReportId: 3, petName: 'Daisy' },
+    ];
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') ?? 1);
+        return reportListResponse(lostReports, 1, page);
+      }),
+    );
+
+    const { user } = renderApp('/lost-pets');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Previous page' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Page 1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Milo' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Biscuit' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Page 2' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Page 3' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Daisy' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Previous page' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Milo' }),
     ).toBeInTheDocument();
   });
 });
