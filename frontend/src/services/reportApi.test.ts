@@ -176,6 +176,24 @@ describe('getReports', () => {
     expect(data.reports).toEqual(testReports);
   });
 
+  it('passes page and limit query parameters when provided', async () => {
+    let requested: URL | undefined;
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        requested = new URL(request.url);
+        return reportListResponse(testReports, 1, 2);
+      }),
+    );
+
+    const data = await getReports({ type: 'LOST', page: 2, limit: 1 });
+
+    expect(requested?.searchParams.get('type')).toBe('LOST');
+    expect(requested?.searchParams.get('page')).toBe('2');
+    expect(requested?.searchParams.get('limit')).toBe('1');
+    expect(data.page).toBe(2);
+    expect(data.totalPages).toBe(2);
+  });
+
   it('rejects a success response without a report list', async () => {
     server.use(
       http.get(`${API}/api/reports`, () =>
