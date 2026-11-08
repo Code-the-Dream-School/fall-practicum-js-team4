@@ -9,13 +9,17 @@ import type { CreateReportInput, ReportType } from '../types/reports';
 import { textStyles } from '../styles/theme';
 import './ReportPetPage.css';
 
-export function ReportPetPage() {
-  const [params] = useSearchParams();
-  const reportType: ReportType =
-    params.get('type') === 'found' ? 'FOUND' : 'LOST';
+// export function ReportPetPage() {
+//   const [params] = useSearchParams();
+//   const reportType: ReportType =
+//     params.get('type') === 'found' ? 'FOUND' : 'LOST';
 
+interface CreateReportContentProps {
+  reportType: ReportType;
+}
+
+function CreateReportContent({ reportType }: CreateReportContentProps) {
   const [submissionError, setSubmissionError] = useState<string | null>(null);
-
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
   const handleCreate = async (values: ReportFormValues, photos: File[]) => {
@@ -58,7 +62,6 @@ export function ReportPetPage() {
       <section className="report-pet-page__card">
         <h1 style={textStyles.pageTitle}>Report a Pet: {reportType}</h1>
         <ReportForm
-          key={reportType}
           reportType={reportType}
           onSubmit={handleCreate}
           isSubmitted={submissionSuccess}
@@ -71,4 +74,13 @@ export function ReportPetPage() {
       </section>
     </div>
   );
+}
+
+export function ReportPetPage() {
+  const [params] = useSearchParams();
+
+  const reportType: ReportType =
+    params.get('type') === 'found' ? 'FOUND' : 'LOST';
+
+  return <CreateReportContent key={reportType} reportType={reportType} />;
 }
