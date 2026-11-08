@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { PATHS } from '../app/paths';
 import { buttonStyles, textStyles } from '../styles/theme';
 import type { ReportType } from '../types/reports';
+import { QueryView } from '../components/QueryView';
+import { ReportGrid, useReports } from '../features/reports';
 
 const CONTENT: Record<
   ReportType,
@@ -12,6 +14,7 @@ const CONTENT: Record<
     cta: string;
     ctaTo: string;
     ctaStyle: CSSProperties;
+    loading: string;
   }
 > = {
   LOST: {
@@ -20,6 +23,7 @@ const CONTENT: Record<
     cta: '+ File Lost Pet Report',
     ctaTo: PATHS.reportLost,
     ctaStyle: buttonStyles.lost,
+    loading: 'Loading lost pets...',
   },
   FOUND: {
     title: 'Found Pets Directory',
@@ -27,6 +31,7 @@ const CONTENT: Record<
     cta: '+ File Found Pet Report',
     ctaTo: PATHS.reportFound,
     ctaStyle: buttonStyles.found,
+    loading: 'Loading found pets...',
   },
 };
 
@@ -38,7 +43,7 @@ export function ReportsDirectoryPage({
   reportType,
 }: ReportsDirectoryPageProps) {
   const content = CONTENT[reportType];
-  // TODO: const { reports, filters, setFilters } = usePetReports({ reportType });
+  const query = useReports({ type: reportType });
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -60,12 +65,11 @@ export function ReportsDirectoryPage({
         </Link>
       </div>
 
-      <p style={textStyles.pageSubtitle}>Filters and pet cards go here.</p>
-
-      {/* temporary link to check the details route */}
-      <Link to={PATHS.petDetails('demo-1')} style={textStyles.link}>
-        Open demo pet details
-      </Link>
+      <QueryView query={query} loading={content.loading}>
+        {(data) => (
+          <ReportGrid reports={data.reports} reportType={reportType} />
+        )}
+      </QueryView>
     </section>
   );
 }
