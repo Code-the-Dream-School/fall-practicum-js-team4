@@ -218,9 +218,6 @@ describe('ReportPetPage', () => {
 
     let fetchSpy: ReturnType<typeof vi.spyOn> | undefined;
     try {
-      // let receivedFormData: FormData | undefined;
-      // let contentType: string | null = null;
-
       server.use(
         http.post(`${API}/api/reports`, () =>
           HttpResponse.json(
@@ -313,5 +310,62 @@ describe('ReportPetPage', () => {
       URL.createObjectURL = originalCreateObjectURL;
       URL.revokeObjectURL = originalRevokeObjectURL;
     }
+  });
+
+  it('6. resets submission state when switching from LOST to FOUND', async () => {
+    server.use(
+      http.post(`${API}/api/reports`, () => {
+        return HttpResponse.json(
+          { success: true, data: { petReportId: 1 } },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/report-pet?type=lost']}>
+        <Link to="/report-pet?type=found">Switch to Found</Link>
+        <Routes>
+          <Route path="/report-pet" element={<ReportPetPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.selectOptions(
+      screen.getByLabelText('Pet Type (required)'),
+      'DOG',
+    );
+    await user.type(screen.getByLabelText('Color (required)'), 'White');
+    await user.selectOptions(
+      screen.getByLabelText('Size (required)'),
+      'MEDIUM',
+    );
+    await user.selectOptions(
+      screen.getByLabelText('Gender (required)'),
+      'MALE',
+    );
+    fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
+      target: { value: '2026-11-01' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    expect(
+      await screen.findByText('Your pet report was submitted successfully!'),
+    ).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: 'Submitted' })).toBeDisabled();
+
+    await user.click(screen.getByRole('link', { name: 'Switch to Found' }));
+
+    expect(
+      screen.getByRole('heading', { name: 'Report a Pet: FOUND' }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Color (required)')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Submit Report' })).toBeEnabled();
+    expect(
+      screen.queryByText('Your pet report was submitted successfully!'),
+    ).not.toBeInTheDocument();
   });
 });
