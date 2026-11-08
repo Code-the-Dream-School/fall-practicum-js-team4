@@ -94,12 +94,3 @@ export const activeFilterChips = (filters: ReportFilters) => {
 
 export const hasActiveFilters = (filters: ReportFilters) =>
   activeFilterChips(filters).length > 0;
-
-// Same upper bound as the API (a Postgres integer)
-const MAX_PAGE = 2147483647;
-
-// ?page=3 -> 3. Anything else (missing, 0, "abc", 2.5) is page 1.
-export const pageFromParams = (params: URLSearchParams) => {
-  const page = Number(params.get('page'));
-  return Number.isInteger(page) && page >= 1 && page <= MAX_PAGE ? page : 1;
-};

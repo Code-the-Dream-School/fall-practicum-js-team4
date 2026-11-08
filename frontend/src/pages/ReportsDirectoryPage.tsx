@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { PATHS } from '../app/paths';
 import { buttonStyles, textStyles } from '../styles/theme';
@@ -6,8 +5,6 @@ import type { ReportListResponse, ReportType } from '../types/reports';
 import { Icon } from '../components/Icon';
 import { QueryView } from '../components/QueryView';
 import {
-  Pagination,
-  REPORTS_PER_PAGE,
   ReportFilters,
   ReportGrid,
   hasActiveFilters,
@@ -49,19 +46,16 @@ const CONTENT: Record<
   },
 };
 
-// "3 lost pets match your filters", "Showing 21–40 of 45 lost pets"
+// "3 lost pets match your filters", "Showing 20 of 45 lost pets"
 const resultsSummary = (
-  { reports, total, page, limit }: ReportListResponse,
+  { reports, total }: ReportListResponse,
   noun: string,
   filtered: boolean,
 ) => {
   const count =
     total === 1 ? `1 ${noun.replace(/s$/, '')}` : `${total} ${noun}`;
-  const first = (page - 1) * limit + 1;
   const shown =
-    reports.length < total
-      ? `Showing ${first}–${first + reports.length - 1} of ${count}`
-      : count;
+    reports.length < total ? `Showing ${reports.length} of ${count}` : count;
   if (!filtered) return shown;
   return reports.length < total
     ? `${shown} matching your filters`
@@ -76,29 +70,11 @@ export function ReportsDirectoryPage({
   reportType,
 }: ReportsDirectoryPageProps) {
   const content = CONTENT[reportType];
-  const { filters, page, updateFilters, clearFilters, pageHref } =
-    useReportFilters();
-  const query = useReports({
-    type: reportType,
-    ...filters,
-    // Page 1 is the API's default: leave it out so the request stays short
-    page: page > 1 ? page : undefined,
-    limit: REPORTS_PER_PAGE,
-  });
+  const { filters, updateFilters, clearFilters } = useReportFilters();
+  const query = useReports({ type: reportType, ...filters });
   const filtered = hasActiveFilters(filters);
   // Older results stay visible while the new ones load
   const updating = query.isPlaceholderData;
-
-  // After moving to another page, start reading from the top of the results
-  // (keyboard and screen reader users too), instead of staying at the bottom
-  const resultsRef = useRef<HTMLHeadingElement>(null);
-  const shownPage = useRef(page);
-  useEffect(() => {
-    if (page === shownPage.current) return;
-    shownPage.current = page;
-    resultsRef.current?.focus({ preventScroll: true });
-    resultsRef.current?.scrollIntoView?.({ block: 'start' });
-  }, [page]);
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -140,29 +116,10 @@ export function ReportsDirectoryPage({
             aria-busy={updating}
             data-updating={updating || undefined}
           >
-            {/* Where focus lands after changing page; the count is in the bar below */}
-            <h2
-              ref={resultsRef}
-              tabIndex={-1}
-              className="visually-hidden directory-results__title"
-            >
-              {content.title}, page {data.page} of{' '}
-              {Math.max(data.totalPages, 1)}
-            </h2>
-            {data.reports.length === 0 && data.total > 0 ? (
-              // An old link to a page that no longer exists (?page=99)
-              <div className="reports-empty">
-                <Icon name="find_in_page" />
-                <h2>There's no page {data.page}</h2>
-                <p>
-                  The list has {data.totalPages}{' '}
-                  {data.totalPages === 1 ? 'page' : 'pages'}.
-                </p>
-                <Link to={{ search: pageHref(1) }} style={buttonStyles.outline}>
-                  Go to the first page
-                </Link>
-              </div>
-            ) : filtered && data.reports.length === 0 ? (
+            <p role="status" className="directory-results__count">
+              {resultsSummary(data, content.noun, filtered)}
+            </p>
+            {filtered && data.reports.length === 0 ? (
               <div className="reports-empty">
                 <Icon name="search_off" />
                 <h2>No {content.noun} match your search</h2>
@@ -176,18 +133,7 @@ export function ReportsDirectoryPage({
                 </button>
               </div>
             ) : (
-              <>
-                <ReportGrid reports={data.reports} reportType={reportType} />
-                {data.reports.length > 0 && (
-                  <Pagination
-                    page={data.page}
-                    totalPages={data.totalPages}
-                    hrefFor={pageHref}
-                    summary={resultsSummary(data, content.noun, filtered)}
-                    tone={content.tone}
-                  />
-                )}
-              </>
+              <ReportGrid reports={data.reports} reportType={reportType} />
             )}
           </div>
         )}

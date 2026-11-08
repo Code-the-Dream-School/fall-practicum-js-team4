@@ -9,10 +9,10 @@
   opacity: 0.6;
 }
 
-/* Hidden heading that focus moves to after changing page: scroll it clear
-   of the fixed navbar */
-.directory-results__title {
-  scroll-margin-top: 96px;
+.directory-results__count {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
 }
 
 /* "+ File Lost Pet Report": glows in the page's colour, brighter on hover */

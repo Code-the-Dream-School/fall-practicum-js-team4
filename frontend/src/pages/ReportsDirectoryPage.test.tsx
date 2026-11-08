@@ -5,7 +5,6 @@ import { renderApp } from '../test/renderApp';
 import {
   API,
   errorResponse,
-  pagedReportList,
   queryReports,
   reportListResponse,
   server,
@@ -123,12 +122,10 @@ describe('Searching and filtering a directory', () => {
     );
   });
 
-  // The pets' names, in order (not the hidden "Lost Pets Directory, page …")
   const petNames = () =>
     screen
       .getAllByRole('heading', { level: 2 })
-      .map((heading) => heading.textContent)
-      .filter((name) => !name?.startsWith('Lost Pets Directory'));
+      .map((heading) => heading.textContent);
 
   const searchBox = () =>
     screen.getByRole('searchbox', { name: 'Search lost pets' });
@@ -151,6 +148,38 @@ describe('Searching and filtering a directory', () => {
     expect(
       screen.getByRole('button', { name: 'Remove filter: “shepherd”' }),
     ).toBeInTheDocument();
+  });
+
+  it('keeps what you typed, spaces and focus included, after it searches', async () => {
+    const { user } = renderApp('/lost-pets?sort=oldest');
+    await screen.findByRole('heading', { name: 'Shadow' });
+
+    await user.type(searchBox(), 'german ');
+    // The search runs (trimmed) while you pause after the space…
+    await screen.findByText('1 lost pet matches your filters');
+    expect(requests.at(-1)?.get('search')).toBe('german');
+    // …but the box still has the space, and you can keep typing
+    expect(searchBox()).toHaveValue('german ');
+    expect(searchBox()).toHaveFocus();
+
+    await user.type(searchBox(), 'shepherd');
+    await vi.waitFor(() =>
+      expect(requests.at(-1)?.get('search')).toBe('german shepherd'),
+    );
+    expect(searchBox()).toHaveValue('german shepherd');
+  });
+
+  // Review comment: on ?page=2 the search used to lose focus once it ran
+  it('keeps focus in the search box when opened from a ?page=2 link', async () => {
+    const { user } = renderApp('/lost-pets?page=2');
+    await screen.findByRole('heading', { name: 'Shadow' });
+
+    await user.type(searchBox(), 'shep');
+    await screen.findByText('1 lost pet matches your filters');
+    expect(searchBox()).toHaveFocus();
+
+    await user.type(searchBox(), 'herd');
+    expect(searchBox()).toHaveValue('shepherd');
   });
 
   it('finds pets by city too', async () => {
@@ -196,7 +225,6 @@ describe('Searching and filtering a directory', () => {
       type: 'LOST',
       petType: 'DOG',
       sort: 'oldest',
-      limit: '6',
     });
   });
 
@@ -249,10 +277,7 @@ describe('Searching and filtering a directory', () => {
     renderApp('/lost-pets?size=HUGE&petType=dragon');
 
     expect(await screen.findByText('3 lost pets')).toBeInTheDocument();
-    expect(Object.fromEntries(requests[0])).toEqual({
-      type: 'LOST',
-      limit: '6',
-    });
+    expect(Object.fromEntries(requests[0])).toEqual({ type: 'LOST' });
     expect(screen.queryByText('Active filters:')).not.toBeInTheDocument();
   });
 
@@ -274,142 +299,7 @@ describe('Searching and filtering a directory', () => {
     renderApp('/lost-pets');
 
     expect(
-      await screen.findByText('Showing 1–3 of 45 lost pets'),
+      await screen.findByText('Showing 3 of 45 lost pets'),
     ).toBeInTheDocument();
-  });
-});
-
-describe('Moving between pages', () => {
-  // 45 lost pets, newest first: Pet 1 … Pet 45
-  const manyPets: PublicReport[] = Array.from({ length: 45 }, (_, i) => ({
-    ...testReports[0],
-    petReportId: 100 + i,
-    petName: `Pet ${i + 1}`,
-    breed: i % 2 === 0 ? 'Beagle' : 'Poodle',
-    createdAt: new Date(Date.UTC(2026, 9, 30) - i * 60_000).toISOString(),
-  }));
-  let requests: URLSearchParams[];
-
-  beforeEach(() => {
-    requests = [];
-    server.use(
-      http.get(`${API}/api/reports`, ({ request }) => {
-        requests.push(new URL(request.url).searchParams);
-        return pagedReportList(queryReports(manyPets, request), request);
-      }),
-    );
-  });
-
-  const pages = () => screen.getByRole('navigation', { name: 'Pages' });
-
-  it('shows 6 pets per page, as in the design', async () => {
-    renderApp('/lost-pets');
-
-    expect(
-      await screen.findByText('Showing 1–6 of 45 lost pets'),
-    ).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(7); // + hidden title
-    expect(requests[0].get('limit')).toBe('6');
-  });
-
-  it('moves with Next, the page numbers and Previous', async () => {
-    const { user } = renderApp('/lost-pets');
-    await screen.findByText('Showing 1–6 of 45 lost pets');
-    expect(
-      within(pages()).getByRole('link', { name: 'Page 1' }),
-    ).toHaveAttribute('aria-current', 'page');
-    // Nothing before page 1
-    expect(
-      within(pages()).queryByRole('link', { name: 'Previous page' }),
-    ).toBeNull();
-
-    await user.click(within(pages()).getByRole('link', { name: /next/i }));
-
-    await screen.findByText('Showing 7–12 of 45 lost pets');
-    expect(screen.getByRole('heading', { name: 'Pet 7' })).toBeInTheDocument();
-    expect(requests.at(-1)?.get('page')).toBe('2');
-    // Reading continues from the top of the new page
-    expect(
-      screen.getByRole('heading', { name: 'Lost Pets Directory, page 2 of 8' }),
-    ).toHaveFocus();
-
-    await user.click(within(pages()).getByRole('link', { name: 'Page 8' }));
-    await screen.findByText('Showing 43–45 of 45 lost pets');
-    expect(within(pages()).queryByRole('link', { name: /next/i })).toBeNull();
-
-    await user.click(
-      within(pages()).getByRole('link', { name: 'Previous page' }),
-    );
-    expect(
-      await screen.findByText('Showing 37–42 of 45 lost pets'),
-    ).toBeInTheDocument();
-  });
-
-  it('keeps the filters in the page links', async () => {
-    renderApp('/lost-pets?search=beagle');
-
-    await screen.findByText(
-      'Showing 1–6 of 23 lost pets matching your filters',
-    );
-    expect(
-      within(pages()).getByRole('link', { name: /next/i }),
-    ).toHaveAttribute('href', '/lost-pets?search=beagle&page=2');
-    expect(
-      within(pages()).getByRole('link', { name: 'Page 1' }),
-    ).toHaveAttribute('href', '/lost-pets?search=beagle');
-  });
-
-  it('goes back to page 1 when a filter changes', async () => {
-    const { user } = renderApp('/lost-pets?page=2');
-    await screen.findByText('Showing 7–12 of 45 lost pets');
-
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Pet type' }),
-      'Dogs',
-    );
-
-    await screen.findByText(
-      'Showing 1–6 of 45 lost pets matching your filters',
-    );
-    expect(requests.at(-1)?.get('page')).toBeNull();
-  });
-
-  it('explains a link to a page that no longer exists', async () => {
-    const { user } = renderApp('/lost-pets?page=99');
-
-    expect(
-      await screen.findByRole('heading', { name: "There's no page 99" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('The list has 8 pages.')).toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole('link', { name: 'Go to the first page' }),
-    );
-
-    expect(
-      await screen.findByText('Showing 1–6 of 45 lost pets'),
-    ).toBeInTheDocument();
-  });
-
-  it('reads a broken page number as page 1', async () => {
-    renderApp('/lost-pets?page=abc');
-
-    expect(
-      await screen.findByText('Showing 1–6 of 45 lost pets'),
-    ).toBeInTheDocument();
-    expect(requests[0].get('page')).toBeNull();
-  });
-
-  it('keeps the bar on a single page, with nowhere to go', async () => {
-    renderApp('/lost-pets?search=pet 45');
-
-    await screen.findByText('1 lost pet matches your filters');
-    expect(
-      within(pages()).getByRole('link', { name: 'Page 1' }),
-    ).toHaveAttribute('aria-current', 'page');
-    expect(within(pages()).queryByRole('link', { name: /next/i })).toBeNull();
-    expect(
-      within(pages()).queryByRole('link', { name: 'Previous page' }),
-    ).toBeNull();
   });
 });

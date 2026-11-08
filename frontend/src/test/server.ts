@@ -101,23 +101,6 @@ export const queryReports = (reports: PublicReport[], request: Request) => {
   return params.get('sort') === 'oldest' ? sorted.reverse() : sorted;
 };
 
-// One page of `reports`, as the API answers ?page= and ?limit= (default 20)
-export const pagedReportList = (reports: PublicReport[], request: Request) => {
-  const params = new URL(request.url).searchParams;
-  const page = Number(params.get('page') ?? 1);
-  const limit = Number(params.get('limit') ?? 20);
-  return HttpResponse.json({
-    success: true,
-    data: {
-      total: reports.length,
-      page,
-      limit,
-      totalPages: Math.ceil(reports.length / limit),
-      reports: reports.slice((page - 1) * limit, page * limit),
-    },
-  });
-};
-
 export const server = setupServer(
   // Signed out unless a test says otherwise
   http.get(`${API}/api/auth/me`, () =>
@@ -138,7 +121,7 @@ export const server = setupServer(
     HttpResponse.json({ success: true, data: null }),
   ),
   http.get(`${API}/api/reports`, ({ request }) =>
-    pagedReportList(queryReports(testReports, request), request),
+    reportListResponse(queryReports(testReports, request)),
   ),
 
   // The profile page loads these; no reports unless a test says otherwise

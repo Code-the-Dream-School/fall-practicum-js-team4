@@ -109,7 +109,7 @@ export async function getReports(
 ): Promise<ReportListResponse> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value) query.set(key, String(value));
+    if (value) query.set(key, value);
   }
   return reportListFrom(
     await apiRequest<ReportListResponse | null>(`/api/reports?${query}`),

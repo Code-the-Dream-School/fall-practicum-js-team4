@@ -70,10 +70,11 @@ export function ReportFilters({
   const [lastApplied, setLastApplied] = useState(applied);
 
   // The search was changed from outside (chip removed, "Clear all", Back):
-  // show it in the box
+  // show it in the box. When the change is just our own debounced search,
+  // keep what was typed: "new " must not lose its space mid-word
   if (applied !== lastApplied) {
     setLastApplied(applied);
-    setText(applied);
+    if (applied !== text.trim()) setText(applied);
   }
 
   // Search once the user pauses typing
