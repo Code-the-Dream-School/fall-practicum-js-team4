@@ -9,11 +9,6 @@ import type { CreateReportInput, ReportType } from '../types/reports';
 import { textStyles } from '../styles/theme';
 import './ReportPetPage.css';
 
-// export function ReportPetPage() {
-//   const [params] = useSearchParams();
-//   const reportType: ReportType =
-//     params.get('type') === 'found' ? 'FOUND' : 'LOST';
-
 interface CreateReportContentProps {
   reportType: ReportType;
 }
