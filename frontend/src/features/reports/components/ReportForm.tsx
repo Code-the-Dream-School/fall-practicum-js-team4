@@ -12,6 +12,7 @@ interface ReportFormProps {
   isSaving?: boolean;
   isSubmitted?: boolean;
   submitLabel?: string;
+  showPhotoUpload?: boolean;
 }
 
 export interface ReportFormValues {
@@ -45,6 +46,7 @@ export function ReportForm({
   isSaving = false,
   isSubmitted = false,
   submitLabel = 'Submit Report',
+  showPhotoUpload = true,
 }: ReportFormProps) {
   const {
     register,
@@ -381,13 +383,15 @@ export function ReportForm({
         )}
       </div>
 
-      <div className="report-form__full-width">
-        <PhotoUpload
-          photos={photos}
-          onChange={setPhotos}
-          disabled={isSubmitting || isSaving || isSubmitted}
-        />
-      </div>
+      {showPhotoUpload && (
+        <div className="report-form__full-width">
+          <PhotoUpload
+            photos={photos}
+            onChange={setPhotos}
+            disabled={isSubmitting || isSaving || isSubmitted}
+          />
+        </div>
+      )}
 
       <button type="submit" disabled={isSubmitting || isSaving || isSubmitted}>
         {isSubmitted

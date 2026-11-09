@@ -87,7 +87,7 @@ export function UpdateReportPage() {
     };
   }, [id, user, status]);
 
-  async function handleUpdate(values: ReportFormValues, photos: File[] = []) {
+  async function handleUpdate(values: ReportFormValues) {
     if (!id || !report || !user || report.userId !== user.id) {
       return;
     }
@@ -118,7 +118,7 @@ export function UpdateReportPage() {
       setError(null);
       setSuccess('');
 
-      const updatedReport = await updateReport(id, input, { photos });
+      const updatedReport = await updateReport(id, input);
       setReport(updatedReport);
       setSuccess('Report updated successfully.');
     } catch {
@@ -165,6 +165,7 @@ export function UpdateReportPage() {
           onSubmit={handleUpdate}
           isSaving={isSaving}
           submitLabel="Save Changes"
+          showPhotoUpload={false}
         />
         {error && <p role="alert">{error}</p>}
         {success && <p role="status">{success}</p>}
