@@ -1,9 +1,6 @@
 .pagination {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: center;
   padding: 16px 24px;
   border-radius: 12px;
   background-color: color-mix(in srgb, var(--color-surface) 60%, transparent);
@@ -15,29 +12,8 @@
 
 @media (min-width: 640px) {
   .pagination {
-    flex-direction: row;
+    justify-content: flex-end;
   }
-}
-
-.pagination__info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-surface-variant);
-  font-size: 14px;
-}
-
-.pagination__info strong {
-  color: var(--color-on-surface);
-  font-weight: 600;
-}
-
-.pagination__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background-color: var(--color-primary);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-primary) 75%, transparent);
 }
 
 .pagination__controls {
@@ -45,7 +21,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
 }
 
 .pagination__list {

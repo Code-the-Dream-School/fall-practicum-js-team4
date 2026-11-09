@@ -176,6 +176,33 @@ describe('getReports', () => {
     expect(data.reports).toEqual(testReports);
   });
 
+  it('sends only the filters that are set', async () => {
+    let requested: URL | undefined;
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        requested = new URL(request.url);
+        return reportListResponse([]);
+      }),
+    );
+
+    await getReports({
+      type: 'FOUND',
+      search: 'gray tabby',
+      petType: 'CAT',
+      size: undefined,
+      gender: 'FEMALE',
+      sort: 'oldest',
+    });
+
+    expect(Object.fromEntries(requested!.searchParams)).toEqual({
+      type: 'FOUND',
+      search: 'gray tabby',
+      petType: 'CAT',
+      gender: 'FEMALE',
+      sort: 'oldest',
+    });
+  });
+
   it('passes page and limit query parameters when provided', async () => {
     let requested: URL | undefined;
     server.use(

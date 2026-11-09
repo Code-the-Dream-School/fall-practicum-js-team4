@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import './Pagination.css';
 
@@ -6,9 +5,9 @@ export interface PaginationProps {
   page: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  // e.g. while the next page loads, so a double click doesn't skip a page
   disabled?: boolean;
   ariaLabel?: string;
-  children?: ReactNode;
 }
 
 type PageItem = number | 'ellipsis-start' | 'ellipsis-end';
@@ -51,7 +50,6 @@ export function Pagination({
   onPageChange,
   disabled = false,
   ariaLabel = 'Pagination',
-  children,
 }: PaginationProps) {
   if (totalPages <= 1) {
     return null;
@@ -61,7 +59,6 @@ export function Pagination({
 
   return (
     <div className="pagination">
-      {children && <div className="pagination__info">{children}</div>}
       <nav className="pagination__controls" aria-label={ariaLabel}>
         <button
           type="button"
