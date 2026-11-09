@@ -86,7 +86,9 @@ describe('Pagination', () => {
     it('truncates with a trailing ellipsis when near the start', () => {
       render(<Pagination page={2} totalPages={10} onPageChange={vi.fn()} />);
       expect(pageNumbers()).toEqual(['1', '2', '3', '4', '5', '10']);
-      expect(screen.getAllByText('…')).toHaveLength(1);
+      const ellipsis = screen.getAllByText('…');
+      expect(ellipsis).toHaveLength(1);
+      expect(ellipsis[0].closest('li')).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('truncates with a leading ellipsis when near the end', () => {

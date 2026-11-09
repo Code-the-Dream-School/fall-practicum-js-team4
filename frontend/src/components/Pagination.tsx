@@ -74,10 +74,8 @@ export function Pagination({
           {items.map((item) => {
             if (typeof item !== 'number') {
               return (
-                <li key={item}>
-                  <span className="pagination__ellipsis" aria-hidden="true">
-                    …
-                  </span>
+                <li key={item} aria-hidden="true">
+                  <span className="pagination__ellipsis">…</span>
                 </li>
               );
             }
