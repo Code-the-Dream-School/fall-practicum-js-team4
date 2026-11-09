@@ -188,7 +188,7 @@ export function ReportsDirectoryPage({
                   page={data.page}
                   totalPages={data.totalPages}
                   onPageChange={goToPage}
-                  disabled={query.isFetching}
+                  disabled={query.isPlaceholderData}
                 />
               </>
             )}
