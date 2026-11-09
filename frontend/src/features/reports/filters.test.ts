@@ -3,6 +3,7 @@ import {
   activeFilterChips,
   filtersFromParams,
   hasActiveFilters,
+  pageFromParams,
   paramsFromFilters,
 } from './filters';
 
@@ -77,5 +78,27 @@ describe('activeFilterChips', () => {
     ]);
     expect(hasActiveFilters({ sort: 'oldest' })).toBe(false);
     expect(hasActiveFilters(filters)).toBe(true);
+  });
+});
+
+describe('pageFromParams', () => {
+  it.each([
+    ['page=3', 3],
+    ['', 1],
+    ['page=0', 1],
+    ['page=-2', 1],
+    ['page=2.5', 1],
+    ['page=abc', 1],
+    ['page=99999999999', 1],
+  ])('reads "%s" as page %i', (query, page) => {
+    expect(pageFromParams(new URLSearchParams(query))).toBe(page);
+  });
+
+  it('is left out of the URL when a filter changes, back to page 1', () => {
+    const params = new URLSearchParams('search=dog&page=3');
+
+    expect(paramsFromFilters(filtersFromParams(params)).toString()).toBe(
+      'search=dog',
+    );
   });
 });

@@ -13,6 +13,14 @@
   margin: 0;
   font-size: 14px;
   color: var(--color-on-surface-variant);
+  /* Focus moves here after changing page: scroll it clear of the fixed navbar */
+  scroll-margin-top: 96px;
+}
+
+.directory-results__count:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 /* "+ File Lost Pet Report": glows in the page's colour, brighter on hover */

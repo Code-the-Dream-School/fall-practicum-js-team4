@@ -1,10 +1,16 @@
-import { screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
+import { MemoryRouter, useNavigate } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppRoutes } from '../AppRoutes';
+import { QueryProvider } from '../app/QueryProvider';
+import { AuthProvider } from '../context/AuthProvider';
 import { renderApp } from '../test/renderApp';
 import {
   API,
   errorResponse,
+  pagedReportList,
   queryReports,
   reportListResponse,
   server,
@@ -225,6 +231,7 @@ describe('Searching and filtering a directory', () => {
       type: 'LOST',
       petType: 'DOG',
       sort: 'oldest',
+      limit: '6',
     });
   });
 
@@ -277,7 +284,10 @@ describe('Searching and filtering a directory', () => {
     renderApp('/lost-pets?size=HUGE&petType=dragon');
 
     expect(await screen.findByText('3 lost pets')).toBeInTheDocument();
-    expect(Object.fromEntries(requests[0])).toEqual({ type: 'LOST' });
+    expect(Object.fromEntries(requests[0])).toEqual({
+      type: 'LOST',
+      limit: '6',
+    });
     expect(screen.queryByText('Active filters:')).not.toBeInTheDocument();
   });
 
@@ -299,7 +309,227 @@ describe('Searching and filtering a directory', () => {
     renderApp('/lost-pets');
 
     expect(
-      await screen.findByText('Showing 3 of 45 lost pets'),
+      await screen.findByText('Showing 1–3 of 45 lost pets'),
     ).toBeInTheDocument();
+  });
+});
+
+// Stands in for the browser's Back button (a MemoryRouter has no browser UI)
+function BrowserBack() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => void navigate(-1)}>
+      Browser back
+    </button>
+  );
+}
+
+const renderWithBack = (path: string) => {
+  const user = userEvent.setup();
+  render(
+    <AuthProvider>
+      <QueryProvider retryDelay={0}>
+        <MemoryRouter initialEntries={[path]}>
+          <AppRoutes />
+          <BrowserBack />
+        </MemoryRouter>
+      </QueryProvider>
+    </AuthProvider>,
+  );
+  return { user };
+};
+
+describe('Moving between pages', () => {
+  // 45 lost pets, newest first: Pet 1 … Pet 45
+  const manyPets: PublicReport[] = Array.from({ length: 45 }, (_, i) => ({
+    ...testReports[0],
+    petReportId: 100 + i,
+    petName: `Pet ${i + 1}`,
+    createdAt: new Date(Date.UTC(2026, 9, 30) - i * 60_000).toISOString(),
+  }));
+  let requests: URLSearchParams[];
+
+  beforeEach(() => {
+    requests = [];
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        requests.push(new URL(request.url).searchParams);
+        return pagedReportList(queryReports(manyPets, request), request);
+      }),
+    );
+  });
+
+  const pages = () => screen.getByRole('navigation', { name: 'Pagination' });
+  const pageButton = (name: string) =>
+    within(pages()).getByRole('button', { name });
+
+  it('shows 6 pets per page, as in the design, and which ones in the count', async () => {
+    renderApp('/lost-pets');
+
+    expect(
+      await screen.findByText('Showing 1–6 of 45 lost pets'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(6);
+    expect(requests[0].get('limit')).toBe('6');
+    // Page 1 is the API's default
+    expect(requests[0].get('page')).toBeNull();
+  });
+
+  it('moves with Next, the page numbers and Previous, keeping focus at the top of the results', async () => {
+    const { user } = renderApp('/lost-pets');
+    await screen.findByText('Showing 1–6 of 45 lost pets');
+    expect(pageButton('Page 1')).toHaveAttribute('aria-current', 'page');
+    expect(pageButton('Previous page')).toBeDisabled();
+
+    await user.click(pageButton('Next page'));
+
+    const count = await screen.findByText('Showing 7–12 of 45 lost pets');
+    expect(screen.getByRole('heading', { name: 'Pet 7' })).toBeInTheDocument();
+    expect(requests.at(-1)?.get('page')).toBe('2');
+    // Not lost on <body>: reading continues from the top of the new page
+    expect(count).toHaveFocus();
+
+    await user.click(pageButton('Page 8'));
+    await screen.findByText('Showing 43–45 of 45 lost pets');
+    expect(pageButton('Next page')).toBeDisabled();
+
+    await user.click(pageButton('Previous page'));
+    expect(
+      await screen.findByText('Showing 37–42 of 45 lost pets'),
+    ).toHaveFocus();
+  });
+
+  it('keeps the page after opening a pet and coming back', async () => {
+    const { user } = renderWithBack('/lost-pets');
+    await screen.findByText('Showing 1–6 of 45 lost pets');
+    await user.click(pageButton('Page 3'));
+    await screen.findByText('Showing 13–18 of 45 lost pets');
+
+    await user.click(screen.getByRole('link', { name: 'Pet 13' }));
+    await screen.findByRole('heading', { name: /Pet details/ });
+    await user.click(screen.getByRole('button', { name: 'Browser back' }));
+
+    expect(
+      await screen.findByText('Showing 13–18 of 45 lost pets'),
+    ).toBeInTheDocument();
+    expect(pageButton('Page 3')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('opens the page given in a shared or reloaded link', async () => {
+    renderApp('/lost-pets?page=2');
+
+    expect(
+      await screen.findByText('Showing 7–12 of 45 lost pets'),
+    ).toBeInTheDocument();
+    expect(requests[0].get('page')).toBe('2');
+  });
+
+  it('keeps the filters when changing page, and goes back to page 1 when a filter changes', async () => {
+    const { user } = renderApp('/lost-pets?search=pet&page=2');
+    await screen.findByText(
+      'Showing 7–12 of 45 lost pets matching your filters',
+    );
+
+    await user.click(pageButton('Next page'));
+    await screen.findByText(
+      'Showing 13–18 of 45 lost pets matching your filters',
+    );
+    expect(Object.fromEntries(requests.at(-1)!)).toEqual({
+      type: 'LOST',
+      search: 'pet',
+      page: '3',
+      limit: '6',
+    });
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Pet type' }),
+      'Dogs',
+    );
+    await screen.findByText(
+      'Showing 1–6 of 45 lost pets matching your filters',
+    );
+    expect(requests.at(-1)?.get('page')).toBeNull();
+  });
+
+  it('starts again from page 1 when switching between Lost and Found', async () => {
+    const { user } = renderApp('/lost-pets?page=2');
+    await screen.findByText('Showing 7–12 of 45 lost pets');
+
+    await user.click(screen.getByRole('link', { name: 'Found Pets' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Found Pets Directory' }),
+    ).toBeInTheDocument();
+    await vi.waitFor(() => expect(requests.at(-1)?.get('type')).toBe('FOUND'));
+    expect(requests.at(-1)?.get('page')).toBeNull();
+  });
+
+  it('explains a page past the end, and offers the first page', async () => {
+    const { user } = renderApp('/lost-pets?page=99');
+
+    expect(
+      await screen.findByRole('heading', { name: "There's no page 99" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The list has 8 pages.')).toBeInTheDocument();
+    // Not the "nothing reported" message: there are reports
+    expect(
+      screen.queryByText('No lost pets reported right now'),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Go to the first page' }),
+    );
+
+    expect(
+      await screen.findByText('Showing 1–6 of 45 lost pets'),
+    ).toBeInTheDocument();
+    expect(requests.at(-1)?.get('page')).toBeNull();
+  });
+
+  it('reads a broken page number as page 1', async () => {
+    renderApp('/lost-pets?page=abc');
+
+    expect(
+      await screen.findByText('Showing 1–6 of 45 lost pets'),
+    ).toBeInTheDocument();
+    expect(requests[0].get('page')).toBeNull();
+  });
+
+  it('still shows the count when everything fits on one page', async () => {
+    renderApp('/lost-pets?search=pet 45');
+
+    expect(
+      await screen.findByText('1 lost pet matches your filters'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('navigation', { name: 'Pagination' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('disables the page buttons while the next page loads', async () => {
+    let release!: () => void;
+    const nextPageHeld = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(`${API}/api/reports`, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('page') === '2') {
+          await nextPageHeld;
+        }
+        return pagedReportList(queryReports(manyPets, request), request);
+      }),
+    );
+    const { user } = renderApp('/lost-pets');
+    await screen.findByText('Showing 1–6 of 45 lost pets');
+
+    await user.click(pageButton('Next page'));
+
+    await vi.waitFor(() => expect(pageButton('Next page')).toBeDisabled());
+    expect(pageButton('Page 3')).toBeDisabled();
+
+    release();
+
+    await screen.findByText('Showing 7–12 of 45 lost pets');
+    expect(pageButton('Next page')).toBeEnabled();
   });
 });
