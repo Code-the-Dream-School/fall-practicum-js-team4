@@ -3,8 +3,8 @@ import type {
   CreateReportInput,
   PetReport,
   UpdateReportInput,
-    ReportListParams,
-    ReportListResponse,
+  ReportListParams,
+  ReportListResponse,
 } from '../types/reports';
 import { describeApiError, type ErrorKind } from './describeApiError';
 
