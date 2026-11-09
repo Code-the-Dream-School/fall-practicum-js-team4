@@ -56,21 +56,22 @@ const SEARCH_FIELDS = ["petName", "breed", "color", "distinctiveFeatures"] as co
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, "\\$&");
 
 // Words that name a pet type, singular or plural ("dog", "Dogs"). The type is
-// stored as an enum, which can't be partly matched like text
-const PET_TYPE_WORDS: Record<string, PetType> = {
-  dog: "DOG",
-  dogs: "DOG",
-  cat: "CAT",
-  cats: "CAT",
-  bird: "BIRD",
-  birds: "BIRD",
-};
+// stored as an enum, which can't be partly matched like text. A Map, not an
+// object: an object would also "contain" built-in keys like "constructor"
+const PET_TYPE_WORDS = new Map<string, PetType>([
+  ["dog", "DOG"],
+  ["dogs", "DOG"],
+  ["cat", "CAT"],
+  ["cats", "CAT"],
+  ["bird", "BIRD"],
+  ["birds", "BIRD"],
+]);
 
 // Reports whose text fields or city contain `search`, or whose pet type it
 // names (all ignoring case)
 const searchWhere = (search: string): Prisma.PetReportWhereInput => {
   const contains: Prisma.StringFilter = { contains: escapeLike(search), mode: "insensitive" };
-  const petType = PET_TYPE_WORDS[search.toLowerCase()];
+  const petType = PET_TYPE_WORDS.get(search.toLowerCase());
   return {
     OR: [
       ...SEARCH_FIELDS.map((field) => ({ [field]: contains })),

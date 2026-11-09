@@ -65,14 +65,15 @@ export const reportListResponse = (reports: PublicReport[], limit = 20) =>
     },
   });
 
-const PET_TYPE_WORDS: Record<string, string> = {
-  dog: 'DOG',
-  dogs: 'DOG',
-  cat: 'CAT',
-  cats: 'CAT',
-  bird: 'BIRD',
-  birds: 'BIRD',
-};
+// A Map, like the backend: "constructor" must not count as a pet type word
+const PET_TYPE_WORDS = new Map([
+  ['dog', 'DOG'],
+  ['dogs', 'DOG'],
+  ['cat', 'CAT'],
+  ['cats', 'CAT'],
+  ['bird', 'BIRD'],
+  ['birds', 'BIRD'],
+]);
 
 // GET /api/reports filtering like the real API: type, petType, size, gender,
 // search (name, breed, color, features, city, or a pet type word like "dogs";
@@ -87,7 +88,7 @@ export const queryReports = (reports: PublicReport[], request: Request) => {
       return !value || report[field] === value;
     }) &&
     (!search ||
-      PET_TYPE_WORDS[search] === report.petType ||
+      PET_TYPE_WORDS.get(search) === report.petType ||
       [
         report.petName,
         report.breed,

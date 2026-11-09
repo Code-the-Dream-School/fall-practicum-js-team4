@@ -1092,6 +1092,18 @@ describe("GET /api/reports", () => {
       expect(names(res)).toEqual(expected);
     });
 
+    it.each(["constructor", "toString", "__proto__", "hasOwnProperty"])(
+      "treats %s as plain text, not as a pet type word",
+      async (search) => {
+        const res = await request(app).get("/api/reports").query({ search });
+
+        expect(res.status).toBe(200);
+        expect(names(res)).toEqual([]);
+        const or = prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR!;
+        expect(or.some((condition) => "petType" in condition)).toBe(false);
+      },
+    );
+
     it("matches the pet type only for the whole word", async () => {
       await request(app).get("/api/reports").query({ search: "do" });
 
