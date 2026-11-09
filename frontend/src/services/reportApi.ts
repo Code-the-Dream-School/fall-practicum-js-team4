@@ -103,10 +103,14 @@ const reportListFrom = (data: ReportListResponse | null) => {
   return data;
 };
 
-export async function getReports({
-  type,
-}: ReportListParams): Promise<ReportListResponse> {
-  const query = new URLSearchParams({ type });
+// Sends only the params that are set, so the URL stays short and cacheable
+export async function getReports(
+  params: ReportListParams,
+): Promise<ReportListResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value);
+  }
   return reportListFrom(
     await apiRequest<ReportListResponse | null>(`/api/reports?${query}`),
   );

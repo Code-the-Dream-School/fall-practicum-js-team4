@@ -1014,6 +1014,167 @@ describe("GET /api/reports", () => {
     });
   });
 
+  describe("search, attribute filters and sort", () => {
+    const names = (res: request.Response) =>
+      res.body.data.reports.map((r: { petName: string }) => r.petName);
+
+    beforeEach(async () => {
+      const { agent } = await signUp("search@example.com");
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Milo", breed: "Golden Retriever", size: "LARGE" }));
+      await agent.post("/api/reports").send(
+        sampleReport({
+          petName: "Luna",
+          petType: "CAT",
+          breed: "Siamese",
+          color: "Cream",
+          size: "SMALL",
+          gender: "FEMALE",
+          distinctiveFeatures: "100% shy, white paws",
+          location: { zipCode: "11201", city: "Brooklyn", state: "NY" },
+        }),
+      );
+      await agent.post("/api/reports").send(
+        sampleReport({
+          petName: "Rex",
+          breed: "German Shepherd",
+          color: "Black",
+          size: "MEDIUM",
+          distinctiveFeatures: null,
+        }),
+      );
+      jest.clearAllMocks();
+    });
+
+    it("matches name, breed, color, features and city, ignoring case and spaces", async () => {
+      const res = await request(app).get("/api/reports").query({ search: "  SIAM  " });
+
+      expect(res.status).toBe(200);
+      expect(names(res)).toEqual(["Luna"]);
+      const contains = { contains: "SIAM", mode: "insensitive" };
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: {
+            status: "ACTIVE",
+            OR: [
+              { petName: contains },
+              { breed: contains },
+              { color: contains },
+              { distinctiveFeatures: contains },
+              { location: { is: { city: contains } } },
+            ],
+          },
+        }),
+      );
+    });
+
+    it.each([
+      ["the city", "brooklyn", ["Luna"]],
+      ["the color", "golden", ["Milo"]],
+      ["distinctive features", "white paws", ["Luna"]],
+      ["nothing", "parrot", []],
+    ])("finds reports by %s", async (_, search, expected) => {
+      const res = await request(app).get("/api/reports").query({ search });
+
+      expect(names(res)).toEqual(expected);
+      expect(res.body.data.total).toBe(expected.length);
+    });
+
+    it.each([
+      ["dog", ["Rex", "Milo"]],
+      ["DOGS", ["Rex", "Milo"]],
+      ["Cat", ["Luna"]],
+      ["birds", []],
+    ])("finds every pet of a type by the word %s, in any case", async (search, expected) => {
+      const res = await request(app).get("/api/reports").query({ search });
+
+      expect(names(res)).toEqual(expected);
+    });
+
+    it.each(["constructor", "toString", "__proto__", "hasOwnProperty"])(
+      "treats %s as plain text, not as a pet type word",
+      async (search) => {
+        const res = await request(app).get("/api/reports").query({ search });
+
+        expect(res.status).toBe(200);
+        expect(names(res)).toEqual([]);
+        const or = prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR!;
+        expect(or.some((condition) => "petType" in condition)).toBe(false);
+      },
+    );
+
+    it("matches the pet type only for the whole word", async () => {
+      await request(app).get("/api/reports").query({ search: "do" });
+
+      const or = prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR;
+      expect(or).not.toContainEqual({ petType: "DOG" });
+    });
+
+    it("treats % and _ as plain characters, not wildcards", async () => {
+      const res = await request(app).get("/api/reports").query({ search: "100%" });
+
+      expect(names(res)).toEqual(["Luna"]);
+      expect(prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR![0].petName.contains).toBe(
+        "100\\%",
+      );
+    });
+
+    it("returns every report when the search is empty", async () => {
+      const res = await request(app).get("/api/reports").query({ search: "   " });
+
+      expect(res.body.data.total).toBe(3);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({ where: { status: "ACTIVE" } });
+    });
+
+    it("filters by pet type, size and gender, combined with search and type", async () => {
+      const res = await request(app)
+        .get("/api/reports")
+        .query({ type: "LOST", petType: "DOG", size: "MEDIUM", gender: "MALE", search: "shep" });
+
+      expect(names(res)).toEqual(["Rex"]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: expect.objectContaining({
+          status: "ACTIVE",
+          reportType: "LOST",
+          petType: "DOG",
+          size: "MEDIUM",
+          gender: "MALE",
+        }),
+      });
+    });
+
+    it("sorts newest first by default and oldest first on request", async () => {
+      const newest = await request(app).get("/api/reports");
+      const oldest = await request(app).get("/api/reports").query({ sort: "oldest" });
+
+      expect(names(newest)).toEqual(["Rex", "Luna", "Milo"]);
+      expect(names(oldest)).toEqual(["Milo", "Luna", "Rex"]);
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: "asc" }, { petReportId: "asc" }],
+        }),
+      );
+    });
+
+    it.each([
+      ["a search longer than 100 characters", "?search=" + "a".repeat(101)],
+      ["a search given twice", "?search=a&search=b"],
+      ["a Prisma filter object instead of text", "?search[contains]=a"],
+      ["an unknown pet type", "?petType=DRAGON"],
+      ["an unknown size", "?size=HUGE"],
+      ["an unknown gender", "?gender=OTHER"],
+      ["an unknown sort", "?sort=name"],
+      ["lowercase enum values", "?petType=dog"],
+    ])("rejects %s (400)", async (_, query) => {
+      const res = await request(app).get(`/api/reports${query}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe("pagination", () => {
     beforeEach(async () => {
       const { agent } = await signUp("pager@example.com");
