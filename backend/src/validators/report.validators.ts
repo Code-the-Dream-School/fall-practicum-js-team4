@@ -45,6 +45,12 @@ export interface ListReportsQuery {
   limit: number;
   type?: ReportType;
   status: ReportStatus;
+  search?: string;
+  petType?: PetType;
+  size?: PetSize;
+  gender?: PetGender;
+  // By the date the report was created
+  sort: "newest" | "oldest";
 }
 
 const locationSchema = Joi.object({
@@ -162,5 +168,20 @@ export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
   }),
   status: Joi.string().valid("ACTIVE", "REUNITED").default("ACTIVE").messages({
     "any.only": "Status must be either ACTIVE or REUNITED",
+  }),
+  search: Joi.string().trim().max(100).allow("").messages({
+    "string.max": "Search must be at most 100 characters",
+  }),
+  petType: Joi.string().valid("DOG", "CAT", "BIRD", "OTHER").messages({
+    "any.only": "Pet type must be DOG, CAT, BIRD, or OTHER",
+  }),
+  size: Joi.string().valid("SMALL", "MEDIUM", "LARGE").messages({
+    "any.only": "Size must be SMALL, MEDIUM, or LARGE",
+  }),
+  gender: Joi.string().valid("MALE", "FEMALE", "UNKNOWN").messages({
+    "any.only": "Gender must be MALE, FEMALE, or UNKNOWN",
+  }),
+  sort: Joi.string().valid("newest", "oldest").default("newest").messages({
+    "any.only": "Sort must be either newest or oldest",
   }),
 });

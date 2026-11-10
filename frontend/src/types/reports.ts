@@ -80,8 +80,24 @@ export interface PublicReport {
   photos: { petPhotoId: number; imageUrl: string }[];
 }
 
-export interface ReportListParams {
+export type ReportSort = 'newest' | 'oldest';
+
+// What the user can narrow a directory page by (GET /api/reports query)
+export interface ReportFilters {
+  search?: string;
+  petType?: PetType;
+  size?: PetSize;
+  gender?: PetGender;
+  // Server default: newest
+  sort?: ReportSort;
+}
+
+export interface ReportListParams extends ReportFilters {
   type: ReportType;
+  // 1-indexed; the API returns page 1 when it's left out
+  page?: number;
+  // Reports per page (API default 20, at most 100)
+  limit?: number;
 }
 
 export interface ReportListResponse {
