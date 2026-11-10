@@ -134,6 +134,14 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
           <Icon name="visibility" />
           View report
         </Link>
+
+        <Link
+          to={PATHS.editReport(String(report.petReportId))}
+          className="my-report-card__view"
+          aria-label={`Edit report for ${title}`}
+        >
+          Edit
+        </Link>
         <MarkReunitedButton report={report} onReunited={handleReunited} />
       </div>
     </li>
