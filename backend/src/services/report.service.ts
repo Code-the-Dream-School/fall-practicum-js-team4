@@ -1,6 +1,7 @@
 import type { PetType, Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
+import { MAX_PHOTOS } from "../middleware/photoUpload";
 import { deleteImages, storePhotos } from "./photo.service";
 import type {
   CreateReportInput,
@@ -203,11 +204,12 @@ export const updateReport = async (
   userId: string,
   petReportId: number,
   data: UpdateReportInput,
+  files: Express.Multer.File[] = [],
 ) => {
-  // Only for the existence and ownership checks below: photos aren't needed here
+  // Check existence, ownership, and current photo count
   const existing = await prisma.petReport.findUnique({
     where: { petReportId },
-    include: { location: true },
+    include: { location: true, photos: true },
   });
 
   if (!existing) {
@@ -216,6 +218,15 @@ export const updateReport = async (
 
   if (existing.userId !== userId) {
     throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
+  }
+
+  if (files.length > 0 && existing.photos.length + files.length > MAX_PHOTOS) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid request data", [
+      {
+        field: "photos",
+        message: `You can upload at most ${MAX_PHOTOS} photos`,
+      },
+    ]);
   }
 
   const { location, ...fields } = data;
@@ -248,10 +259,23 @@ export const updateReport = async (
     }
   }
 
-  // Same shape as create and GET /mine: location plus photos (without publicId)
-  return prisma.petReport.update({
-    where: { petReportId },
-    data: updateData,
-    include: { location: true, photos: PHOTOS },
-  });
+  const newPhotos = await storePhotos(files);
+  if (newPhotos.length > 0) {
+    updateData.photos = {
+      createMany: { data: newPhotos },
+    };
+  }
+
+  try {
+    return await prisma.petReport.update({
+      where: { petReportId },
+      data: updateData,
+      include: { location: true, photos: PHOTOS },
+    });
+  } catch (err) {
+    if (newPhotos.length > 0) {
+      await deleteImages(newPhotos.map((photo) => photo.publicId));
+    }
+    throw err;
+  }
 };

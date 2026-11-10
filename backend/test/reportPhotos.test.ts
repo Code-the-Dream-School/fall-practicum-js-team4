@@ -488,3 +488,97 @@ describe("POST /api/reports with photos", () => {
     });
   });
 });
+
+describe("PATCH /api/reports/:id with photos", () => {
+  let agent: Agent;
+  let reportId: number;
+
+  const sendPatch = (
+    id: number | string,
+    photos: Buffer[] = [],
+    body = JSON.stringify({}),
+    client: Agent | ReturnType<typeof request> = agent,
+  ) => {
+    const req = client.patch(`/api/reports/${id}`).field("report", body);
+    photos.forEach((buffer, i) => req.attach("photos", buffer, `photo${i}.jpg`));
+    return req;
+  };
+
+  beforeEach(async () => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    cloudinary._uploads.length = 0;
+    jest.clearAllMocks();
+    cloudinary.uploader.upload_stream.mockImplementation(cloudinary._succeed);
+    agent = request.agent(app);
+    await agent
+      .post("/api/auth/register")
+      .send({ name: "Sam", email: "sam@example.com", password: "correct-horse-1" });
+
+    // Create an initial report without photos
+    const created = await agent.post("/api/reports").field("report", JSON.stringify(report));
+    reportId = created.body.data.petReportId;
+  });
+
+  it("uploads photos to an existing report and returns the updated report (200)", async () => {
+    const res = await sendPatch(reportId, [await png()]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.photos).toHaveLength(1);
+    expect(res.body.data.photos[0]).toMatchObject({
+      imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/photo1.webp",
+    });
+    expect(res.body.data.photos[0]).not.toHaveProperty("publicId");
+  });
+
+  it("updates text fields and uploads photos at the same time (200)", async () => {
+    const res = await sendPatch(
+      reportId,
+      [await png()],
+      JSON.stringify({ petName: "Updated Milo", color: "Dark Golden" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.petName).toBe("Updated Milo");
+    expect(res.body.data.color).toBe("Dark Golden");
+    expect(res.body.data.photos).toHaveLength(1);
+  });
+
+  it("rejects upload when total photos would exceed 5 (400)", async () => {
+    // First, upload 4 photos to report
+    await sendPatch(reportId, [await png(), await png(), await png(), await png()]);
+
+    // Now try to upload 2 more (4 + 2 = 6 > 5)
+    const res = await sendPatch(reportId, [await png(), await png()]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details).toEqual([
+      { field: "photos", message: "You can upload at most 5 photos" },
+    ]);
+  });
+
+  it("returns 403 FORBIDDEN when attempting to upload photos to another user's report", async () => {
+    const otherAgent = request.agent(app);
+    await otherAgent
+      .post("/api/auth/register")
+      .send({ name: "Alex", email: "alex@example.com", password: "correct-horse-2" });
+
+    const res = await sendPatch(reportId, [await png()], JSON.stringify({}), otherAgent);
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("FORBIDDEN");
+  });
+
+  it("cleans up uploaded photos from Cloudinary if database update fails (500)", async () => {
+    prisma.petReport.update.mockRejectedValueOnce(new Error("db down"));
+
+    const res = await sendPatch(reportId, [await png(), await png()]);
+
+    expect(res.status).toBe(500);
+    expect(cloudinary.api.delete_resources).toHaveBeenCalledWith([
+      "pawradar/reports/photo1",
+      "pawradar/reports/photo2",
+    ]);
+  });
+});

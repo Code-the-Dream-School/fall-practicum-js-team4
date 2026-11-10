@@ -108,9 +108,11 @@ export const reportIdParamSchema = Joi.object<ReportIdParam>({
   }),
 });
 
-// Partial update: every editable field is optional, but at least one must be sent.
+// Partial update: every editable field is optional.
+// When no photo files are attached, at least one field must be sent (updateReportSchema).
+// When photo files are attached, sending only photos without text fields is allowed (updateReportFieldsSchema).
 // Owner, id, timestamps and photos are not in the schema, so Joi rejects them.
-export const updateReportSchema = Joi.object<UpdateReportInput>({
+export const updateReportFieldsSchema = Joi.object<UpdateReportInput>({
   reportType: Joi.string().valid("LOST", "FOUND").messages({
     "any.only": "Report type must be either LOST or FOUND",
   }),
@@ -136,11 +138,11 @@ export const updateReportSchema = Joi.object<UpdateReportInput>({
     "any.only": "Status must be either ACTIVE or REUNITED",
   }),
   location: locationSchema.allow(null),
-})
-  .min(1)
-  .messages({
-    "object.min": "At least one field must be provided to update the report",
-  });
+});
+
+export const updateReportSchema = updateReportFieldsSchema.min(1).messages({
+  "object.min": "At least one field must be provided to update the report",
+});
 
 // Query string for GET /api/reports/mine
 export const myReportsQuerySchema = Joi.object<MyReportsQuery>({

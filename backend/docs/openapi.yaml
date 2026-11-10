@@ -454,6 +454,23 @@ paths:
             example:
               status: REUNITED
               distinctiveFeatures: Reunited with family near Central Park
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [report]
+              properties:
+                report:
+                  type: string
+                  description: The update fields as JSON text (same fields as the JSON body)
+                  example: '{"distinctiveFeatures":"Updated features"}'
+                photos:
+                  type: array
+                  maxItems: 5
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
+                  items:
+                    type: string
+                    format: binary
       responses:
         "200":
           description: Report updated successfully
