@@ -36,10 +36,13 @@ export function AppRoutes() {
 
         {/* Signed-in only routes*/}
         <Route element={<ProtectedRoute />}>
-          <Route path="report-pet" element={<ReportPetPage />} />
-          <Route path="pets/:id/edit" element={<UpdateReportPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="/dashboard" element={<LoggedInPage />} />
+          <Route path={PATHS.reportPet} element={<ReportPetPage />} />
+          <Route
+            path={PATHS.editReport(':id')}
+            element={<UpdateReportPage />}
+          />
+          <Route path={PATHS.profile} element={<ProfilePage />} />
+          <Route path={PATHS.dashboard} element={<LoggedInPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
