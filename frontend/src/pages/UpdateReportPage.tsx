@@ -48,7 +48,7 @@ export function UpdateReportPage() {
         if (cancelled) return;
 
         if (data.userId !== currentUserId) {
-          setError('You do not have permission to edit this report.');
+          setError("You don't have permission to edit this report.");
           return;
         }
         setReport(data);
