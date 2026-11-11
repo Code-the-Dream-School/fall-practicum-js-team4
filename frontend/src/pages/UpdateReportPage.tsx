@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { textStyles } from '../styles/theme';
 import { getReportById, updateReport } from '../services/reportApi';
 import type { PetReport, UpdateReportInput } from '../types/reports';
 import { useAuth } from '../context/useAuth';
 import { ApiError } from '../services/api';
+import { PATHS } from '../app/paths';
 import {
   ReportForm,
   type ReportFormValues,
@@ -13,12 +14,12 @@ import './ReportPetPage.css';
 
 export function UpdateReportPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user, status } = useAuth();
   const [report, setReport] = useState<PetReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -116,11 +117,13 @@ export function UpdateReportPage() {
     try {
       setIsSaving(true);
       setError(null);
-      setSuccess('');
 
-      const updatedReport = await updateReport(id, input);
-      setReport(updatedReport);
-      setSuccess('Report updated successfully.');
+      await updateReport(id, input);
+
+      navigate(PATHS.petDetails(id), {
+        replace: true,
+        state: { successMessage: 'Report updated successfully!' },
+      });
     } catch {
       setError('Unable to update the report. Please try again.');
     } finally {
@@ -168,7 +171,6 @@ export function UpdateReportPage() {
           showPhotoUpload={false}
         />
         {error && <p role="alert">{error}</p>}
-        {success && <p role="status">{success}</p>}
       </div>
     </div>
   );
