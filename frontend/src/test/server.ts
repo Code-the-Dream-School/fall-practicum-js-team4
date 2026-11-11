@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import type { User } from '../services/authApi';
+import type { ZipPlace } from '../services/locationApi';
 import type { PublicReport } from '../types/reports';
 
 // Fake backend for tests. Override a handler in a single test with
@@ -116,6 +117,15 @@ export const pagedReportList = (reports: PublicReport[], request: Request) => {
   );
 };
 
+export const zipPlace = (
+  city: string,
+  state: string,
+  stateCode: string,
+): ZipPlace => ({ city, state, stateCode, latitude: 0, longitude: 0 });
+
+export const zipLookupResponse = (zipCode: string, places: ZipPlace[]) =>
+  HttpResponse.json({ success: true, data: { zipCode, places } });
+
 export const server = setupServer(
   // Signed out unless a test says otherwise
   http.get(`${API}/api/auth/me`, () =>
@@ -138,7 +148,13 @@ export const server = setupServer(
   http.get(`${API}/api/reports`, ({ request }) =>
     pagedReportList(queryReports(testReports, request), request),
   ),
-
+  http.get(`${API}/api/locations/zip/:zip`, () =>
+    errorResponse(
+      503,
+      'ZIP_SERVICE_UNAVAILABLE',
+      'Zip lookup temporarily unavailable',
+    ),
+  ),
   // The profile page loads these; no reports unless a test says otherwise
   http.get(`${API}/api/reports/mine`, () =>
     HttpResponse.json({ success: true, data: { total: 0, reports: [] } }),
