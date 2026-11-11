@@ -9,7 +9,7 @@ interface ReportFormProps {
   reportType: ReportType;
 }
 
-interface ReportFormValues {
+export interface ReportFormValues {
   petName: string;
   breed?: string;
   distinctiveFeatures?: string;

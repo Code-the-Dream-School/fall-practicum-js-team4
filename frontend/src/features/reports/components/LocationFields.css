@@ -1,0 +1,76 @@
+.location-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-on-surface) 10%, transparent);
+  border-radius: 12px;
+  background-color: var(--color-surface-low);
+  color: var(--color-on-surface-variant);
+  font-size: 0.8125rem;
+}
+.location-lookup p {
+  margin: 0;
+}
+.location-lookup strong {
+  color: var(--color-on-surface);
+}
+.location-lookup--error {
+  border-color: color-mix(in srgb, var(--color-error) 50%, transparent);
+  color: var(--color-error);
+}
+
+.location-lookup__actions,
+.location-lookup__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.location-lookup__choices {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.location-lookup__choices legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.location-lookup__button {
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-on-surface) 10%, transparent);
+  border-radius: 8px;
+  background-color: var(--color-surface-high);
+  color: var(--color-on-surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.location-lookup__button:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--color-on-surface) 12%,
+    var(--color-surface-high)
+  );
+}
+.location-lookup__button:focus-visible {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+.location-lookup__button--primary {
+  border-color: transparent;
+  background-color: var(--color-secondary);
+  color: var(--color-on-secondary);
+}
+.location-lookup__button--primary:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--color-on-surface) 15%,
+    var(--color-secondary)
+  );
+}
+
+.location-field input[readonly] {
+  opacity: 0.8;
+  cursor: default;
+}
