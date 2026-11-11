@@ -581,4 +581,88 @@ describe("PATCH /api/reports/:id with photos", () => {
       "pawradar/reports/photo2",
     ]);
   });
+
+  it("deletes specified existing photos using deletePhotoIds and cleans up Cloudinary (200)", async () => {
+    // Start by adding 2 photos
+    const setup = await sendPatch(reportId, [await png(), await png()]);
+    expect(setup.body.data.photos).toHaveLength(2);
+    const photoIdToDelete = setup.body.data.photos[0].petPhotoId;
+    const remainingPhotoId = setup.body.data.photos[1].petPhotoId;
+    cloudinary.api.delete_resources.mockClear();
+
+    // Now delete the first photo
+    const res = await sendPatch(
+      reportId,
+      [],
+      JSON.stringify({ deletePhotoIds: [photoIdToDelete] }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.photos).toHaveLength(1);
+    expect(res.body.data.photos[0].petPhotoId).toBe(remainingPhotoId);
+    expect(cloudinary.api.delete_resources).toHaveBeenCalledWith(["pawradar/reports/photo1"]);
+  });
+
+  it("deletes existing photos and uploads new photos in the same request (200)", async () => {
+    // Start with 4 photos
+    const setup = await sendPatch(reportId, [await png(), await png(), await png(), await png()]);
+    expect(setup.body.data.photos).toHaveLength(4);
+    const photo1 = setup.body.data.photos[0].petPhotoId;
+    const photo2 = setup.body.data.photos[1].petPhotoId;
+    cloudinary.api.delete_resources.mockClear();
+
+    // Delete 2 photos and upload 3 new photos: 4 - 2 + 3 = 5 <= 5
+    const res = await sendPatch(
+      reportId,
+      [await png(), await png(), await png()],
+      JSON.stringify({ deletePhotoIds: [photo1, photo2] }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.photos).toHaveLength(5);
+    expect(cloudinary.api.delete_resources).toHaveBeenCalledWith([
+      "pawradar/reports/photo1",
+      "pawradar/reports/photo2",
+    ]);
+  });
+
+  it("rejects when deletePhotoIds includes a photo that does not belong to this report (400)", async () => {
+    const res = await sendPatch(reportId, [], JSON.stringify({ deletePhotoIds: [99999] }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details).toEqual([
+      { field: "deletePhotoIds", message: "Photo 99999 does not belong to this report" },
+    ]);
+    expect(cloudinary.api.delete_resources).not.toHaveBeenCalled();
+  });
+
+  it("rejects when total photos would exceed 5 even after deletions (400)", async () => {
+    // 4 existing photos
+    const setup = await sendPatch(reportId, [await png(), await png(), await png(), await png()]);
+    const photo1 = setup.body.data.photos[0].petPhotoId;
+
+    // Delete 1 photo but upload 3: 4 - 1 + 3 = 6 > 5
+    const res = await sendPatch(
+      reportId,
+      [await png(), await png(), await png()],
+      JSON.stringify({ deletePhotoIds: [photo1] }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.details).toEqual([
+      { field: "photos", message: "You can upload at most 5 photos" },
+    ]);
+  });
+
+  it("supports deletePhotoIds via plain application/json without multipart (200)", async () => {
+    const setup = await sendPatch(reportId, [await png()]);
+    const photoId = setup.body.data.photos[0].petPhotoId;
+
+    const res = await agent.patch(`/api/reports/${reportId}`).send({ deletePhotoIds: [photoId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.photos).toHaveLength(0);
+  });
 });
