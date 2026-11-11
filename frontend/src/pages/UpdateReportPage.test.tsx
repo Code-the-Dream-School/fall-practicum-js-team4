@@ -142,6 +142,12 @@ describe('UpdateReportPage', () => {
       expect(patchCalled).toBe(true);
     });
 
+    expect(
+      await screen.findByRole('heading', {
+        name: /Pet details & matches: 100/i,
+      }),
+    ).toBeInTheDocument();
+
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Report updated successfully.',
     );
