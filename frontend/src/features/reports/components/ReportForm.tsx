@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { ReportType } from '../../../types/reports';
-// import { createReport, describeReportError } from '../../../services/reportApi';
-// import type { CreateReportInput, ReportType } from '../../../types/reports';
 import { PhotoUpload } from './PhotoUpload';
 
 interface ReportFormProps {
