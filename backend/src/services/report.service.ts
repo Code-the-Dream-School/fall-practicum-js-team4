@@ -220,7 +220,30 @@ export const updateReport = async (
     throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
   }
 
-  if (files.length > 0 && existing.photos.length + files.length > MAX_PHOTOS) {
+  const { location, deletePhotoIds, ...fields } = data;
+
+  // Validate that all deletePhotoIds belong to this report
+  if (deletePhotoIds && deletePhotoIds.length > 0) {
+    const existingPhotoIds = new Set(existing.photos.map((p) => p.petPhotoId));
+    const invalidId = deletePhotoIds.find((id) => !existingPhotoIds.has(id));
+    if (invalidId !== undefined) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid request data", [
+        {
+          field: "deletePhotoIds",
+          message: `Photo ${invalidId} does not belong to this report`,
+        },
+      ]);
+    }
+  }
+
+  const photosToDelete =
+    deletePhotoIds && deletePhotoIds.length > 0
+      ? existing.photos.filter((p) => deletePhotoIds.includes(p.petPhotoId))
+      : [];
+
+  const remainingPhotosCount = existing.photos.length - photosToDelete.length;
+
+  if (files.length > 0 && remainingPhotosCount + files.length > MAX_PHOTOS) {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid request data", [
       {
         field: "photos",
@@ -229,7 +252,6 @@ export const updateReport = async (
     ]);
   }
 
-  const { location, ...fields } = data;
   const updateData: Prisma.PetReportUpdateInput = { ...fields };
 
   for (const field of NULLABLE_TEXT_FIELDS) {
@@ -260,18 +282,39 @@ export const updateReport = async (
   }
 
   const newPhotos = await storePhotos(files);
-  if (newPhotos.length > 0) {
-    updateData.photos = {
-      createMany: { data: newPhotos },
+  const photoOperations: Prisma.PetPhotoUpdateManyWithoutPetReportNestedInput = {};
+
+  if (photosToDelete.length > 0) {
+    photoOperations.deleteMany = {
+      petPhotoId: { in: photosToDelete.map((p) => p.petPhotoId) },
     };
   }
 
+  if (newPhotos.length > 0) {
+    photoOperations.createMany = { data: newPhotos };
+  }
+
+  if (Object.keys(photoOperations).length > 0) {
+    updateData.photos = photoOperations;
+  }
+
   try {
-    return await prisma.petReport.update({
+    const updated = await prisma.petReport.update({
       where: { petReportId },
       data: updateData,
       include: { location: true, photos: PHOTOS },
     });
+
+    if (photosToDelete.length > 0) {
+      const publicIdsToDelete = photosToDelete
+        .map((p) => p.publicId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+      if (publicIdsToDelete.length > 0) {
+        await deleteImages(publicIdsToDelete);
+      }
+    }
+
+    return updated;
   } catch (err) {
     if (newPhotos.length > 0) {
       await deleteImages(newPhotos.map((photo) => photo.publicId));
