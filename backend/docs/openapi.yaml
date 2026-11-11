@@ -789,6 +789,14 @@ components:
               type: string
               minLength: 2
               maxLength: 2
+        deletePhotoIds:
+          type: array
+          description: IDs of existing photos to delete from this report
+          maxItems: 5
+          items:
+            type: integer
+            minimum: 1
+          example: [21, 22]
 
     CreateReportResponse:
       type: object
