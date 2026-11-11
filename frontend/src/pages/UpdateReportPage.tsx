@@ -122,7 +122,7 @@ export function UpdateReportPage() {
 
       navigate(PATHS.petDetails(id), {
         replace: true,
-        state: { successMessage: 'Report updated successfully!' },
+        state: { successMessage: 'Report updated successfully.' },
       });
     } catch {
       setError('Unable to update the report. Please try again.');
