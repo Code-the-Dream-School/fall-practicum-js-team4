@@ -270,4 +270,31 @@ describe('UpdateReportPage', () => {
       screen.queryByRole('button', { name: 'Save Changes' }),
     ).not.toBeInTheDocument();
   });
+
+  it('8. prevents editing a report owned by another user', async () => {
+    signedIn();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () =>
+        HttpResponse.json({
+          success: true,
+          data: { ...testReport, userId: 'different-user-id' },
+        }),
+      ),
+    );
+
+    renderApp(PATHS.editReport('100'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "You don't have permission to edit this report.",
+    );
+
+    expect(
+      screen.queryByRole('heading', { name: 'Update Pet Report' }),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole('button', { name: 'Save Changes' }),
+    ).not.toBeInTheDocument();
+  });
 });
