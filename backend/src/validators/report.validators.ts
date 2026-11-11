@@ -30,6 +30,7 @@ export interface UpdateReportInput {
   contactInfo?: string | null;
   status?: ReportStatus;
   location?: { zipCode: string; city: string; state: string } | null;
+  deletePhotoIds?: number[];
 }
 
 export interface ReportIdParam {
@@ -138,6 +139,11 @@ export const updateReportFieldsSchema = Joi.object<UpdateReportInput>({
     "any.only": "Status must be either ACTIVE or REUNITED",
   }),
   location: locationSchema.allow(null),
+  deletePhotoIds: Joi.array().items(Joi.number().integer().positive()).unique().max(5).messages({
+    "array.base": "deletePhotoIds must be an array of photo IDs",
+    "array.unique": "deletePhotoIds cannot contain duplicate photo IDs",
+    "array.max": "Cannot delete more than 5 photos",
+  }),
 });
 
 export const updateReportSchema = updateReportFieldsSchema.min(1).messages({
