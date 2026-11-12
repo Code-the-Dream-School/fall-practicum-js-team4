@@ -188,10 +188,6 @@ export const updateReport = async (
     throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
   }
 
-  if (existing.reportType === "FOUND" && data.status === "REUNITED") {
-    throw new AppError(400, "VALIDATION_ERROR", "Only LOST reports can be marked as REUNITED");
-  }
-
   const { location, ...fields } = data;
   const updateData: Prisma.PetReportUpdateInput = { ...fields };
 
