@@ -454,6 +454,23 @@ paths:
             example:
               status: REUNITED
               distinctiveFeatures: Reunited with family near Central Park
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [report]
+              properties:
+                report:
+                  type: string
+                  description: The update fields as JSON text (same fields as the JSON body)
+                  example: '{"distinctiveFeatures":"Updated features"}'
+                photos:
+                  type: array
+                  maxItems: 5
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
+                  items:
+                    type: string
+                    format: binary
       responses:
         "200":
           description: Report updated successfully
@@ -485,6 +502,18 @@ paths:
                 success: false
                 code: NOT_FOUND
                 message: Report not found
+        "502":
+          description: >-
+            The photo storage service failed. Nothing is saved, and any photos already
+            uploaded for this request are deleted; the client can retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PHOTO_UPLOAD_FAILED
+                message: Could not upload photos. Please try again.
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -772,6 +801,14 @@ components:
               type: string
               minLength: 2
               maxLength: 2
+        deletePhotoIds:
+          type: array
+          description: IDs of existing photos to delete from this report
+          maxItems: 5
+          items:
+            type: integer
+            minimum: 1
+          example: [21, 22]
 
     CreateReportResponse:
       type: object
@@ -1128,8 +1165,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes, and creating reports is limited to 20 per
-        signed-in user per 15 minutes.
+        attempts per IP per 15 minutes, and creating or updating reports is limited
+        to 20 per signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -1148,7 +1185,7 @@ components:
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
             reports:
-              summary: Over 20 reports created by one user in 15 minutes
+              summary: Over 20 reports created or updated by one user in 15 minutes
               value:
                 success: false
                 code: TOO_MANY_REQUESTS
