@@ -582,6 +582,25 @@ describe("PATCH /api/reports/:id with photos", () => {
     ]);
   });
 
+  it("returns 502 PHOTO_UPLOAD_FAILED and cleans up partial uploads when Cloudinary fails on patch", async () => {
+    cloudinary.uploader.upload_stream
+      .mockImplementationOnce(cloudinary._succeed)
+      .mockImplementationOnce((options, callback) => ({
+        end: () => setImmediate(() => callback(new Error("Cloudinary is down"))),
+      }));
+
+    const res = await sendPatch(reportId, [await png(), await png()]);
+
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      success: false,
+      code: "PHOTO_UPLOAD_FAILED",
+      message: "Could not upload photos. Please try again.",
+    });
+    expect(cloudinary.api.delete_resources).toHaveBeenCalledWith(["pawradar/reports/photo1"]);
+    expect(prisma.petReport.update).not.toHaveBeenCalled();
+  });
+
   it("deletes specified existing photos using deletePhotoIds and cleans up Cloudinary (200)", async () => {
     // Start by adding 2 photos
     const setup = await sendPatch(reportId, [await png(), await png()]);
