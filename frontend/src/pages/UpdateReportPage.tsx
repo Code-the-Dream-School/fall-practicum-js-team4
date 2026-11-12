@@ -88,7 +88,7 @@ export function UpdateReportPage() {
     };
   }, [id, user, status]);
 
-  async function handleUpdate(values: ReportFormValues) {
+  async function handleUpdate(values: ReportFormValues, photos: File[]) {
     if (!id || !report || !user || report.userId !== user.id) {
       return;
     }
@@ -118,7 +118,7 @@ export function UpdateReportPage() {
       setIsSaving(true);
       setError(null);
 
-      await updateReport(id, input);
+      await updateReport(id, input, { photos });
 
       navigate(PATHS.petDetails(id), {
         replace: true,
@@ -168,7 +168,7 @@ export function UpdateReportPage() {
           onSubmit={handleUpdate}
           isSaving={isSaving}
           submitLabel="Save Changes"
-          showPhotoUpload={false}
+          showPhotoUpload={true}
         />
         {error && <p role="alert">{error}</p>}
       </div>
