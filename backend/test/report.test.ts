@@ -776,6 +776,154 @@ describe("PATCH /api/reports/:id", () => {
   });
 });
 
+describe("GET /api/reports/:id/public", () => {
+  let ownerAgent: Agent;
+  let reportId: number;
+
+  beforeEach(async () => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+
+    ownerAgent = request.agent(app);
+
+    await ownerAgent.post("/api/auth/register").send({
+      name: "Report Owner",
+      email: "public-owner@example.com",
+      password: "password123!",
+    });
+
+    const created = await ownerAgent.post("/api/reports").send({
+      reportType: "LOST",
+      petType: "DOG",
+      petName: "Buddy",
+      color: "Golden",
+      size: "LARGE",
+      gender: "MALE",
+      eventDate: "2026-10-20T10:00:00.000Z",
+      contactInfo: "private-owner@example.com",
+      location: {
+        zipCode: "10001",
+        city: "New York",
+        state: "NY",
+      },
+    });
+
+    expect(created.status).toBe(201);
+    reportId = created.body.data.petReportId;
+  });
+
+  it("allows anonymous visitors to view an ACTIVE report (200)", async () => {
+    const res = await request(app).get(`/api/reports/${reportId}/public`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      data: {
+        petReportId: reportId,
+        petName: "Buddy",
+        reportType: "LOST",
+        status: "ACTIVE",
+        location: {
+          zipCode: "10001",
+          city: "New York",
+          state: "NY",
+        },
+      },
+    });
+
+    expect(prisma.petReport.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { petReportId: reportId, status: "ACTIVE" },
+      }),
+    );
+  });
+
+  it("never exposes private contact details, coordinates, or photo publicId", async () => {
+    const stored = prisma._reports.find((r) => r.petReportId === reportId)!;
+
+    stored.location = {
+      ...stored.location,
+      latitude: "40.7128000",
+      longitude: "-74.0060000",
+    };
+
+    stored.photos = [
+      {
+        petPhotoId: 10,
+        petReportId: reportId,
+        imageUrl: "https://example.com/buddy.webp",
+        publicId: "secret-cloudinary-id",
+        createdAt: new Date("2026-10-20T12:00:00.000Z"),
+      },
+    ];
+
+    const res = await request(app).get(`/api/reports/${reportId}/public`);
+
+    expect(res.status).toBe(200);
+
+    const report = res.body.data;
+
+    expect(report).not.toHaveProperty("userId");
+    expect(report).not.toHaveProperty("contactInfo");
+    expect(report.location).not.toHaveProperty("latitude");
+    expect(report.location).not.toHaveProperty("longitude");
+    expect(report.photos[0]).not.toHaveProperty("publicId");
+
+    expect(report.photos[0]).toMatchObject({
+      petPhotoId: 10,
+      imageUrl: "https://example.com/buddy.webp",
+    });
+  });
+
+  it("allows another signed-in user to view only public fields (200)", async () => {
+    const otherAgent = request.agent(app);
+
+    await otherAgent.post("/api/auth/register").send({
+      name: "Another User",
+      email: "other-viewer@example.com",
+      password: "password123!",
+    });
+
+    const res = await otherAgent.get(`/api/reports/${reportId}/public`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.petReportId).toBe(reportId);
+    expect(res.body.data).not.toHaveProperty("contactInfo");
+    expect(res.body.data).not.toHaveProperty("userId");
+  });
+
+  it("returns 404 when the report does not exist", async () => {
+    const res = await request(app).get("/api/reports/999999/public");
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("NOT_FOUND");
+  });
+
+  it("returns 404 for a REUNITED report, including for its owner", async () => {
+    const updated = await ownerAgent.patch(`/api/reports/${reportId}`).send({ status: "REUNITED" });
+
+    expect(updated.status).toBe(200);
+
+    const guestRes = await request(app).get(`/api/reports/${reportId}/public`);
+    const ownerRes = await ownerAgent.get(`/api/reports/${reportId}/public`);
+
+    expect(guestRes.status).toBe(404);
+    expect(ownerRes.status).toBe(404);
+  });
+
+  it.each(["abc", "0", "-1", "2147483648"])(
+    "rejects invalid report ID %s (400)",
+    async (invalidId) => {
+      const res = await request(app).get(`/api/reports/${invalidId}/public`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.findFirst).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("GET /api/reports", () => {
   const signUp = async (email: string): Promise<{ agent: Agent; user: ApiUser }> => {
     const userAgent = request.agent(app);

@@ -48,6 +48,12 @@ router.get(
   validate(myReportsQuerySchema, "query"),
   asyncHandler(controller.getMyReports),
 );
+// Public details for an active report (anonymous access allowed)
+router.get(
+  "/:id/public",
+  validate(reportIdParamSchema, "params"),
+  asyncHandler(controller.getPublicReportById),
+);
 router.patch(
   "/:id",
   requireAuth,

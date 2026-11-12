@@ -124,6 +124,22 @@ export const listReports = async ({
   };
 };
 
+export const getPublicReportById = async (petReportId: number) => {
+  const report = await prisma.petReport.findFirst({
+    where: {
+      petReportId,
+      status: "ACTIVE",
+    },
+    select: PUBLIC_REPORT_SELECT,
+  });
+
+  if (!report) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  return report;
+};
+
 // files: uploaded photos from multer ([] for JSON requests)
 export const createReport = async (
   userId: string,

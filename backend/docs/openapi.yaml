@@ -423,6 +423,57 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
+  /api/reports/{id}/public:
+    get:
+      tags: [Reports]
+      operationId: getPublicReportById
+      summary: Get public details of an active pet report
+      description: >-
+        Allows anonymous visitors to retrieve an ACTIVE lost or found
+        report by ID. Returns only public-safe fields, excluding userId,
+        contactInfo, exact coordinates, and Cloudinary publicId.
+        Reports that do not exist or are not ACTIVE return 404.
+      security: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the pet report
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          example: 1
+      responses:
+        "200":
+          description: Public report details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/PublicReport"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          description: Report not found or unavailable for public viewing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+            example:
+              success: false
+              code: NOT_FOUND
+              message: Report not found
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
   /api/reports/{id}:
     patch:
       tags: [Reports]
