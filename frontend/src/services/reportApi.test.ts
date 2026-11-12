@@ -176,6 +176,51 @@ describe('getReports', () => {
     expect(data.reports).toEqual(testReports);
   });
 
+  it('sends only the filters that are set', async () => {
+    let requested: URL | undefined;
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        requested = new URL(request.url);
+        return reportListResponse([]);
+      }),
+    );
+
+    await getReports({
+      type: 'FOUND',
+      search: 'gray tabby',
+      petType: 'CAT',
+      size: undefined,
+      gender: 'FEMALE',
+      sort: 'oldest',
+    });
+
+    expect(Object.fromEntries(requested!.searchParams)).toEqual({
+      type: 'FOUND',
+      search: 'gray tabby',
+      petType: 'CAT',
+      gender: 'FEMALE',
+      sort: 'oldest',
+    });
+  });
+
+  it('passes page and limit query parameters when provided', async () => {
+    let requested: URL | undefined;
+    server.use(
+      http.get(`${API}/api/reports`, ({ request }) => {
+        requested = new URL(request.url);
+        return reportListResponse(testReports, 1, 2);
+      }),
+    );
+
+    const data = await getReports({ type: 'LOST', page: 2, limit: 1 });
+
+    expect(requested?.searchParams.get('type')).toBe('LOST');
+    expect(requested?.searchParams.get('page')).toBe('2');
+    expect(requested?.searchParams.get('limit')).toBe('1');
+    expect(data.page).toBe(2);
+    expect(data.totalPages).toBe(2);
+  });
+
   it('rejects a success response without a report list', async () => {
     server.use(
       http.get(`${API}/api/reports`, () =>

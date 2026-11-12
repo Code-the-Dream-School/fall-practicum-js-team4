@@ -208,10 +208,11 @@ paths:
       tags: [Reports]
       operationId: listReports
       security: []
-      summary: List public pet report summaries with pagination
+      summary: List, search and filter public pet report summaries
       description: >-
-        Returns paginated pet report summaries ordered newest first (`createdAt`
-        desc, `petReportId` desc). Public endpoint (no authentication required).
+        Returns paginated pet report summaries, newest first by default (`createdAt`
+        then `petReportId`; `sort=oldest` reverses both). All filters combine (AND).
+        Public endpoint (no authentication required).
         Sensitive fields (`userId`, `contactInfo`, and exact `latitude`/`longitude`
         coordinates) are omitted.
       parameters:
@@ -252,6 +253,50 @@ paths:
             enum: [ACTIVE, REUNITED]
             default: ACTIVE
           example: ACTIVE
+        - name: search
+          in: query
+          required: false
+          description: >-
+            Case-insensitive partial match on pet name, breed, color, distinctive
+            features or city. The words dog(s), cat(s) and bird(s) also match the pet
+            type. Surrounding spaces are ignored; empty returns everything.
+          schema:
+            type: string
+            maxLength: 100
+          example: golden
+        - name: petType
+          in: query
+          required: false
+          description: Filter by kind of animal
+          schema:
+            type: string
+            enum: [DOG, CAT, BIRD, OTHER]
+          example: DOG
+        - name: size
+          in: query
+          required: false
+          description: Filter by size
+          schema:
+            type: string
+            enum: [SMALL, MEDIUM, LARGE]
+          example: LARGE
+        - name: gender
+          in: query
+          required: false
+          description: Filter by gender
+          schema:
+            type: string
+            enum: [MALE, FEMALE, UNKNOWN]
+          example: MALE
+        - name: sort
+          in: query
+          required: false
+          description: Order by the date the report was created
+          schema:
+            type: string
+            enum: [newest, oldest]
+            default: newest
+          example: newest
       responses:
         "200":
           description: Paginated list of public report summaries
@@ -358,7 +403,8 @@ paths:
           required: false
           description: >-
             Case-insensitive partial match on pet name, breed, color, distinctive
-            features or city. Surrounding spaces are ignored; empty returns everything.
+            features or city. The words dog(s), cat(s) and bird(s) also match the pet
+            type. Surrounding spaces are ignored; empty returns everything.
           schema:
             type: string
             maxLength: 100
@@ -409,6 +455,23 @@ paths:
             example:
               status: REUNITED
               distinctiveFeatures: Reunited with family near Central Park
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [report]
+              properties:
+                report:
+                  type: string
+                  description: The update fields as JSON text (same fields as the JSON body)
+                  example: '{"distinctiveFeatures":"Updated features"}'
+                photos:
+                  type: array
+                  maxItems: 5
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
+                  items:
+                    type: string
+                    format: binary
       responses:
         "200":
           description: Report updated successfully
@@ -440,6 +503,18 @@ paths:
                 success: false
                 code: NOT_FOUND
                 message: Report not found
+        "502":
+          description: >-
+            The photo storage service failed. Nothing is saved, and any photos already
+            uploaded for this request are deleted; the client can retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PHOTO_UPLOAD_FAILED
+                message: Could not upload photos. Please try again.
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -727,6 +802,14 @@ components:
               type: string
               minLength: 2
               maxLength: 2
+        deletePhotoIds:
+          type: array
+          description: IDs of existing photos to delete from this report
+          maxItems: 5
+          items:
+            type: integer
+            minimum: 1
+          example: [21, 22]
 
     CreateReportResponse:
       type: object
@@ -1083,8 +1166,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes, and creating reports is limited to 20 per
-        signed-in user per 15 minutes.
+        attempts per IP per 15 minutes, and creating or updating reports is limited
+        to 20 per signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -1103,7 +1186,7 @@ components:
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
             reports:
-              summary: Over 20 reports created by one user in 15 minutes
+              summary: Over 20 reports created or updated by one user in 15 minutes
               value:
                 success: false
                 code: TOO_MANY_REQUESTS

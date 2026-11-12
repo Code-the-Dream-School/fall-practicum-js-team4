@@ -30,6 +30,7 @@ export interface UpdateReportInput {
   contactInfo?: string | null;
   status?: ReportStatus;
   location?: { zipCode: string; city: string; state: string } | null;
+  deletePhotoIds?: number[];
 }
 
 export interface ReportIdParam {
@@ -45,6 +46,12 @@ export interface ListReportsQuery {
   limit: number;
   type?: ReportType;
   status: ReportStatus;
+  search?: string;
+  petType?: PetType;
+  size?: PetSize;
+  gender?: PetGender;
+  // By the date the report was created
+  sort: "newest" | "oldest";
 }
 
 const locationSchema = Joi.object({
@@ -102,9 +109,11 @@ export const reportIdParamSchema = Joi.object<ReportIdParam>({
   }),
 });
 
-// Partial update: every editable field is optional, but at least one must be sent.
+// Partial update: every editable field is optional.
+// When no photo files are attached, at least one field must be sent (updateReportSchema).
+// When photo files are attached, sending only photos without text fields is allowed (updateReportFieldsSchema).
 // Owner, id, timestamps and photos are not in the schema, so Joi rejects them.
-export const updateReportSchema = Joi.object<UpdateReportInput>({
+export const updateReportFieldsSchema = Joi.object<UpdateReportInput>({
   reportType: Joi.string().valid("LOST", "FOUND").messages({
     "any.only": "Report type must be either LOST or FOUND",
   }),
@@ -130,11 +139,16 @@ export const updateReportSchema = Joi.object<UpdateReportInput>({
     "any.only": "Status must be either ACTIVE or REUNITED",
   }),
   location: locationSchema.allow(null),
-})
-  .min(1)
-  .messages({
-    "object.min": "At least one field must be provided to update the report",
-  });
+  deletePhotoIds: Joi.array().items(Joi.number().integer().positive()).unique().max(5).messages({
+    "array.base": "deletePhotoIds must be an array of photo IDs",
+    "array.unique": "deletePhotoIds cannot contain duplicate photo IDs",
+    "array.max": "Cannot delete more than 5 photos",
+  }),
+});
+
+export const updateReportSchema = updateReportFieldsSchema.min(1).messages({
+  "object.min": "At least one field must be provided to update the report",
+});
 
 // Query string for GET /api/reports/mine
 export const myReportsQuerySchema = Joi.object<MyReportsQuery>({
@@ -162,5 +176,20 @@ export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
   }),
   status: Joi.string().valid("ACTIVE", "REUNITED").default("ACTIVE").messages({
     "any.only": "Status must be either ACTIVE or REUNITED",
+  }),
+  search: Joi.string().trim().max(100).allow("").messages({
+    "string.max": "Search must be at most 100 characters",
+  }),
+  petType: Joi.string().valid("DOG", "CAT", "BIRD", "OTHER").messages({
+    "any.only": "Pet type must be DOG, CAT, BIRD, or OTHER",
+  }),
+  size: Joi.string().valid("SMALL", "MEDIUM", "LARGE").messages({
+    "any.only": "Size must be SMALL, MEDIUM, or LARGE",
+  }),
+  gender: Joi.string().valid("MALE", "FEMALE", "UNKNOWN").messages({
+    "any.only": "Gender must be MALE, FEMALE, or UNKNOWN",
+  }),
+  sort: Joi.string().valid("newest", "oldest").default("newest").messages({
+    "any.only": "Sort must be either newest or oldest",
   }),
 });

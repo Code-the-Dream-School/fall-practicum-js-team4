@@ -45,17 +45,42 @@ interface ReportInclude {
 
 type UserWhere = Partial<Pick<FakeUser, "id" | "email">>;
 // The report query's filter; OR holds the search conditions
+type Contains = { contains: string; mode?: "insensitive" };
 type FindManyWhere = {
   userId?: string;
   reportType?: string;
   status?: string;
-  OR?: Record<string, { contains: string }>[];
+  petType?: string;
+  size?: string;
+  gender?: string;
+  // Mostly { field: Contains }; also { location: { is: { city: Contains } } }
+  // and { petType: "DOG" } when the search names a pet type
+  OR?: Record<string, Contains>[];
 };
 
+// Fields compared by exact value, like Prisma's `{ field: value }`
+const EQUAL_FIELDS = ["userId", "reportType", "status", "petType", "size", "gender"] as const;
+
+// Prisma's `contains` with mode "insensitive"; the search escapes % _ \ for SQL
+// LIKE, so unescape them to compare as plain text
+const contains = (value: unknown, { contains: text }: Contains) =>
+  typeof value === "string" &&
+  value.toLowerCase().includes(text.replace(/\\([\\%_])/g, "$1").toLowerCase());
+
+const matchesSearch = (report: FakeReport, or: NonNullable<FindManyWhere["OR"]>) =>
+  or.some((condition) =>
+    Object.entries(condition).some(([field, filter]: [string, unknown]) => {
+      if (typeof filter === "string") return report[field] === filter;
+      if (field === "location") {
+        return contains(report.location?.city, (filter as { is: { city: Contains } }).is.city);
+      }
+      return contains(report[field], filter as Contains);
+    }),
+  );
+
 const matchesReportWhere = (report: FakeReport, where?: FindManyWhere) =>
-  (!where?.userId || report.userId === where.userId) &&
-  (!where?.reportType || report.reportType === where.reportType) &&
-  (!where?.status || report.status === where.status);
+  EQUAL_FIELDS.every((field) => !where?.[field] || report[field] === where[field]) &&
+  (!where?.OR || matchesSearch(report, where.OR));
 
 // A report as Prisma returns it: photos reduced to the selected fields
 const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
@@ -180,10 +205,14 @@ export const createFakePrisma = () => {
           include?: ReportInclude;
         }) => {
           const report = reports.find((r) => r.petReportId === where.petReportId)!;
-          const { location, ...fields } = data as {
+          const { location, photos, ...fields } = data as {
             location?: {
               delete?: boolean;
               upsert?: { create: Record<string, unknown>; update: Record<string, unknown> };
+            };
+            photos?: {
+              createMany?: { data: { imageUrl: string; publicId: string }[] };
+              deleteMany?: { petPhotoId: { in: number[] } };
             };
           } & Record<string, unknown>;
 
@@ -195,6 +224,23 @@ export const createFakePrisma = () => {
             report.location = report.location
               ? { ...report.location, ...location.upsert.update }
               : { locationId: 1, petReportId: report.petReportId, ...location.upsert.create };
+          }
+
+          if (photos?.deleteMany?.petPhotoId?.in) {
+            const idsToDelete = new Set(photos.deleteMany.petPhotoId.in);
+            report.photos = (report.photos ?? []).filter((p) => !idsToDelete.has(p.petPhotoId));
+          }
+
+          if (photos?.createMany?.data) {
+            report.photos = [
+              ...(report.photos ?? []),
+              ...photos.createMany.data.map((photo) => ({
+                petPhotoId: nextPhotoId++,
+                petReportId: report.petReportId,
+                createdAt: new Date(),
+                ...photo,
+              })),
+            ];
           }
 
           // Apply the photo `select` like Prisma does
@@ -214,18 +260,23 @@ export const createFakePrisma = () => {
           select,
           skip,
           take,
+          orderBy,
         }: {
           where: FindManyWhere;
           include?: ReportInclude;
           select?: ReportInclude;
           skip?: number;
           take?: number;
+          orderBy?: { createdAt?: "asc" | "desc" }[];
         }) => {
           const filtered = reports.filter((r) => matchesReportWhere(r, where));
+          // Newest first unless the query asks for oldest first
+          const order = orderBy?.[0]?.createdAt === "asc" ? -1 : 1;
           const sorted = filtered.sort(
             (a, b) =>
-              (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
-              b.petReportId - a.petReportId,
+              order *
+              ((b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
+                b.petReportId - a.petReportId),
           );
           const start = skip ?? 0;
           const sliced =
