@@ -58,9 +58,10 @@ export interface UpdateReportInput {
   distinctiveFeatures?: string | null;
   eventDate?: string;
   contactInfo?: string | null;
-  status: ReportStatus;
+  status?: ReportStatus;
   location?: ReportLocation | null;
   photos?: ReportPhoto[];
+  deletePhotoIds?: number[];
 }
 
 export interface PublicReport {

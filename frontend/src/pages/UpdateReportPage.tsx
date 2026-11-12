@@ -6,6 +6,7 @@ import type { PetReport, UpdateReportInput } from '../types/reports';
 import { useAuth } from '../context/useAuth';
 import { ApiError } from '../services/api';
 import { PATHS } from '../app/paths';
+import { Icon } from '../components/Icon';
 import {
   ReportForm,
   type ReportFormValues,
@@ -20,6 +21,7 @@ export function UpdateReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletePhotoIds, setDeletePhotoIds] = useState<number[]>([]);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -42,6 +44,7 @@ export function UpdateReportPage() {
         setLoading(true);
         setError(null);
         setReport(null);
+        setDeletePhotoIds([]);
 
         const data = await getReportById(reportId);
 
@@ -88,6 +91,12 @@ export function UpdateReportPage() {
     };
   }, [id, user, status]);
 
+  function handleRemovePhoto(photoId: number) {
+    setDeletePhotoIds((prev) =>
+      prev.includes(photoId) ? prev : [...prev, photoId],
+    );
+  }
+
   async function handleUpdate(values: ReportFormValues, photos: File[]) {
     if (!id || !report || !user || report.userId !== user.id) {
       return;
@@ -104,6 +113,7 @@ export function UpdateReportPage() {
       eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
       contactInfo: values.contactInfo?.trim() || null,
       status: report.status,
+      deletePhotoIds,
       location:
         values.zipCode?.trim() || values.city?.trim() || values.state?.trim()
           ? {
@@ -149,6 +159,35 @@ export function UpdateReportPage() {
       <div className="report-pet-page__card">
         <h1 style={textStyles.pageTitle}>Update Pet Report</h1>
         <p>Report ID: {report.petReportId}</p>
+        {report.photos && report.photos.length > 0 && (
+          <section aria-label="exisitng photos">
+            <div className="photo-upload__grid">
+              {report.photos
+                .filter((photo) => !deletePhotoIds.includes(photo.petPhotoId))
+                .map((photo) => (
+                  <div key={photo.petPhotoId} className="photo-upload__card">
+                    <div className="photo-upload__thumb-wrap">
+                      <img
+                        src={photo.imageUrl}
+                        alt={`Pet photo ${photo.petPhotoId}`}
+                        className="photo-upload__thumb"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="photo-upload__remove"
+                      onClick={() => handleRemovePhoto(photo.petPhotoId)}
+                      disabled={isSaving}
+                      aria-label={`Remove photo ${photo.petPhotoId}`}
+                      title="Remove photo"
+                    >
+                      <Icon name="delete" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
         <ReportForm
           reportType={report.reportType}
           initialValues={{
