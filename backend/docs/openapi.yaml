@@ -502,6 +502,18 @@ paths:
                 success: false
                 code: NOT_FOUND
                 message: Report not found
+        "502":
+          description: >-
+            The photo storage service failed. Nothing is saved, and any photos already
+            uploaded for this request are deleted; the client can retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PHOTO_UPLOAD_FAILED
+                message: Could not upload photos. Please try again.
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
