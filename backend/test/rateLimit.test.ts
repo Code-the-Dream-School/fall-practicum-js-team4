@@ -60,7 +60,7 @@ describe("rate limiting", () => {
   });
 });
 
-describe("report creation limit", () => {
+describe("report rate limiting", () => {
   // A fresh app with fresh limiters: the tests above used up this file's IP limits
   let freshApp: Express;
   beforeAll(() => {
@@ -85,6 +85,39 @@ describe("report creation limit", () => {
     }
 
     const res = await alice.post("/api/reports").send({});
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({
+      success: false,
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many reports, please try again later",
+    });
+  });
+
+  it("allows 20 report updates per user per 15 minutes, then answers 429", async () => {
+    const charlie = await signedInAs("charlie@example.com");
+    for (let i = 0; i < 20; i++) {
+      expect((await charlie.patch("/api/reports/1").send({})).status).toBe(400);
+    }
+
+    const res = await charlie.patch("/api/reports/1").send({});
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({
+      success: false,
+      code: "TOO_MANY_REQUESTS",
+      message: "Too many reports, please try again later",
+    });
+  });
+
+  it("shares the 20-request budget between creating and updating reports", async () => {
+    const diana = await signedInAs("diana@example.com");
+    for (let i = 0; i < 10; i++) {
+      expect((await diana.post("/api/reports").send({})).status).toBe(400);
+    }
+    for (let i = 0; i < 10; i++) {
+      expect((await diana.patch("/api/reports/1").send({})).status).toBe(400);
+    }
+
+    const res = await diana.patch("/api/reports/1").send({});
     expect(res.status).toBe(429);
     expect(res.body).toEqual({
       success: false,
