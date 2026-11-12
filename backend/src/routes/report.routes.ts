@@ -11,15 +11,16 @@ import {
   listReportsQuerySchema,
   myReportsQuerySchema,
   reportIdParamSchema,
+  updateReportFieldsSchema,
   updateReportSchema,
 } from "../validators/report.validators";
 
 const router = express.Router();
 
-// Creating a report can mean processing and uploading 5 photos, so it gets the
+// Creating or updating a report can mean processing and uploading 5 photos, so it gets the
 // same budget as the auth endpoints: 20 per 15 minutes. Counted per signed-in
 // user (requireAuth runs first), so people sharing a network don't share it.
-const createReportLimiter = rateLimit({
+const reportLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   skip: () => process.env.NODE_ENV === "test",
@@ -36,7 +37,7 @@ router.get("/", validate(listReportsQuerySchema, "query"), asyncHandler(controll
 router.post(
   "/",
   requireAuth,
-  createReportLimiter,
+  reportLimiter,
   photoUpload,
   validate(createReportSchema),
   asyncHandler(controller.createReport),
@@ -54,11 +55,22 @@ router.get(
   validate(reportIdParamSchema, "params"),
   asyncHandler(controller.getPublicReportById),
 );
+
+// When photos are attached, the body can have 0 or more editable fields.
+// Without photos, at least one editable field must be sent.
+const validateUpdateReport: express.RequestHandler = (req, res, next) => {
+  const hasFiles = Boolean(Array.isArray(req.files) && req.files.length > 0);
+  const schema = hasFiles ? updateReportFieldsSchema : updateReportSchema;
+  return validate(schema)(req, res, next);
+};
+
 router.patch(
   "/:id",
   requireAuth,
   validate(reportIdParamSchema, "params"),
-  validate(updateReportSchema),
+  reportLimiter,
+  photoUpload,
+  validateUpdateReport,
   asyncHandler(controller.updateReport),
 );
 
