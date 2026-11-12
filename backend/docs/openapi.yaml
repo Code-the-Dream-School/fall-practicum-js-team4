@@ -385,7 +385,8 @@ paths:
       description: >-
         Partially updates a pet report. Only the user who created the report can
         edit it (403 FORBIDDEN otherwise). At least one editable field must be
-        provided. Owner, id, timestamps and coordinates cannot be changed.
+        provided. Both LOST and FOUND reports can be marked as REUNITED by their
+        owners. Owner, id, timestamps and coordinates cannot be changed.
         Sent with `Cache-Control: private, no-store`.
       security:
         - cookieAuth: []
