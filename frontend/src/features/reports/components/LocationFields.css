@@ -74,3 +74,9 @@
   opacity: 0.8;
   cursor: default;
 }
+
+form:has(.location-lookup--blocking) button[type='submit']:not(:disabled),
+form:has(.location-lookup--manual):has(.location-field input:placeholder-shown)
+  button[type='submit']:not(:disabled) {
+  opacity: 0.6;
+}

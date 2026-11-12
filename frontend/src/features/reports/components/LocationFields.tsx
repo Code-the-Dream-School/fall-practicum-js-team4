@@ -111,6 +111,11 @@ export function LocationFields({ form }: LocationFieldsProps) {
     lookup.step === 'choose' ||
     lookup.step === 'confirmed';
 
+  const blocksSubmit =
+    lookup.step === 'confirm' ||
+    lookup.step === 'choose' ||
+    lookup.step === 'notFound';
+
   const zipField = register('zipCode', {
     deps: ['city', 'state'],
     validate: (value, formValues) => {
@@ -240,9 +245,15 @@ export function LocationFields({ form }: LocationFieldsProps) {
       {lookup.step !== 'idle' && (
         <div
           role="status"
-          className={`report-form__full-width location-lookup${
-            lookup.step === 'notFound' ? ' location-lookup--error' : ''
-          }`}
+          className={[
+            'report-form__full-width',
+            'location-lookup',
+            lookup.step === 'notFound' && 'location-lookup--error',
+            blocksSubmit && 'location-lookup--blocking',
+            lookup.step === 'unavailable' && 'location-lookup--manual',
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           {lookup.step === 'loading' && <p>Looking up this ZIP code…</p>}
 
