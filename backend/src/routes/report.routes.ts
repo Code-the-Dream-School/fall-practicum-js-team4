@@ -17,10 +17,10 @@ import {
 
 const router = express.Router();
 
-// Creating a report can mean processing and uploading 5 photos, so it gets the
+// Creating or updating a report can mean processing and uploading 5 photos, so it gets the
 // same budget as the auth endpoints: 20 per 15 minutes. Counted per signed-in
 // user (requireAuth runs first), so people sharing a network don't share it.
-const createReportLimiter = rateLimit({
+const reportLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   skip: () => process.env.NODE_ENV === "test",
@@ -37,7 +37,7 @@ router.get("/", validate(listReportsQuerySchema, "query"), asyncHandler(controll
 router.post(
   "/",
   requireAuth,
-  createReportLimiter,
+  reportLimiter,
   photoUpload,
   validate(createReportSchema),
   asyncHandler(controller.createReport),
@@ -61,6 +61,7 @@ router.patch(
   "/:id",
   requireAuth,
   validate(reportIdParamSchema, "params"),
+  reportLimiter,
   photoUpload,
   validateUpdateReport,
   asyncHandler(controller.updateReport),
