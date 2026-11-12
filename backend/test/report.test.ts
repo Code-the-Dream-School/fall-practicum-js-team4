@@ -522,11 +522,8 @@ describe("PATCH /api/reports/:id", () => {
     );
   });
 
-  it("rejects marking a FOUND report as REUNITED (400)", async () => {
-    const created = await agent.post("/api/reports").send({
-      ...baseReport,
-      reportType: "FOUND",
-    });
+  it("marks an owned FOUND report as REUNITED (200)", async () => {
+    const created = await agent.post(`/api/reports`).send({ ...baseReport, reportType: "FOUND" });
 
     expect(created.status).toBe(201);
 
@@ -534,11 +531,16 @@ describe("PATCH /api/reports/:id", () => {
 
     const res = await agent.patch(`/api/reports/${reportId}`).send({ status: "REUNITED" });
 
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe("VALIDATION_ERROR");
-    expect(prisma.petReport.update).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: reportId,
+      userId: me.id,
+      reportType: "FOUND",
+      status: "REUNITED",
+    });
     expect(prisma._reports.find((report) => report.petReportId === reportId)?.status).toBe(
-      "ACTIVE",
+      "REUNITED",
     );
   });
 
