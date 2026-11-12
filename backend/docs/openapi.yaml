@@ -1153,8 +1153,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes, and creating reports is limited to 20 per
-        signed-in user per 15 minutes.
+        attempts per IP per 15 minutes, and creating or updating reports is limited
+        to 20 per signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -1173,7 +1173,7 @@ components:
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
             reports:
-              summary: Over 20 reports created by one user in 15 minutes
+              summary: Over 20 reports created or updated by one user in 15 minutes
               value:
                 success: false
                 code: TOO_MANY_REQUESTS
