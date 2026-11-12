@@ -47,7 +47,12 @@ export const getReportById = async (req: Request, res: Response) => {
 
 export const updateReport = async (req: Request, res: Response) => {
   const { id } = req.params as unknown as ReportIdParam;
-  const report = await reportService.updateReport(req.user!.id, id, req.body);
+  const report = await reportService.updateReport(
+    req.user!.id,
+    id,
+    req.body,
+    (req.files as Express.Multer.File[] | undefined) ?? [],
+  );
   res.json({
     success: true,
     data: report,
