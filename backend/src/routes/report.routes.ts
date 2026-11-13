@@ -49,6 +49,13 @@ router.get(
   validate(myReportsQuerySchema, "query"),
   asyncHandler(controller.getMyReports),
 );
+// Public details for an active report (anonymous access allowed)
+router.get(
+  "/:id/public",
+  validate(reportIdParamSchema, "params"),
+  asyncHandler(controller.getPublicReportById),
+);
+
 // When photos are attached, the body can have 0 or more editable fields.
 // Without photos, at least one editable field must be sent.
 const validateUpdateReport: express.RequestHandler = (req, res, next) => {
