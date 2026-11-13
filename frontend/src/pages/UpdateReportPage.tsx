@@ -160,19 +160,17 @@ export function UpdateReportPage() {
         <h1 style={textStyles.pageTitle}>Update Pet Report</h1>
         <p>Report ID: {report.petReportId}</p>
         {report.photos && report.photos.length > 0 && (
-          <section aria-label="exisitng photos">
-            <div className="photo-upload__grid">
+          <section aria-label="Exsisting photos">
+            <div className="existing-photos">
               {report.photos
                 .filter((photo) => !deletePhotoIds.includes(photo.petPhotoId))
                 .map((photo) => (
-                  <div key={photo.petPhotoId} className="photo-upload__card">
-                    <div className="photo-upload__thumb-wrap">
-                      <img
-                        src={photo.imageUrl}
-                        alt={`Pet photo ${photo.petPhotoId}`}
-                        className="photo-upload__thumb"
-                      />
-                    </div>
+                  <div key={photo.petPhotoId} className="existing-photo">
+                    <img
+                      src={photo.imageUrl}
+                      alt={`Pet photo ${photo.petPhotoId}`}
+                      className="existing-photo__image"
+                    />
                     <button
                       type="button"
                       className="photo-upload__remove"
