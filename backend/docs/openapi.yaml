@@ -460,17 +460,28 @@ paths:
                   data:
                     $ref: "#/components/schemas/PublicReport"
         "400":
-          $ref: "#/components/responses/ValidationError"
+          description: Invalid report ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: VALIDATION_ERROR
+                message: Invalid request data
+                details:
+                  - field: id
+                    message: Report id must be a positive integer
         "404":
           description: Report not found or unavailable for public viewing
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-            example:
-              success: false
-              code: NOT_FOUND
-              message: Report not found
+              example:
+                success: false
+                code: NOT_FOUND
+                message: Report not found
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
