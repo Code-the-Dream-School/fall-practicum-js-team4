@@ -1,18 +1,63 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/useAuth';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { PATHS } from '../app/paths';
 import { ApiError } from '../services/api';
-import { getReportDetails } from '../services/reportApi';
+import {
+  getReportDetails,
+  isReportOwnedByCurrentUser,
+} from '../services/reportApi';
 import type { ReportDetails } from '../types/reports';
 import './PetDetailsPage.css';
 
 function ReportContent({ report }: { report: ReportDetails }) {
   const isLost = report.reportType === 'LOST';
 
+  const { state } = useLocation();
+  const successMessage =
+    typeof state?.successMessage === 'string'
+      ? state.successMessage
+      : null;
+
   //visitor login confirmation & owner confirmation
-  const { status } = useAuth();
-  const canEdit = status === 'authenticated' && report.isOwner === true;
+  const { status, user } = useAuth();
+  const userId = user?.id;
+
+  const [ownership, setOwnership] = useState<{
+    userId: string;
+    reportId: number;
+    owned: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) return;
+
+    let active = true;
+
+    isReportOwnedByCurrentUser(report.petReportId)
+      .then((owned) => {
+        if (active) {
+          setOwnership({
+            userId,
+            reportId: report.petReportId,
+            owned,
+          });
+        }
+      })
+      .catch(() => {
+        if (active) setOwnership(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [status, userId, report.petReportId]);
+
+  const canEdit =
+    status === 'authenticated' &&
+    ownership?.userId === userId &&
+    ownership?.reportId === report.petReportId &&
+    ownership.owned;
 
   const petName = report.petName || `${report.petType} Report`;
 
@@ -22,6 +67,7 @@ function ReportContent({ report }: { report: ReportDetails }) {
 
   return (
     <article className="pet-details-page">
+      {successMessage && <p role="status">{successMessage}</p>}
       <Link
         to={isLost ? PATHS.lostPets : PATHS.foundPets}
         className="pet-details__back"

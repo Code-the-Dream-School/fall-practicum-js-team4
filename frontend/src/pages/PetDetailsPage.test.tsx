@@ -1,15 +1,19 @@
 import { useAuth } from '../context/useAuth';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PetDetailsPage } from './PetDetailsPage';
-import { getReportDetails } from '../services/reportApi';
+import {
+  getReportDetails,
+  isReportOwnedByCurrentUser,
+} from '../services/reportApi';
 import { ApiError } from '../services/api';
 import type { ReportDetails } from '../types/reports';
 
 vi.mock('../services/reportApi', () => ({
   getReportDetails: vi.fn(),
+  isReportOwnedByCurrentUser: vi.fn(),
 }));
 
 vi.mock('../context/useAuth', () => ({
@@ -19,6 +23,8 @@ vi.mock('../context/useAuth', () => ({
 const mockUseAuth = vi.mocked(useAuth);
 
 const mockGetReportDetails = vi.mocked(getReportDetails);
+
+const mockIsReportOwnedByCurrentUser = vi.mocked(isReportOwnedByCurrentUser);
 
 const report: ReportDetails = {
   petReportId: 123,
@@ -40,9 +46,9 @@ const report: ReportDetails = {
   photos: [],
 };
 
-function renderDetails(path = '/pets/123') {
+function renderDetails(path = '/pets/123', state?: { successMessage: string }) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[{ pathname: path, state }]}>
       <Routes>
         <Route path="/pets/:id" element={<PetDetailsPage />} />
       </Routes>
@@ -53,6 +59,7 @@ function renderDetails(path = '/pets/123') {
 describe('PetDetailsPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockIsReportOwnedByCurrentUser.mockResolvedValue(false);
 
     mockUseAuth.mockReturnValue({
       user: null,
@@ -84,6 +91,22 @@ describe('PetDetailsPage', () => {
     expect(screen.getByText('Richmond, VA 23220')).toBeInTheDocument();
 
     expect(mockGetReportDetails).toHaveBeenCalledWith('123');
+  });
+
+  it('displays the success message after updating a report', async () => {
+    mockGetReportDetails.mockResolvedValue(report);
+
+    renderDetails('/pets/123', {
+      successMessage: 'Report updated successfully.',
+    });
+
+    expect(
+      await screen.findByRole('heading', { name: 'Milo' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Report updated successfully.',
+    );
   });
 
   it('handles a report with missing optional details', async () => {
@@ -175,11 +198,8 @@ describe('PetDetailsPage', () => {
     expect(mockGetReportDetails).not.toHaveBeenCalled();
   });
 
-  it('does not show Edit to a guest, even if isOwner is true', async () => {
-    mockGetReportDetails.mockResolvedValue({
-      ...report,
-      isOwner: true,
-    });
+  it('does not show Edit to a guest', async () => {
+    mockGetReportDetails.mockResolvedValue(report);
 
     renderDetails();
 
@@ -188,6 +208,8 @@ describe('PetDetailsPage', () => {
     expect(
       screen.queryByRole('link', { name: 'Edit report' }),
     ).not.toBeInTheDocument();
+
+    expect(mockIsReportOwnedByCurrentUser).not.toHaveBeenCalled();
   });
 
   it('does not show Edit to a logged-in non-owner', async () => {
@@ -202,14 +224,16 @@ describe('PetDetailsPage', () => {
       },
     });
 
-    mockGetReportDetails.mockResolvedValue({
-      ...report,
-      isOwner: false,
-    });
+    mockGetReportDetails.mockResolvedValue(report);
+    mockIsReportOwnedByCurrentUser.mockResolvedValue(false);
 
     renderDetails();
 
     await screen.findByRole('heading', { name: 'Milo' });
+
+    await waitFor(() => {
+      expect(mockIsReportOwnedByCurrentUser).toHaveBeenCalledWith(123);
+    });
 
     expect(
       screen.queryByRole('link', { name: 'Edit report' }),
@@ -228,15 +252,90 @@ describe('PetDetailsPage', () => {
       },
     });
 
-    mockGetReportDetails.mockResolvedValue({
-      ...report,
-      isOwner: true,
-    });
+    mockGetReportDetails.mockResolvedValue(report);
+    mockIsReportOwnedByCurrentUser.mockResolvedValue(true);
 
     renderDetails();
 
     expect(
       await screen.findByRole('link', { name: 'Edit report' }),
     ).toHaveAttribute('href', '/pets/123/edit');
+
+    expect(mockIsReportOwnedByCurrentUser).toHaveBeenCalledWith(123);
+  });
+
+  it('keeps public details visible if ownership lookup fails', async () => {
+    mockUseAuth.mockReturnValue({
+      ...mockUseAuth(),
+      status: 'authenticated',
+      user: {
+        id: 'report-owner',
+        email: 'owner@example.com',
+        name: 'Report Owner',
+        createdAt: '2026-11-05T00:00:00.000Z',
+      },
+    });
+
+    mockGetReportDetails.mockResolvedValue(report);
+
+    mockIsReportOwnedByCurrentUser.mockRejectedValue(
+      new ApiError(0, 'NETWORK_ERROR', 'Connection failed'),
+    );
+
+    renderDetails();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Milo' }),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockIsReportOwnedByCurrentUser).toHaveBeenCalledWith(123);
+    });
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides Edit when the report owner signs out', async () => {
+    mockUseAuth.mockReturnValue({
+      ...mockUseAuth(),
+      status: 'authenticated',
+      user: {
+        id: 'report-owner',
+        email: 'owner@example.com',
+        name: 'Report Owner',
+        createdAt: '2026-11-05T00:00:00.000Z',
+      },
+    });
+    mockGetReportDetails.mockResolvedValue(report);
+    mockIsReportOwnedByCurrentUser.mockResolvedValue(true);
+
+    const view = renderDetails();
+
+    expect(
+      await screen.findByRole('link', { name: 'Edit report' }),
+    ).toBeInTheDocument();
+
+    //user signout simulation
+    mockUseAuth.mockReturnValue({
+      ...mockUseAuth(),
+      status: 'unauthenticated',
+      user: null,
+    });
+
+    view.rerender(
+      <MemoryRouter initialEntries={['/pets/123']}>
+        <Routes>
+          <Route path="/pets/:id" element={<PetDetailsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Milo' })).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
   });
 });

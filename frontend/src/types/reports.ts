@@ -44,5 +44,4 @@ export interface ReportDetails {
     petPhotoId: number;
     imageUrl: string;
   }[];
-  isOwner?: boolean;
 }
