@@ -13,6 +13,8 @@ import {
 } from '../features/reports/components/ReportForm';
 import './ReportPetPage.css';
 
+const MAX_PHOTOS = 5;
+
 export function UpdateReportPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -22,6 +24,10 @@ export function UpdateReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deletePhotoIds, setDeletePhotoIds] = useState<number[]>([]);
+  const remainingPhotoCount = (report?.photos ?? []).filter(
+    (photo) => !deletePhotoIds.includes(photo.petPhotoId),
+  ).length;
+  const availablePhotoSlots = MAX_PHOTOS - remainingPhotoCount;
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -102,6 +108,11 @@ export function UpdateReportPage() {
       return;
     }
 
+    if (remainingPhotoCount + photos.length > MAX_PHOTOS) {
+      setError('You can have a maximum of 5 photos per report.');
+      return;
+    }
+
     const input: UpdateReportInput = {
       petType: values.petType,
       petName: values.petName?.trim() || null,
@@ -160,7 +171,7 @@ export function UpdateReportPage() {
         <h1 style={textStyles.pageTitle}>Update Pet Report</h1>
         <p>Report ID: {report.petReportId}</p>
         {report.photos && report.photos.length > 0 && (
-          <section aria-label="Exsisting photos">
+          <section aria-label="Existing photos">
             <div className="existing-photos">
               {report.photos
                 .filter((photo) => !deletePhotoIds.includes(photo.petPhotoId))
@@ -202,6 +213,7 @@ export function UpdateReportPage() {
             city: report.location?.city ?? '',
             state: report.location?.state ?? '',
           }}
+          maxPhotos={availablePhotoSlots}
           onSubmit={handleUpdate}
           isSaving={isSaving}
           submitLabel="Save Changes"

@@ -11,6 +11,7 @@ interface ReportFormProps {
   isSubmitted?: boolean;
   submitLabel?: string;
   showPhotoUpload?: boolean;
+  maxPhotos?: number;
 }
 
 export interface ReportFormValues {
@@ -45,6 +46,7 @@ export function ReportForm({
   isSubmitted = false,
   submitLabel = 'Submit Report',
   showPhotoUpload = true,
+  maxPhotos = 5,
 }: ReportFormProps) {
   const {
     register,
@@ -386,6 +388,7 @@ export function ReportForm({
           <PhotoUpload
             photos={photos}
             onChange={setPhotos}
+            maxPhotos={maxPhotos}
             disabled={isSubmitting || isSaving || isSubmitted}
           />
         </div>
