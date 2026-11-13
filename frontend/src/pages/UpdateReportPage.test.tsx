@@ -297,4 +297,61 @@ describe('UpdateReportPage', () => {
       screen.queryByRole('button', { name: 'Save Changes' }),
     ).not.toBeInTheDocument();
   });
+
+  it('9. limits new photos based on existing photos', async () => {
+    signedIn();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            ...testReport,
+            photos: [
+              { petPhotoId: 1, imageUrl: '/photo1.jpg' },
+              { petPhotoId: 2, imageUrl: '/photo2.jpg' },
+              { petPhotoId: 3, imageUrl: '/photo3.jpg' },
+            ],
+          },
+        }),
+      ),
+    );
+
+    renderApp(PATHS.editReport('100'));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Update Pet Report' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText(/0 \/ 2 photos/)).toBeInTheDocument();
+  });
+
+  it('10. increases available photo slots when an existing photo is removed', async () => {
+    signedIn();
+    const user = userEvent.setup();
+
+    server.use(
+      http.get(`${API}/api/reports/100`, () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            ...testReport,
+            photos: [
+              { petPhotoId: 1, imageUrl: '/photo1.jpg' },
+              { petPhotoId: 2, imageUrl: '/photo2.jpg' },
+              { petPhotoId: 3, imageUrl: '/photo3.jpg' },
+            ],
+          },
+        }),
+      ),
+    );
+
+    renderApp(PATHS.editReport('100'));
+
+    expect(await screen.findByText(/0 \/ 2 photos/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove photo 1' }));
+
+    expect(await screen.findByText(/0 \/ 3 photos/)).toBeInTheDocument();
+  });
 });
