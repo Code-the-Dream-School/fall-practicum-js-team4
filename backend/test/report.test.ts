@@ -506,6 +506,44 @@ describe("PATCH /api/reports/:id", () => {
     expect(prisma.petReport.update).not.toHaveBeenCalled();
   });
 
+  it("marks an owned LOST report as REUNITED (200)", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({ status: "REUNITED" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: myReportId,
+      userId: me.id,
+      reportType: "LOST",
+      status: "REUNITED",
+    });
+    expect(prisma._reports.find((report) => report.petReportId === myReportId)?.status).toBe(
+      "REUNITED",
+    );
+  });
+
+  it("marks an owned FOUND report as REUNITED (200)", async () => {
+    const created = await agent.post(`/api/reports`).send({ ...baseReport, reportType: "FOUND" });
+
+    expect(created.status).toBe(201);
+
+    const reportId = created.body.data.petReportId;
+
+    const res = await agent.patch(`/api/reports/${reportId}`).send({ status: "REUNITED" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: reportId,
+      userId: me.id,
+      reportType: "FOUND",
+      status: "REUNITED",
+    });
+    expect(prisma._reports.find((report) => report.petReportId === reportId)?.status).toBe(
+      "REUNITED",
+    );
+  });
+
   describe("a cookie claiming to be me", () => {
     const tokens = {
       "signed with a guessed secret": () => jwt.sign({ sub: me.id, ver: 0 }, "wrong-secret"),

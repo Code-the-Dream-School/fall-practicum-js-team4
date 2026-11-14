@@ -55,6 +55,12 @@ router.get(
   validate(reportIdParamSchema, "params"),
   asyncHandler(controller.getPublicReportById),
 );
+router.get(
+  "/:id",
+  requireAuth,
+  validate(reportIdParamSchema, "params"),
+  asyncHandler(controller.getReportById),
+);
 
 // When photos are attached, the body can have 0 or more editable fields.
 // Without photos, at least one editable field must be sent.

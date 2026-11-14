@@ -139,5 +139,31 @@ describe('photoRules', () => {
         '"cat.png" has already been added.',
       ]);
     });
+
+    it('respects a custom maxPhotos limit', () => {
+      const files = [
+        new File(['img1'], 'photo1.jpg', { type: 'image/jpeg' }),
+        new File(['img2'], 'photo2.jpg', { type: 'image/jpeg' }),
+        new File(['img3'], 'photo3.jpg', { type: 'image/jpeg' }),
+      ];
+
+      const { validFiles, errors } = validatePhotoBatch(files, [], 2);
+
+      expect(validFiles).toHaveLength(2);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Only 2 more photo(s) can be added');
+    });
+
+    it('rejects new photos when maxPhotos is 0', () => {
+      const file = new File(['img'], 'photo1.jpg', {
+        type: 'image/jpeg',
+      });
+
+      const { validFiles, errors } = validatePhotoBatch([file], [], 0);
+
+      expect(validFiles).toHaveLength(0);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Maximum of 0 photos allowed');
+    });
   });
 });
