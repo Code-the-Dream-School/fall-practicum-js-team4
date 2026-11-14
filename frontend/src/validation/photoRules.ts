@@ -46,6 +46,7 @@ export function validatePhotoFile(file: File): PhotoValidationResult {
 export function validatePhotoBatch(
   newFiles: File[],
   existingPhotos: File[] | number = [],
+  maxPhotos: number = PHOTO_LIMITS.maxPhotos,
 ): { validFiles: File[]; errors: string[] } {
   const errors: string[] = [];
   const validFiles: File[] = [];
@@ -53,13 +54,11 @@ export function validatePhotoBatch(
   const currentPhotosCount =
     typeof existingPhotos === 'number' ? existingPhotos : existingPhotos.length;
 
-  const availableSlots = PHOTO_LIMITS.maxPhotos - currentPhotosCount;
+  const availableSlots = maxPhotos - currentPhotosCount;
   if (availableSlots <= 0) {
     return {
       validFiles: [],
-      errors: [
-        `Maximum of ${PHOTO_LIMITS.maxPhotos} photos allowed per report.`,
-      ],
+      errors: [`Maximum of ${maxPhotos} photos allowed per report.`],
     };
   }
 
@@ -77,7 +76,7 @@ export function validatePhotoBatch(
 
     if (slotsRemaining <= 0) {
       errors.push(
-        `Only ${availableSlots} more photo(s) can be added (maximum ${PHOTO_LIMITS.maxPhotos}). "${file.name}" was skipped.`,
+        `Only ${availableSlots} more photo(s) can be added (maximum ${maxPhotos}). "${file.name}" was skipped.`,
       );
       continue;
     }
