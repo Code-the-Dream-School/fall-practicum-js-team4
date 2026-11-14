@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import type { User } from '../services/authApi';
+import type { PublicReport } from '../types/reports';
 
 // Fake backend for tests. Override a handler in a single test with
 // server.use(...); overrides are reset after every test (see setup.ts).
@@ -16,6 +17,104 @@ export const testPassword = 'correct-horse-1';
 
 export const errorResponse = (status: number, code: string, message = code) =>
   HttpResponse.json({ success: false, code, message }, { status });
+
+export const testReports: PublicReport[] = [
+  {
+    petReportId: 1,
+    reportType: 'LOST',
+    status: 'ACTIVE',
+    petType: 'DOG',
+    petName: 'Biscuit',
+    breed: 'Beagle',
+    color: 'Tricolor',
+    size: 'MEDIUM',
+    gender: 'MALE',
+    distinctiveFeatures: 'Red collar with a bell',
+    eventDate: '2026-10-30T00:00:00.000Z',
+    createdAt: '2026-10-30T14:00:00.000Z',
+    location: { city: 'Raleigh', state: 'NC', zipCode: '27601' },
+    photos: [{ petPhotoId: 1, imageUrl: 'https://example.com/biscuit.jpg' }],
+  },
+  {
+    petReportId: 2,
+    reportType: 'FOUND',
+    status: 'ACTIVE',
+    petType: 'CAT',
+    petName: null,
+    breed: null,
+    color: 'Gray',
+    size: 'SMALL',
+    gender: 'UNKNOWN',
+    distinctiveFeatures: null,
+    eventDate: '2026-10-29T00:00:00.000Z',
+    createdAt: '2026-10-29T09:00:00.000Z',
+    location: null,
+    photos: [],
+  },
+];
+
+export const reportListResponse = (
+  reports: PublicReport[],
+  limit = 20,
+  page = 1,
+) =>
+  HttpResponse.json({
+    success: true,
+    data: {
+      total: reports.length,
+      page,
+      limit,
+      totalPages: reports.length === 0 ? 0 : Math.ceil(reports.length / limit),
+      reports: reports.slice((page - 1) * limit, page * limit),
+    },
+  });
+
+// A Map, like the backend: "constructor" must not count as a pet type word
+const PET_TYPE_WORDS = new Map([
+  ['dog', 'DOG'],
+  ['dogs', 'DOG'],
+  ['cat', 'CAT'],
+  ['cats', 'CAT'],
+  ['bird', 'BIRD'],
+  ['birds', 'BIRD'],
+]);
+
+// GET /api/reports filtering like the real API: type, petType, size, gender,
+// search (name, breed, color, features, city, or a pet type word like "dogs";
+// any case) and sort
+export const queryReports = (reports: PublicReport[], request: Request) => {
+  const params = new URL(request.url).searchParams;
+  const search = params.get('search')?.trim().toLowerCase();
+  const matches = (report: PublicReport) =>
+    (['type', 'petType', 'size', 'gender'] as const).every((key) => {
+      const value = params.get(key);
+      const field = key === 'type' ? 'reportType' : key;
+      return !value || report[field] === value;
+    }) &&
+    (!search ||
+      PET_TYPE_WORDS.get(search) === report.petType ||
+      [
+        report.petName,
+        report.breed,
+        report.color,
+        report.distinctiveFeatures,
+        report.location?.city,
+      ].some((text) => text?.toLowerCase().includes(search)));
+  const sorted = reports
+    .filter(matches)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return params.get('sort') === 'oldest' ? sorted.reverse() : sorted;
+};
+
+// One page of `reports`, as the API answers ?page= and ?limit= (default 20)
+export const pagedReportList = (reports: PublicReport[], request: Request) => {
+  const params = new URL(request.url).searchParams;
+  return reportListResponse(
+    reports,
+    Number(params.get('limit') ?? 20),
+    Number(params.get('page') ?? 1),
+  );
+};
 
 export const server = setupServer(
   // Signed out unless a test says otherwise
@@ -35,6 +134,14 @@ export const server = setupServer(
   }),
   http.post(`${API}/api/auth/logout`, () =>
     HttpResponse.json({ success: true, data: null }),
+  ),
+  http.get(`${API}/api/reports`, ({ request }) =>
+    pagedReportList(queryReports(testReports, request), request),
+  ),
+
+  // The profile page loads these; no reports unless a test says otherwise
+  http.get(`${API}/api/reports/mine`, () =>
+    HttpResponse.json({ success: true, data: { total: 0, reports: [] } }),
   ),
 );
 

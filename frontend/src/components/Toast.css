@@ -1,0 +1,45 @@
+/* Below the navbar, as in the design mockups */
+.toast-region {
+  position: fixed;
+  top: 96px;
+  right: 16px;
+  left: 16px;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background-color: var(--color-success-container);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--color-success) 40%, transparent);
+  color: var(--color-on-success);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  pointer-events: auto;
+  animation: toast-in 300ms ease-out;
+}
+
+.toast .material-symbols-outlined {
+  font-size: 18px;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}

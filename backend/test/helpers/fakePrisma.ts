@@ -36,15 +36,51 @@ export interface FakeReport {
   [field: string]: unknown;
 }
 
-// The `include` the report queries pass; photos.select picks fields like Prisma
+// The `include` or `select` the report queries pass; photos.select picks fields like Prisma
 interface ReportInclude {
   photos?: { select: Partial<Record<keyof FakePhoto, boolean>> };
+  location?: boolean | { select: Record<string, boolean> };
   [relation: string]: unknown;
 }
 
 type UserWhere = Partial<Pick<FakeUser, "id" | "email">>;
 // The report query's filter; OR holds the search conditions
-type FindManyWhere = { userId: string; OR?: Record<string, { contains: string }>[] };
+type Contains = { contains: string; mode?: "insensitive" };
+type FindManyWhere = {
+  userId?: string;
+  reportType?: string;
+  status?: string;
+  petType?: string;
+  size?: string;
+  gender?: string;
+  // Mostly { field: Contains }; also { location: { is: { city: Contains } } }
+  // and { petType: "DOG" } when the search names a pet type
+  OR?: Record<string, Contains>[];
+};
+
+// Fields compared by exact value, like Prisma's `{ field: value }`
+const EQUAL_FIELDS = ["userId", "reportType", "status", "petType", "size", "gender"] as const;
+
+// Prisma's `contains` with mode "insensitive"; the search escapes % _ \ for SQL
+// LIKE, so unescape them to compare as plain text
+const contains = (value: unknown, { contains: text }: Contains) =>
+  typeof value === "string" &&
+  value.toLowerCase().includes(text.replace(/\\([\\%_])/g, "$1").toLowerCase());
+
+const matchesSearch = (report: FakeReport, or: NonNullable<FindManyWhere["OR"]>) =>
+  or.some((condition) =>
+    Object.entries(condition).some(([field, filter]: [string, unknown]) => {
+      if (typeof filter === "string") return report[field] === filter;
+      if (field === "location") {
+        return contains(report.location?.city, (filter as { is: { city: Contains } }).is.city);
+      }
+      return contains(report[field], filter as Contains);
+    }),
+  );
+
+const matchesReportWhere = (report: FakeReport, where?: FindManyWhere) =>
+  EQUAL_FIELDS.every((field) => !where?.[field] || report[field] === where[field]) &&
+  (!where?.OR || matchesSearch(report, where.OR));
 
 // A report as Prisma returns it: photos reduced to the selected fields
 const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
@@ -53,6 +89,33 @@ const withSelectedPhotos = (report: FakeReport, include?: ReportInclude) => {
   const pick = (photo: FakePhoto) =>
     Object.fromEntries(Object.keys(select).map((key) => [key, photo[key as keyof FakePhoto]]));
   return { ...report, photos: (report.photos ?? []).map(pick) };
+};
+
+// Applies a top-level Prisma `select` object (including nested location/photos select)
+const withSelectedFields = (report: FakeReport, select?: ReportInclude) => {
+  if (!select) return report;
+  const result: Record<string, unknown> = {};
+  for (const [key, spec] of Object.entries(select)) {
+    if (!spec) continue;
+    if (key === "photos" && typeof spec === "object" && "select" in spec) {
+      const photoSelect = (spec as { select: Record<string, boolean> }).select;
+      result.photos = (report.photos ?? []).map((photo) =>
+        Object.fromEntries(Object.keys(photoSelect).map((k) => [k, photo[k as keyof FakePhoto]])),
+      );
+    } else if (key === "location" && typeof spec === "object" && "select" in spec) {
+      if (!report.location) {
+        result.location = null;
+      } else {
+        const locSelect = (spec as { select: Record<string, boolean> }).select;
+        result.location = Object.fromEntries(
+          Object.keys(locSelect).map((k) => [k, report.location![k]]),
+        );
+      }
+    } else {
+      result[key] = report[key];
+    }
+  }
+  return result;
 };
 // Prisma update values: a plain value, or { increment: n } for numbers
 type UpdateValue = unknown | { increment: number };
@@ -142,10 +205,14 @@ export const createFakePrisma = () => {
           include?: ReportInclude;
         }) => {
           const report = reports.find((r) => r.petReportId === where.petReportId)!;
-          const { location, ...fields } = data as {
+          const { location, photos, ...fields } = data as {
             location?: {
               delete?: boolean;
               upsert?: { create: Record<string, unknown>; update: Record<string, unknown> };
+            };
+            photos?: {
+              createMany?: { data: { imageUrl: string; publicId: string }[] };
+              deleteMany?: { petPhotoId: { in: number[] } };
             };
           } & Record<string, unknown>;
 
@@ -159,26 +226,65 @@ export const createFakePrisma = () => {
               : { locationId: 1, petReportId: report.petReportId, ...location.upsert.create };
           }
 
+          if (photos?.deleteMany?.petPhotoId?.in) {
+            const idsToDelete = new Set(photos.deleteMany.petPhotoId.in);
+            report.photos = (report.photos ?? []).filter((p) => !idsToDelete.has(p.petPhotoId));
+          }
+
+          if (photos?.createMany?.data) {
+            report.photos = [
+              ...(report.photos ?? []),
+              ...photos.createMany.data.map((photo) => ({
+                petPhotoId: nextPhotoId++,
+                petReportId: report.petReportId,
+                createdAt: new Date(),
+                ...photo,
+              })),
+            ];
+          }
+
           // Apply the photo `select` like Prisma does
           return withSelectedPhotos(report, include);
         },
       ),
       count: jest.fn(
-        async ({ where }: { where: { userId: string } }) =>
-          reports.filter((r) => r.userId === where.userId).length,
+        async ({ where }: { where?: FindManyWhere } = {}) =>
+          reports.filter((r) => matchesReportWhere(r, where)).length,
       ),
-      // Filters by owner only and sorts like the real query; search filters are
-      // checked through the arguments (and against a real database by hand)
+      // Filters by where conditions, sorts newest first, and
+      // applies skip/take/select/include like the real Prisma query
       findMany: jest.fn(
-        async ({ where, include }: { where: FindManyWhere; include?: ReportInclude }) =>
-          reports
-            .filter((r) => r.userId === where.userId)
-            .sort(
-              (a, b) =>
-                (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
-                b.petReportId - a.petReportId,
-            )
-            .map((r) => withSelectedPhotos(r, include)),
+        async ({
+          where,
+          include,
+          select,
+          skip,
+          take,
+          orderBy,
+        }: {
+          where: FindManyWhere;
+          include?: ReportInclude;
+          select?: ReportInclude;
+          skip?: number;
+          take?: number;
+          orderBy?: { createdAt?: "asc" | "desc" }[];
+        }) => {
+          const filtered = reports.filter((r) => matchesReportWhere(r, where));
+          // Newest first unless the query asks for oldest first
+          const order = orderBy?.[0]?.createdAt === "asc" ? -1 : 1;
+          const sorted = filtered.sort(
+            (a, b) =>
+              order *
+              ((b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
+                b.petReportId - a.petReportId),
+          );
+          const start = skip ?? 0;
+          const sliced =
+            take !== undefined ? sorted.slice(start, start + take) : sorted.slice(start);
+          return sliced.map((r) =>
+            select ? withSelectedFields(r, select) : withSelectedPhotos(r, include),
+          );
+        },
       ),
     },
   };

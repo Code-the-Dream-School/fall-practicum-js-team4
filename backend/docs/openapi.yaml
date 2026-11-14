@@ -204,6 +204,111 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
 
   /api/reports:
+    get:
+      tags: [Reports]
+      operationId: listReports
+      security: []
+      summary: List, search and filter public pet report summaries
+      description: >-
+        Returns paginated pet report summaries, newest first by default (`createdAt`
+        then `petReportId`; `sort=oldest` reverses both). All filters combine (AND).
+        Public endpoint (no authentication required).
+        Sensitive fields (`userId`, `contactInfo`, and exact `latitude`/`longitude`
+        coordinates) are omitted.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of reports per page (1 to 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: type
+          in: query
+          required: false
+          description: Filter by report type (LOST or FOUND)
+          schema:
+            type: string
+            enum: [LOST, FOUND]
+          example: LOST
+        - name: status
+          in: query
+          required: false
+          description: Filter by report status (defaults to ACTIVE)
+          schema:
+            type: string
+            enum: [ACTIVE, REUNITED]
+            default: ACTIVE
+          example: ACTIVE
+        - name: search
+          in: query
+          required: false
+          description: >-
+            Case-insensitive partial match on pet name, breed, color, distinctive
+            features or city. The words dog(s), cat(s) and bird(s) also match the pet
+            type. Surrounding spaces are ignored; empty returns everything.
+          schema:
+            type: string
+            maxLength: 100
+          example: golden
+        - name: petType
+          in: query
+          required: false
+          description: Filter by kind of animal
+          schema:
+            type: string
+            enum: [DOG, CAT, BIRD, OTHER]
+          example: DOG
+        - name: size
+          in: query
+          required: false
+          description: Filter by size
+          schema:
+            type: string
+            enum: [SMALL, MEDIUM, LARGE]
+          example: LARGE
+        - name: gender
+          in: query
+          required: false
+          description: Filter by gender
+          schema:
+            type: string
+            enum: [MALE, FEMALE, UNKNOWN]
+          example: MALE
+        - name: sort
+          in: query
+          required: false
+          description: Order by the date the report was created
+          schema:
+            type: string
+            enum: [newest, oldest]
+            default: newest
+          example: newest
+      responses:
+        "200":
+          description: Paginated list of public report summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicReportsResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
     post:
       tags: [Reports]
       operationId: createReport
@@ -298,7 +403,8 @@ paths:
           required: false
           description: >-
             Case-insensitive partial match on pet name, breed, color, distinctive
-            features or city. Surrounding spaces are ignored; empty returns everything.
+            features or city. The words dog(s), cat(s) and bird(s) also match the pet
+            type. Surrounding spaces are ignored; empty returns everything.
           schema:
             type: string
             maxLength: 100
@@ -325,7 +431,8 @@ paths:
       description: >-
         Partially updates a pet report. Only the user who created the report can
         edit it (403 FORBIDDEN otherwise). At least one editable field must be
-        provided. Owner, id, timestamps and coordinates cannot be changed.
+        provided. Both LOST and FOUND reports can be marked as REUNITED by their
+        owners. Owner, id, timestamps and coordinates cannot be changed.
         Sent with `Cache-Control: private, no-store`.
       security:
         - cookieAuth: []
@@ -348,6 +455,23 @@ paths:
             example:
               status: REUNITED
               distinctiveFeatures: Reunited with family near Central Park
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [report]
+              properties:
+                report:
+                  type: string
+                  description: The update fields as JSON text (same fields as the JSON body)
+                  example: '{"distinctiveFeatures":"Updated features"}'
+                photos:
+                  type: array
+                  maxItems: 5
+                  description: Up to 5 JPEG, PNG or WebP images, 5 MB and 25 megapixels each
+                  items:
+                    type: string
+                    format: binary
       responses:
         "200":
           description: Report updated successfully
@@ -379,6 +503,18 @@ paths:
                 success: false
                 code: NOT_FOUND
                 message: Report not found
+        "502":
+          description: >-
+            The photo storage service failed. Nothing is saved, and any photos already
+            uploaded for this request are deleted; the client can retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: PHOTO_UPLOAD_FAILED
+                message: Could not upload photos. Please try again.
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -666,6 +802,14 @@ components:
               type: string
               minLength: 2
               maxLength: 2
+        deletePhotoIds:
+          type: array
+          description: IDs of existing photos to delete from this report
+          maxItems: 5
+          items:
+            type: integer
+            minimum: 1
+          example: [21, 22]
 
     CreateReportResponse:
       type: object
@@ -696,6 +840,120 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Report"
+
+    PublicReportsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required: [total, page, limit, totalPages, reports]
+          properties:
+            total:
+              type: integer
+              description: Total number of reports in the database
+              example: 42
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            totalPages:
+              type: integer
+              example: 3
+            reports:
+              type: array
+              items:
+                $ref: "#/components/schemas/PublicReport"
+
+    PublicReport:
+      type: object
+      required:
+        [
+          petReportId,
+          reportType,
+          petType,
+          color,
+          size,
+          gender,
+          eventDate,
+          status,
+          createdAt,
+          photos,
+        ]
+      properties:
+        petReportId:
+          type: integer
+        reportType:
+          type: string
+          enum: [LOST, FOUND]
+        petType:
+          type: string
+          enum: [DOG, CAT, BIRD, OTHER]
+        petName:
+          type: string
+          nullable: true
+        breed:
+          type: string
+          nullable: true
+        color:
+          type: string
+        size:
+          type: string
+        gender:
+          type: string
+        distinctiveFeatures:
+          type: string
+          nullable: true
+        eventDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [ACTIVE, REUNITED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        location:
+          type: object
+          nullable: true
+          properties:
+            locationId:
+              type: integer
+            petReportId:
+              type: integer
+            zipCode:
+              type: string
+              example: "10001"
+            city:
+              type: string
+              example: "New York"
+            state:
+              type: string
+              example: "NY"
+        photos:
+          type: array
+          description: In upload order; an empty array when the report has none
+          items:
+            type: object
+            required: [petPhotoId, imageUrl, createdAt]
+            properties:
+              petPhotoId:
+                type: integer
+              imageUrl:
+                type: string
+                format: uri
+                example: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/abc123.webp"
+              createdAt:
+                type: string
+                format: date-time
 
     Report:
       type: object
@@ -908,8 +1166,8 @@ components:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;
         register, login and change-password also share a stricter limit of 20
-        attempts per IP per 15 minutes, and creating reports is limited to 20 per
-        signed-in user per 15 minutes.
+        attempts per IP per 15 minutes, and creating or updating reports is limited
+        to 20 per signed-in user per 15 minutes.
       content:
         application/json:
           schema:
@@ -928,7 +1186,7 @@ components:
                 code: TOO_MANY_REQUESTS
                 message: Too many attempts, please try again later
             reports:
-              summary: Over 20 reports created by one user in 15 minutes
+              summary: Over 20 reports created or updated by one user in 15 minutes
               value:
                 success: false
                 code: TOO_MANY_REQUESTS

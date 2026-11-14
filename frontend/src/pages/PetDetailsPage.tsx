@@ -7,17 +7,15 @@ import {
   getReportDetails,
   isReportOwnedByCurrentUser,
 } from '../services/reportApi';
-import type { ReportDetails } from '../types/reports';
+import type { PublicReport } from '../types/reports';
 import './PetDetailsPage.css';
 
-function ReportContent({ report }: { report: ReportDetails }) {
+function ReportContent({ report }: { report: PublicReport }) {
   const isLost = report.reportType === 'LOST';
 
   const { state } = useLocation();
   const successMessage =
-    typeof state?.successMessage === 'string'
-      ? state.successMessage
-      : null;
+    typeof state?.successMessage === 'string' ? state.successMessage : null;
 
   //visitor login confirmation & owner confirmation
   const { status, user } = useAuth();
@@ -164,7 +162,7 @@ function ReportContent({ report }: { report: ReportDetails }) {
 
 type LoadState =
   | { status: 'loading' }
-  | { status: 'ready'; report: ReportDetails }
+  | { status: 'ready'; report: PublicReport }
   | { status: 'missing' }
   | { status: 'error' };
 

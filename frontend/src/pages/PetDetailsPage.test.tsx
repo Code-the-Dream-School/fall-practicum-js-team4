@@ -9,7 +9,7 @@ import {
   isReportOwnedByCurrentUser,
 } from '../services/reportApi';
 import { ApiError } from '../services/api';
-import type { ReportDetails } from '../types/reports';
+import type { PublicReport } from '../types/reports';
 
 vi.mock('../services/reportApi', () => ({
   getReportDetails: vi.fn(),
@@ -26,10 +26,11 @@ const mockGetReportDetails = vi.mocked(getReportDetails);
 
 const mockIsReportOwnedByCurrentUser = vi.mocked(isReportOwnedByCurrentUser);
 
-const report: ReportDetails = {
+const report: PublicReport = {
   petReportId: 123,
   reportType: 'LOST',
   status: 'ACTIVE',
+  createdAt: '2026-11-02T12:00:00.000Z',
   petType: 'DOG',
   petName: 'Milo',
   breed: 'Mixed breed',

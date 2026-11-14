@@ -1,7 +1,7 @@
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import app from "../src/app";
-import { MAX_REPORTS_PER_USER, getUserReports } from "../src/services/report.service";
+import { MAX_REPORTS_PER_USER, getUserReports, listReports } from "../src/services/report.service";
 import type { FakePrisma } from "./helpers/fakePrisma";
 import type { Agent, ApiUser } from "./helpers/types";
 
@@ -506,6 +506,44 @@ describe("PATCH /api/reports/:id", () => {
     expect(prisma.petReport.update).not.toHaveBeenCalled();
   });
 
+  it("marks an owned LOST report as REUNITED (200)", async () => {
+    const res = await agent.patch(`/api/reports/${myReportId}`).send({ status: "REUNITED" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: myReportId,
+      userId: me.id,
+      reportType: "LOST",
+      status: "REUNITED",
+    });
+    expect(prisma._reports.find((report) => report.petReportId === myReportId)?.status).toBe(
+      "REUNITED",
+    );
+  });
+
+  it("marks an owned FOUND report as REUNITED (200)", async () => {
+    const created = await agent.post(`/api/reports`).send({ ...baseReport, reportType: "FOUND" });
+
+    expect(created.status).toBe(201);
+
+    const reportId = created.body.data.petReportId;
+
+    const res = await agent.patch(`/api/reports/${reportId}`).send({ status: "REUNITED" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toMatchObject({
+      petReportId: reportId,
+      userId: me.id,
+      reportType: "FOUND",
+      status: "REUNITED",
+    });
+    expect(prisma._reports.find((report) => report.petReportId === reportId)?.status).toBe(
+      "REUNITED",
+    );
+  });
+
   describe("a cookie claiming to be me", () => {
     const tokens = {
       "signed with a guessed secret": () => jwt.sign({ sub: me.id, ver: 0 }, "wrong-secret"),
@@ -776,12 +814,516 @@ describe("PATCH /api/reports/:id", () => {
   });
 });
 
+describe("GET /api/reports", () => {
+  const signUp = async (email: string): Promise<{ agent: Agent; user: ApiUser }> => {
+    const userAgent = request.agent(app);
+    const res = await userAgent
+      .post("/api/auth/register")
+      .send({ name: "Test User", email, password: "password123!" });
+    return { agent: userAgent, user: res.body.data.user };
+  };
+
+  const sampleReport = (overrides = {}) => ({
+    reportType: "LOST",
+    petType: "DOG",
+    petName: "Buddy",
+    breed: "Golden Retriever",
+    color: "Golden",
+    size: "LARGE",
+    gender: "MALE",
+    distinctiveFeatures: "Blue collar with bell",
+    eventDate: "2026-10-20T10:00:00.000Z",
+    contactInfo: "owner-secret@example.com",
+    location: {
+      zipCode: "10001",
+      city: "New York",
+      state: "NY",
+    },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+  });
+
+  it("allows anonymous access and returns an empty list when the database is empty (200)", async () => {
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      data: {
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+        reports: [],
+      },
+    });
+  });
+
+  it("filters out sensitive information (userId, contactInfo, exact coordinates, photo publicId) while keeping consistent summary shape", async () => {
+    const { agent } = await signUp("owner@example.com");
+    const created = await agent.post("/api/reports").send(sampleReport());
+    const reportId = (created.body.data as ApiReport).petReportId;
+
+    // Simulate stored coordinates and photo publicId in the database
+    const stored = prisma._reports.find((r) => r.petReportId === reportId)!;
+    stored.location = {
+      ...stored.location,
+      latitude: "40.7128000",
+      longitude: "-74.0060000",
+    };
+    stored.photos = [
+      {
+        petPhotoId: 10,
+        petReportId: reportId,
+        imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+        publicId: "pawradar/reports/buddy-secret-id",
+        createdAt: new Date("2026-10-20T12:00:00.000Z"),
+      },
+    ];
+
+    // Anonymous request (no cookies)
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.total).toBe(1);
+
+    const item = res.body.data.reports[0];
+    expect(item).toMatchObject({
+      petReportId: reportId,
+      reportType: "LOST",
+      petType: "DOG",
+      petName: "Buddy",
+      breed: "Golden Retriever",
+      color: "Golden",
+      size: "LARGE",
+      gender: "MALE",
+      distinctiveFeatures: "Blue collar with bell",
+      status: "ACTIVE",
+      location: {
+        locationId: 1,
+        petReportId: reportId,
+        zipCode: "10001",
+        city: "New York",
+        state: "NY",
+      },
+      photos: [
+        {
+          petPhotoId: 10,
+          imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+          createdAt: "2026-10-20T12:00:00.000Z",
+        },
+      ],
+    });
+
+    // Sensitive fields must never be exposed in public summaries
+    expect(item).not.toHaveProperty("userId");
+    expect(item).not.toHaveProperty("contactInfo");
+    expect(item.location).not.toHaveProperty("latitude");
+    expect(item.location).not.toHaveProperty("longitude");
+    expect(item.photos[0]).not.toHaveProperty("publicId");
+  });
+
+  it("orders reports newest first (createdAt desc, petReportId desc)", async () => {
+    const { agent: agent1 } = await signUp("user1@example.com");
+    const { agent: agent2 } = await signUp("user2@example.com");
+
+    await agent1.post("/api/reports").send(sampleReport({ petName: "Oldest" }));
+    await agent2.post("/api/reports").send(sampleReport({ petName: "Middle" }));
+    await agent1.post("/api/reports").send(sampleReport({ petName: "Newest" }));
+
+    // Force identical timestamps on Middle and Newest to verify petReportId tie-breaker
+    const sameTime = new Date("2026-10-25T15:00:00.000Z");
+    prisma._reports[0].createdAt = new Date("2026-10-24T10:00:00.000Z");
+    prisma._reports[1].createdAt = sameTime;
+    prisma._reports[2].createdAt = sameTime;
+
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+      "Newest",
+      "Middle",
+      "Oldest",
+    ]);
+    expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
+        skip: 0,
+        take: 20,
+      }),
+    );
+  });
+
+  describe("filtering by type and status", () => {
+    beforeEach(async () => {
+      const { agent } = await signUp("filter@example.com");
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Lost Dog 1", reportType: "LOST" }));
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Lost Dog 2", reportType: "LOST" }));
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Found Cat 1", reportType: "FOUND", petType: "CAT" }));
+      const reunitedRes = await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Reunited Dog", reportType: "LOST" }));
+      await agent
+        .patch(`/api/reports/${reunitedRes.body.data.petReportId}`)
+        .send({ status: "REUNITED" });
+      jest.clearAllMocks();
+    });
+
+    it("defaults to status=ACTIVE and returns both LOST and FOUND when type is omitted (200)", async () => {
+      const res = await request(app).get("/api/reports");
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(3);
+      expect(res.body.data.totalPages).toBe(1);
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Found Cat 1",
+        "Lost Dog 2",
+        "Lost Dog 1",
+      ]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: { status: "ACTIVE" },
+      });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: "ACTIVE" },
+        }),
+      );
+    });
+
+    it("filters by type=LOST and applies the same where to count and findMany (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ type: "LOST", limit: 1 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        total: 2,
+        page: 1,
+        limit: 1,
+        totalPages: 2,
+      });
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Lost Dog 2",
+      ]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: { status: "ACTIVE", reportType: "LOST" },
+      });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: "ACTIVE", reportType: "LOST" },
+        }),
+      );
+    });
+
+    it("filters by type=FOUND and status=REUNITED (200)", async () => {
+      const foundRes = await request(app).get("/api/reports").query({ type: "FOUND" });
+      expect(foundRes.status).toBe(200);
+      expect(foundRes.body.data.total).toBe(1);
+      expect(foundRes.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Found Cat 1",
+      ]);
+
+      const reunitedRes = await request(app)
+        .get("/api/reports")
+        .query({ type: "LOST", status: "REUNITED" });
+      expect(reunitedRes.status).toBe(200);
+      expect(reunitedRes.body.data.total).toBe(1);
+      expect(reunitedRes.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Reunited Dog",
+      ]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: { status: "REUNITED", reportType: "LOST" },
+      });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: "REUNITED", reportType: "LOST" },
+        }),
+      );
+    });
+  });
+
+  describe("search, attribute filters and sort", () => {
+    const names = (res: request.Response) =>
+      res.body.data.reports.map((r: { petName: string }) => r.petName);
+
+    beforeEach(async () => {
+      const { agent } = await signUp("search@example.com");
+      await agent
+        .post("/api/reports")
+        .send(sampleReport({ petName: "Milo", breed: "Golden Retriever", size: "LARGE" }));
+      await agent.post("/api/reports").send(
+        sampleReport({
+          petName: "Luna",
+          petType: "CAT",
+          breed: "Siamese",
+          color: "Cream",
+          size: "SMALL",
+          gender: "FEMALE",
+          distinctiveFeatures: "100% shy, white paws",
+          location: { zipCode: "11201", city: "Brooklyn", state: "NY" },
+        }),
+      );
+      await agent.post("/api/reports").send(
+        sampleReport({
+          petName: "Rex",
+          breed: "German Shepherd",
+          color: "Black",
+          size: "MEDIUM",
+          distinctiveFeatures: null,
+        }),
+      );
+      jest.clearAllMocks();
+    });
+
+    it("matches name, breed, color, features and city, ignoring case and spaces", async () => {
+      const res = await request(app).get("/api/reports").query({ search: "  SIAM  " });
+
+      expect(res.status).toBe(200);
+      expect(names(res)).toEqual(["Luna"]);
+      const contains = { contains: "SIAM", mode: "insensitive" };
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: {
+            status: "ACTIVE",
+            OR: [
+              { petName: contains },
+              { breed: contains },
+              { color: contains },
+              { distinctiveFeatures: contains },
+              { location: { is: { city: contains } } },
+            ],
+          },
+        }),
+      );
+    });
+
+    it.each([
+      ["the city", "brooklyn", ["Luna"]],
+      ["the color", "golden", ["Milo"]],
+      ["distinctive features", "white paws", ["Luna"]],
+      ["nothing", "parrot", []],
+    ])("finds reports by %s", async (_, search, expected) => {
+      const res = await request(app).get("/api/reports").query({ search });
+
+      expect(names(res)).toEqual(expected);
+      expect(res.body.data.total).toBe(expected.length);
+    });
+
+    it.each([
+      ["dog", ["Rex", "Milo"]],
+      ["DOGS", ["Rex", "Milo"]],
+      ["Cat", ["Luna"]],
+      ["birds", []],
+    ])("finds every pet of a type by the word %s, in any case", async (search, expected) => {
+      const res = await request(app).get("/api/reports").query({ search });
+
+      expect(names(res)).toEqual(expected);
+    });
+
+    it.each(["constructor", "toString", "__proto__", "hasOwnProperty"])(
+      "treats %s as plain text, not as a pet type word",
+      async (search) => {
+        const res = await request(app).get("/api/reports").query({ search });
+
+        expect(res.status).toBe(200);
+        expect(names(res)).toEqual([]);
+        const or = prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR!;
+        expect(or.some((condition) => "petType" in condition)).toBe(false);
+      },
+    );
+
+    it("matches the pet type only for the whole word", async () => {
+      await request(app).get("/api/reports").query({ search: "do" });
+
+      const or = prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR;
+      expect(or).not.toContainEqual({ petType: "DOG" });
+    });
+
+    it("treats % and _ as plain characters, not wildcards", async () => {
+      const res = await request(app).get("/api/reports").query({ search: "100%" });
+
+      expect(names(res)).toEqual(["Luna"]);
+      expect(prisma.petReport.findMany.mock.calls.at(-1)![0].where.OR![0].petName.contains).toBe(
+        "100\\%",
+      );
+    });
+
+    it("returns every report when the search is empty", async () => {
+      const res = await request(app).get("/api/reports").query({ search: "   " });
+
+      expect(res.body.data.total).toBe(3);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({ where: { status: "ACTIVE" } });
+    });
+
+    it("filters by pet type, size and gender, combined with search and type", async () => {
+      const res = await request(app)
+        .get("/api/reports")
+        .query({ type: "LOST", petType: "DOG", size: "MEDIUM", gender: "MALE", search: "shep" });
+
+      expect(names(res)).toEqual(["Rex"]);
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+        where: expect.objectContaining({
+          status: "ACTIVE",
+          reportType: "LOST",
+          petType: "DOG",
+          size: "MEDIUM",
+          gender: "MALE",
+        }),
+      });
+    });
+
+    it("sorts newest first by default and oldest first on request", async () => {
+      const newest = await request(app).get("/api/reports");
+      const oldest = await request(app).get("/api/reports").query({ sort: "oldest" });
+
+      expect(names(newest)).toEqual(["Rex", "Luna", "Milo"]);
+      expect(names(oldest)).toEqual(["Milo", "Luna", "Rex"]);
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: "asc" }, { petReportId: "asc" }],
+        }),
+      );
+    });
+
+    it.each([
+      ["a search longer than 100 characters", "?search=" + "a".repeat(101)],
+      ["a search given twice", "?search=a&search=b"],
+      ["a Prisma filter object instead of text", "?search[contains]=a"],
+      ["an unknown pet type", "?petType=DRAGON"],
+      ["an unknown size", "?size=HUGE"],
+      ["an unknown gender", "?gender=OTHER"],
+      ["an unknown sort", "?sort=name"],
+      ["lowercase enum values", "?petType=dog"],
+    ])("rejects %s (400)", async (_, query) => {
+      const res = await request(app).get(`/api/reports${query}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("pagination", () => {
+    beforeEach(async () => {
+      const { agent } = await signUp("pager@example.com");
+      for (let i = 1; i <= 5; i++) {
+        await agent.post("/api/reports").send(sampleReport({ petName: `Pet ${i}` }));
+      }
+    });
+
+    it("returns the requested page slice and pagination metadata (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ page: 2, limit: 2 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        total: 5,
+        page: 2,
+        limit: 2,
+        totalPages: 3,
+      });
+      // Reports newest first: Pet 5, Pet 4 (page 1), Pet 3, Pet 2 (page 2), Pet 1 (page 3)
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual([
+        "Pet 3",
+        "Pet 2",
+      ]);
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ skip: 2, take: 2 }),
+      );
+    });
+
+    it("returns an empty reports array when page is beyond totalPages (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ page: 10, limit: 2 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        total: 5,
+        page: 10,
+        limit: 2,
+        totalPages: 3,
+        reports: [],
+      });
+    });
+
+    it.each([
+      ["page is 0", "?page=0", "page"],
+      ["page is negative", "?page=-2", "page"],
+      ["page is not an integer", "?page=1.5", "page"],
+      ["page is non-numeric", "?page=abc", "page"],
+      ["limit is 0", "?limit=0", "limit"],
+      ["limit is negative", "?limit=-5", "limit"],
+      ["limit exceeds 100", "?limit=101", "limit"],
+      ["limit is non-numeric", "?limit=xyz", "limit"],
+      ["type is invalid", "?type=ADOPTED", "type"],
+      ["status is invalid", "?status=CLOSED", "status"],
+      ["an unknown query parameter is sent", "?userId=123", "userId"],
+    ])("rejects invalid pagination query when %s (400)", async (_, query, expectedField) => {
+      const res = await request(app).get(`/api/reports${query}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(res.body.details[0].field).toBe(expectedField);
+      expect(prisma.petReport.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it("handles unexpected database errors with a 500 INTERNAL_ERROR response", async () => {
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    prisma.petReport.findMany.mockRejectedValueOnce(new Error("Database connection lost"));
+
+    const res = await request(app).get("/api/reports");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({
+      success: false,
+      code: "INTERNAL_ERROR",
+      message: "Something went wrong",
+    });
+    consoleSpy.mockRestore();
+  });
+});
+
 describe("reportService.getUserReports", () => {
   it("lists every report of the user when called without options", async () => {
     await getUserReports("user-1");
 
     expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { userId: "user-1" } }),
+    );
+  });
+});
+
+describe("reportService.listReports", () => {
+  it("uses default page=1, limit=20, and status=ACTIVE when called without arguments", async () => {
+    prisma._reports.length = 0;
+    const result = await listReports();
+
+    expect(result).toEqual({
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 0,
+      reports: [],
+    });
+    expect(prisma.petReport.count).toHaveBeenLastCalledWith({
+      where: { status: "ACTIVE" },
+    });
+    expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { status: "ACTIVE" },
+        skip: 0,
+        take: 20,
+      }),
     );
   });
 });
