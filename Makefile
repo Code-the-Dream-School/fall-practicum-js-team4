@@ -12,9 +12,12 @@ install:
 	cd frontend && npm install
 
 dev:
-	@trap 'kill 0' EXIT; \
-	(cd backend && npm run dev) & \
-	(cd frontend && npm run dev) & \
+	@# set -m puts each server in its own process group, so Ctrl+C reaches
+	@# only this shell and the trap stops both servers (and their children).
+	@set -m; \
+	(cd backend && exec npm run dev) </dev/null & api=$$!; \
+	(cd frontend && exec npm run dev) </dev/null & web=$$!; \
+	trap '{ kill -TERM -- -$$api -$$web; wait; } 2>/dev/null; echo; echo "dev servers stopped"; exit 0' INT TERM; \
 	wait
 
 test:
