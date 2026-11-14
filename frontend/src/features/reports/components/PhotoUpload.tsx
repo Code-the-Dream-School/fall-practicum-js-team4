@@ -20,6 +20,7 @@ export interface PhotoUploadProps {
   onChange: (photos: File[]) => void;
   error?: string;
   disabled?: boolean;
+  maxPhotos?: number;
 }
 
 interface PhotoThumbnailProps {
@@ -109,12 +110,13 @@ export function PhotoUpload({
   onChange,
   error: externalError,
   disabled = false,
+  maxPhotos = PHOTO_LIMITS.maxPhotos,
 }: PhotoUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isFull = photos.length >= PHOTO_LIMITS.maxPhotos;
+  const isFull = photos.length >= maxPhotos;
   const isDisabled = disabled || isFull;
 
   const handleFilesSelected = useCallback(
@@ -122,7 +124,11 @@ export function PhotoUpload({
       if (!incomingFiles || incomingFiles.length === 0 || isDisabled) return;
 
       const fileList = Array.from(incomingFiles);
-      const { validFiles, errors } = validatePhotoBatch(fileList, photos);
+      const { validFiles, errors } = validatePhotoBatch(
+        fileList,
+        photos,
+        maxPhotos,
+      );
 
       if (errors.length > 0) {
         setValidationErrors(errors);
@@ -134,7 +140,7 @@ export function PhotoUpload({
         onChange([...photos, ...validFiles]);
       }
     },
-    [isDisabled, onChange, photos],
+    [isDisabled, onChange, photos, maxPhotos],
   );
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -211,8 +217,7 @@ export function PhotoUpload({
               : 'photo-upload__counter'
           }
         >
-          {photos.length} / {PHOTO_LIMITS.maxPhotos} photos • Max 5 MB each (25
-          MB total)
+          {photos.length} / {maxPhotos} photos • Max 5 MB each (25 MB total)
         </span>
       </div>
 
@@ -245,7 +250,7 @@ export function PhotoUpload({
         </div>
         <h3 className="photo-upload__title">
           {isFull ? (
-            'Maximum photo limit reached (5 photos)'
+            `Maximum photo limit reached (${maxPhotos} photos)`
           ) : isDragging ? (
             'Drop photos here'
           ) : (
@@ -266,7 +271,7 @@ export function PhotoUpload({
           <span className="photo-upload__dot" aria-hidden="true">
             •
           </span>
-          <span>Up to 5 MB each (max {PHOTO_LIMITS.maxPhotos} photos)</span>
+          <span>Up to 5 MB each (max {maxPhotos} photos)</span>
         </div>
       </div>
 

@@ -134,3 +134,32 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.existing-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+.existing-photo {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+
+.existing-photo > .photo-upload__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin-left: 0;
+}
+
+.existing-photo__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #24272e;
+}

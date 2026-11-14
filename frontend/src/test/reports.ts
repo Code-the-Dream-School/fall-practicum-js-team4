@@ -11,6 +11,8 @@ export const report = (fields: Partial<PetReport>): PetReport => ({
   petType: 'DOG',
   petName: 'Milo',
   breed: 'Golden Retriever',
+  distinctiveFeatures: null,
+  contactInfo: null,
   color: 'Golden',
   size: 'LARGE',
   gender: 'MALE',

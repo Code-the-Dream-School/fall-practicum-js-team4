@@ -3,6 +3,7 @@ export const PATHS = {
   lostPets: '/lost-pets',
   foundPets: '/found-pets',
   petDetails: (id: string) => `/pets/${id}`,
+  editReport: (id: string) => `/pets/${id}/edit`,
   reportPet: '/report-pet',
   reportLost: '/report-pet?type=lost',
   reportFound: '/report-pet?type=found',

@@ -36,6 +36,15 @@ export const getMyReports = async (req: Request, res: Response) => {
   res.json({ success: true, data: { total: reports.length, reports } });
 };
 
+export const getReportById = async (req: Request, res: Response) => {
+  const { id } = req.params as unknown as ReportIdParam;
+  const report = await reportService.getReportById(req.user!.id, id);
+  res.json({
+    success: true,
+    data: report,
+  });
+};
+
 export const updateReport = async (req: Request, res: Response) => {
   const { id } = req.params as unknown as ReportIdParam;
   const report = await reportService.updateReport(
