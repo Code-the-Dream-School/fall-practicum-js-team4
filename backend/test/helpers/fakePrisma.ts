@@ -205,10 +205,14 @@ export const createFakePrisma = () => {
           include?: ReportInclude;
         }) => {
           const report = reports.find((r) => r.petReportId === where.petReportId)!;
-          const { location, ...fields } = data as {
+          const { location, photos, ...fields } = data as {
             location?: {
               delete?: boolean;
               upsert?: { create: Record<string, unknown>; update: Record<string, unknown> };
+            };
+            photos?: {
+              createMany?: { data: { imageUrl: string; publicId: string }[] };
+              deleteMany?: { petPhotoId: { in: number[] } };
             };
           } & Record<string, unknown>;
 
@@ -220,6 +224,23 @@ export const createFakePrisma = () => {
             report.location = report.location
               ? { ...report.location, ...location.upsert.update }
               : { locationId: 1, petReportId: report.petReportId, ...location.upsert.create };
+          }
+
+          if (photos?.deleteMany?.petPhotoId?.in) {
+            const idsToDelete = new Set(photos.deleteMany.petPhotoId.in);
+            report.photos = (report.photos ?? []).filter((p) => !idsToDelete.has(p.petPhotoId));
+          }
+
+          if (photos?.createMany?.data) {
+            report.photos = [
+              ...(report.photos ?? []),
+              ...photos.createMany.data.map((photo) => ({
+                petPhotoId: nextPhotoId++,
+                petReportId: report.petReportId,
+                createdAt: new Date(),
+                ...photo,
+              })),
+            ];
           }
 
           // Apply the photo `select` like Prisma does

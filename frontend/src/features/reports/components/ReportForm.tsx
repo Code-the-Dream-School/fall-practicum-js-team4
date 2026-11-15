@@ -1,13 +1,18 @@
 import { useState } from 'react';
-
 import { useForm } from 'react-hook-form';
-import { createReport, describeReportError } from '../../../services/reportApi';
-import type { CreateReportInput, ReportType } from '../../../types/reports';
+import type { ReportType } from '../../../types/reports';
 import { PhotoUpload } from './PhotoUpload';
 import { LocationFields } from './LocationFields';
 
 interface ReportFormProps {
   reportType: ReportType;
+  initialValues?: Partial<ReportFormValues>;
+  onSubmit: (values: ReportFormValues, photos: File[]) => Promise<void>;
+  isSaving?: boolean;
+  isSubmitted?: boolean;
+  submitLabel?: string;
+  showPhotoUpload?: boolean;
+  maxPhotos?: number;
 }
 
 export interface ReportFormValues {
@@ -34,8 +39,17 @@ function validateEventDate(value: string) {
   );
 }
 
-export function ReportForm({ reportType }: ReportFormProps) {
-  const form = useForm<ReportFormValues>();
+export function ReportForm({
+  reportType,
+  initialValues,
+  onSubmit,
+  isSaving = false,
+  isSubmitted = false,
+  submitLabel = 'Submit Report',
+  showPhotoUpload = true,
+  maxPhotos = 5,
+}: ReportFormProps) {
+  const form = useForm<ReportFormValues>({ defaultValues: initialValues });
   const {
     register,
     handleSubmit,
@@ -43,45 +57,12 @@ export function ReportForm({ reportType }: ReportFormProps) {
   } = form;
 
   const [photos, setPhotos] = useState<File[]>([]);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
-  const onSubmit = async (values: ReportFormValues) => {
-    const payload: CreateReportInput = {
-      reportType,
-      petType: values.petType,
-      petName: values.petName.trim() || undefined,
-      breed: values.breed?.trim() || undefined,
-      color: values.color.trim(),
-      size: values.size,
-      gender: values.gender,
-      distinctiveFeatures: values.distinctiveFeatures?.trim() || undefined,
-      eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
-      contactInfo: values.contactInfo?.trim() || undefined,
-      ...(values.zipCode.trim() || values.city.trim() || values.state.trim()
-        ? {
-            location: {
-              zipCode: values.zipCode.trim(),
-              city: values.city.trim(),
-              state: values.state.trim().toUpperCase(),
-            },
-          }
-        : {}),
-    };
-
-    setSubmissionError(null);
-    setSubmissionSuccess(false);
-
-    try {
-      await createReport(payload, { photos });
-
-      setSubmissionSuccess(true);
-    } catch (error) {
-      setSubmissionError(describeReportError(error));
-    }
-  };
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form
+      onSubmit={handleSubmit((values) => onSubmit(values, photos))}
+      noValidate
+    >
       <h2 className="report-form__section-title">1. Pet Details</h2>
       <div>
         <label htmlFor="report-pet-name">Pet Name (optional)</label>
@@ -298,23 +279,26 @@ export function ReportForm({ reportType }: ReportFormProps) {
         )}
       </div>
 
-      <div className="report-form__full-width">
-        <PhotoUpload
-          photos={photos}
-          onChange={setPhotos}
-          disabled={isSubmitting || submissionSuccess}
-        />
-      </div>
-
-      <button type="submit" disabled={isSubmitting || submissionSuccess}>
-        {isSubmitting ? 'Submitting...' : 'Submit Report'}
-      </button>
-
-      {submissionError && <p role="alert">{submissionError}</p>}
-
-      {submissionSuccess && (
-        <p role="status">Your pet report was submitted successfully!</p>
+      {showPhotoUpload && (
+        <div className="report-form__full-width">
+          <PhotoUpload
+            photos={photos}
+            onChange={setPhotos}
+            maxPhotos={maxPhotos}
+            disabled={isSubmitting || isSaving || isSubmitted}
+          />
+        </div>
       )}
+
+      <button type="submit" disabled={isSubmitting || isSaving || isSubmitted}>
+        {isSubmitted
+          ? 'Submitted'
+          : isSubmitting || isSaving
+            ? submitLabel === 'Save Changes'
+              ? 'Saving...'
+              : 'Submitting...'
+            : submitLabel}
+      </button>
     </form>
   );
 }

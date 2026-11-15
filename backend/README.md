@@ -156,7 +156,7 @@ How it works:
   (N=2^17, r=8, p=1); the settings are stored with each hash, and older hashes
   are upgraded automatically on the next successful login.
 - Register, login and change-password are limited to 20 attempts per IP
-  per 15 minutes; creating reports to 20 per signed-in user per 15 minutes;
+  per 15 minutes; creating or updating reports to 20 per signed-in user per 15 minutes;
   all routes together to 100 per IP.
 
 ### Protecting a route
