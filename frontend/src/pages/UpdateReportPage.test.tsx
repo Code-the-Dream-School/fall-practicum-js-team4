@@ -74,6 +74,7 @@ describe('UpdateReportPage', () => {
     expect(
       screen.getByLabelText('State (required if providing location)'),
     ).toHaveValue('CA');
+    expect(screen.getByText(/Location: San Diego, CA/)).toBeInTheDocument();
   });
 
   it('2. displays loading state while fetching the report', async () => {
