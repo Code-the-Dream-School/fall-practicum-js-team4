@@ -65,7 +65,9 @@ describe('UpdateReportPage', () => {
     expect(screen.getByLabelText('Contact Information (optional)')).toHaveValue(
       'sam@example.com',
     );
-    expect(screen.getByLabelText('ZIP Code (optional)')).toHaveValue('92101');
+    expect(
+      screen.getByLabelText('ZIP Code (required if providing location)'),
+    ).toHaveValue('92101');
     expect(
       screen.getByLabelText('City (required if providing location)'),
     ).toHaveValue('San Diego');

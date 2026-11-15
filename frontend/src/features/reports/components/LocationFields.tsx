@@ -146,7 +146,9 @@ export function LocationFields({ form }: LocationFieldsProps) {
   return (
     <>
       <div>
-        <label htmlFor="report-zip-code">ZIP Code (optional)</label>
+        <label htmlFor="report-zip-code">
+          ZIP Code (required if providing location)
+        </label>
         <input
           id="report-zip-code"
           type="text"

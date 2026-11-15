@@ -59,7 +59,7 @@ const renderForm = (defaultValues?: Partial<ReportFormValues>) => {
   return {
     user,
     onValid,
-    zip: screen.getByLabelText('ZIP Code (optional)'),
+    zip: screen.getByLabelText('ZIP Code (required if providing location)'),
     city: screen.getByLabelText('City (required if providing location)'),
     state: screen.getByLabelText('State (required if providing location)'),
   };
