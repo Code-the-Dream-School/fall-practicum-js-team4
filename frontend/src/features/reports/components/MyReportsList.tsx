@@ -33,7 +33,7 @@ const cardVariant = (report: PetReport) => {
     return { tone: 'reunited', label: 'Reunited safe' };
   }
   if (report.status === 'CLOSED') {
-    return { tone: 'closed', label: 'Closed' };
+    return { tone: 'closed', label: 'Case closed' };
   }
   return report.reportType === 'LOST'
     ? { tone: 'lost', label: 'Lost pet' }
