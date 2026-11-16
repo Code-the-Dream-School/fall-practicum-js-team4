@@ -196,7 +196,8 @@ Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
   with `null`). Editing another user's report returns `403 FORBIDDEN`; a missing
   report returns `404 NOT_FOUND`.
 - `PATCH /:id/close` ends a LOST or FOUND report without a reunion: `status`
-  becomes `CLOSED`, with an optional `{ "reason": ... }` (`NO_LONGER_SEARCHING`,
+  becomes `CLOSED`, with an optional JSON body `{ "reason": ... }` (another body
+  type is a `415`) (`NO_LONGER_SEARCHING`,
   `TAKEN_TO_SHELTER`, `REHOMED`, `OWNER_NOT_FOUND`, `DUPLICATE`, `OTHER`) stored
   as `closeReason`. Works on `ACTIVE` and `REUNITED` reports; closing a closed
   report changes nothing and returns it as it is. Closed is final: `PATCH /:id`

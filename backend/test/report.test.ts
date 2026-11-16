@@ -830,7 +830,7 @@ describe("PATCH /api/reports/:id", () => {
       });
       expect(stored().status).toBe("CLOSED");
       expect(prisma.petReport.update).toHaveBeenCalledWith({
-        where: { petReportId: myReportId },
+        where: { petReportId: myReportId, status: { not: "CLOSED" } },
         data: { status: "CLOSED", closeReason: null },
         include: REPORT_INCLUDE,
       });
@@ -940,6 +940,33 @@ describe("PATCH /api/reports/:id", () => {
       expect(prisma.petReport.update).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["form data", (req: request.Test) => req.field("reason", "REHOMED")],
+      ["plain text", (req: request.Test) => req.set("Content-Type", "text/plain").send("REHOMED")],
+      ["a urlencoded form", (req: request.Test) => req.type("form").send({ reason: "REHOMED" })],
+    ])("rejects a reason sent as %s, instead of closing without it (415)", async (_, send) => {
+      const res = await send(agent.patch(`/api/reports/${myReportId}/close`));
+
+      expect(res.status).toBe(415);
+      expect(res.body.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+      expect(stored().status).toBe("ACTIVE");
+    });
+
+    it("accepts JSON with a charset, and no body without a Content-Type (200)", async () => {
+      const withCharset = await agent
+        .patch(`/api/reports/${myReportId}/close`)
+        .set("Content-Type", "application/json; charset=utf-8")
+        .send(JSON.stringify({ reason: "REHOMED" }));
+
+      expect(withCharset.status).toBe(200);
+      expect(withCharset.body.data.closeReason).toBe("REHOMED");
+
+      const other = await agent.post("/api/reports").send(baseReport);
+      const noBody = await agent.patch(`/api/reports/${other.body.data.petReportId}/close`);
+
+      expect(noBody.status).toBe(200);
+    });
+
     it("drops the report from the public list, but keeps it in mine", async () => {
       await close(myReportId);
 
@@ -978,6 +1005,47 @@ describe("PATCH /api/reports/:id", () => {
           closeReason: "REHOMED",
           distinctiveFeatures: "Taken in by a neighbour",
         });
+      });
+    });
+
+    // Two requests at once (two tabs, a double click): the report is read as
+    // ACTIVE, but another request closes it before this one writes
+    describe("when it gets closed between reading and writing", () => {
+      const readAsActiveButCloseFirst = (reason: string) => {
+        prisma.petReport.findUnique.mockImplementationOnce(async () => {
+          const before = { ...stored(), status: "ACTIVE", closeReason: null };
+          Object.assign(stored(), { status: "CLOSED", closeReason: reason });
+          return before;
+        });
+      };
+
+      it("doesn't overwrite the other close's reason, and returns the report (200)", async () => {
+        readAsActiveButCloseFirst("REHOMED");
+
+        const res = await close(myReportId, { reason: "OTHER" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({ status: "CLOSED", closeReason: "REHOMED" });
+        expect(stored().closeReason).toBe("REHOMED");
+      });
+
+      it("doesn't let a status change reopen it (409)", async () => {
+        readAsActiveButCloseFirst("REHOMED");
+
+        const res = await agent.patch(`/api/reports/${myReportId}`).send({ status: "REUNITED" });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("REPORT_CLOSED");
+        expect(stored()).toMatchObject({ status: "CLOSED", closeReason: "REHOMED" });
+      });
+
+      it("still saves an edit that doesn't touch the status (200)", async () => {
+        readAsActiveButCloseFirst("REHOMED");
+
+        const res = await agent.patch(`/api/reports/${myReportId}`).send({ petName: "Max" });
+
+        expect(res.status).toBe(200);
+        expect(stored()).toMatchObject({ status: "CLOSED", petName: "Max" });
       });
     });
 

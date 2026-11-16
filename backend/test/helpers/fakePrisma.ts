@@ -204,11 +204,16 @@ export const createFakePrisma = () => {
           data,
           include,
         }: {
-          where: { petReportId: number };
+          // status: { not } is the "still not closed" condition the services add
+          where: { petReportId: number; status?: { not: string } };
           data: Record<string, unknown>;
           include?: ReportInclude;
         }) => {
-          const report = reports.find((r) => r.petReportId === where.petReportId)!;
+          const report = reports.find((r) => r.petReportId === where.petReportId);
+          // Like Prisma when no row matches `where` (P2025)
+          if (!report || (where.status && report.status === where.status.not)) {
+            throw Object.assign(new Error("Record to update not found."), { code: "P2025" });
+          }
           const { location, photos, ...fields } = data as {
             location?: {
               delete?: boolean;

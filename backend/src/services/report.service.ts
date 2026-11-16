@@ -1,6 +1,7 @@
 import type { PetType, Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
+import { errorCode } from "../utils/errorCode";
 import { MAX_PHOTOS } from "../middleware/photoUpload";
 import { deleteImages, storePhotos } from "./photo.service";
 import type {
@@ -201,6 +202,10 @@ export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) 
 // Optional text fields where an empty string clears the stored value to null
 const NULLABLE_TEXT_FIELDS = ["petName", "breed", "distinctiveFeatures", "contactInfo"] as const;
 
+// A closed report's status is final (see updateReport and closeReport)
+const reportClosed = () =>
+  new AppError(409, "REPORT_CLOSED", "A closed report can't change status");
+
 export const updateReport = async (
   userId: string,
   petReportId: number,
@@ -223,8 +228,9 @@ export const updateReport = async (
 
   // Closed is a final state: other fields can still be fixed, but the status
   // can't be changed back (CLOSED itself is only set by closeReport)
-  if (existing.status === "CLOSED" && data.status !== undefined) {
-    throw new AppError(409, "REPORT_CLOSED", "A closed report can't change status");
+  const changesStatus = data.status !== undefined;
+  if (existing.status === "CLOSED" && changesStatus) {
+    throw reportClosed();
   }
 
   const { location, deletePhotoIds, ...fields } = data;
@@ -307,7 +313,10 @@ export const updateReport = async (
 
   try {
     const updated = await prisma.petReport.update({
-      where: { petReportId },
+      // The check above used data read earlier: if the report was closed since
+      // (e.g. in another tab), this condition makes the write fail (P2025)
+      // instead of reopening it
+      where: changesStatus ? { petReportId, status: { not: "CLOSED" } } : { petReportId },
       data: updateData,
       include: { location: true, photos: PHOTOS },
     });
@@ -326,6 +335,7 @@ export const updateReport = async (
     if (newPhotos.length > 0) {
       await deleteImages(newPhotos.map((photo) => photo.publicId));
     }
+    if (changesStatus && errorCode(err) === "P2025") throw reportClosed();
     throw err;
   }
 };
@@ -368,9 +378,17 @@ export const closeReport = async (
 
   if (existing.status === "CLOSED") return existing;
 
-  return prisma.petReport.update({
-    where: { petReportId },
-    data: { status: "CLOSED", closeReason: reason ?? null },
-    include,
-  });
+  try {
+    return await prisma.petReport.update({
+      // Only if still not closed: a close that happened since (another tab,
+      // a double click) wins, and its reason isn't overwritten
+      where: { petReportId, status: { not: "CLOSED" } },
+      data: { status: "CLOSED", closeReason: reason ?? null },
+      include,
+    });
+  } catch (err) {
+    if (errorCode(err) !== "P2025") throw err;
+    // Closed in the meantime: closing again changes nothing
+    return prisma.petReport.findUnique({ where: { petReportId }, include });
+  }
 };

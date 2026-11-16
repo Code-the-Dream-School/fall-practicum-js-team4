@@ -589,7 +589,8 @@ paths:
       operationId: closeReport
       summary: Close a pet report owned by the signed-in user
       description: >-
-        Ends a LOST or FOUND report without a reunion, optionally with a reason.
+        Ends a LOST or FOUND report without a reunion, optionally with a reason
+        sent as JSON (any other body is a 415).
         Works on ACTIVE and REUNITED reports. Closing a report that is already
         closed changes nothing (its reason stays as it was) and returns it as it
         is. Closed reports no longer appear in `GET /api/reports`; they stay in
@@ -646,6 +647,18 @@ paths:
                 success: false
                 code: NOT_FOUND
                 message: Report not found
+        "415":
+          description: >-
+            The body isn't JSON (e.g. form-data or text). Send the reason as JSON,
+            or no body at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNSUPPORTED_MEDIA_TYPE
+                message: "Send the body as JSON (Content-Type: application/json), or no body"
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -1150,10 +1163,21 @@ components:
           type: string
           enum: [ACTIVE, REUNITED, CLOSED]
         closeReason:
+          # Inline instead of $ref: in OpenAPI 3.0, nullable next to a $ref/allOf
+          # is ignored, and null is returned for every report that isn't closed
           description: Why the report was closed; null unless status is CLOSED, and optional then
-          allOf:
-            - $ref: "#/components/schemas/CloseReason"
+          type: string
           nullable: true
+          enum:
+            [
+              NO_LONGER_SEARCHING,
+              TAKEN_TO_SHELTER,
+              REHOMED,
+              OWNER_NOT_FOUND,
+              DUPLICATE,
+              OTHER,
+              null,
+            ]
         createdAt:
           type: string
           format: date-time
