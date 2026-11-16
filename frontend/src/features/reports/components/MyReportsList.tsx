@@ -33,7 +33,7 @@ const cardVariant = (report: PetReport) => {
     return { tone: 'reunited', label: 'Reunited safe' };
   }
   if (report.status === 'CLOSED') {
-    return { tone: 'closed', label: 'Case closed' };
+    return { tone: 'closed', label: 'Report closed' };
   }
   return report.reportType === 'LOST'
     ? { tone: 'lost', label: 'Lost pet' }
@@ -137,7 +137,7 @@ function MyReportCard({ report, onReunited, onClosed }: MyReportCardProps) {
           {closed && (
             <span className="my-report-card__note my-report-card__note--closed">
               <Icon name="archive" />
-              Report closed
+              Report archived
             </span>
           )}
         </div>
@@ -177,7 +177,7 @@ export function MyReportsList() {
     [],
   );
   const showClosedToast = useCallback(
-    () => setToast('Case closed. The report has been archived.'),
+    () => setToast('Report closed. The report has been archived.'),
     [],
   );
   const hideToast = useCallback(() => setToast(null), []);
