@@ -49,6 +49,26 @@ export const mockMyReports = (initial: PetReport[]) => {
         data: { total: reports.length, reports },
       }),
     ),
+    http.patch(`${API}/api/reports/:id/close`, async ({ params, request }) => {
+      let body: unknown = {};
+      try {
+        body = await request.json();
+      } catch {
+        // empty body is fine
+      }
+      patches.push({ id: params.id as string, body });
+      reports = reports.map((r) =>
+        String(r.petReportId) === params.id
+          ? {
+              ...r,
+              status: 'CLOSED',
+              closeReason: ((body as { reason?: string }).reason as any) || null,
+            }
+          : r,
+      );
+      const updated = reports.find((r) => String(r.petReportId) === params.id);
+      return HttpResponse.json({ success: true, data: updated });
+    }),
     http.patch(`${API}/api/reports/:id`, async ({ params, request }) => {
       const body = (await request.json()) as Partial<PetReport>;
       patches.push({ id: params.id as string, body });
