@@ -4,12 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { delay, http } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../../app/queryClient';
-import {
-  luna,
-  milo,
-  mockMyReports,
-  report,
-} from '../../../test/reports';
+import { milo, mockMyReports, report } from '../../../test/reports';
 import { API, server } from '../../../test/server';
 import type { PetReport } from '../../../types/reports';
 import { CloseReportButton } from './CloseReportButton';
@@ -53,7 +48,9 @@ describe('CloseReportButton', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(
-      screen.getByText('Confirm to close the report, this step cannot be undone.'),
+      screen.getByText(
+        'Confirm to close the report, this step cannot be undone.',
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Close report' }),
@@ -88,7 +85,9 @@ describe('CloseReportButton', () => {
   });
 
   it('disables buttons while saving', async () => {
-    server.use(http.patch(`${API}/api/reports/:id/close`, () => delay('infinite')));
+    server.use(
+      http.patch(`${API}/api/reports/:id/close`, () => delay('infinite')),
+    );
     const { user } = renderButton(milo);
 
     await user.click(screen.getByRole('button', { name: /close report/i }));
@@ -100,4 +99,3 @@ describe('CloseReportButton', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
   });
 });
-
