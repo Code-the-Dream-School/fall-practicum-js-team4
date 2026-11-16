@@ -198,6 +198,21 @@ export const createFakePrisma = () => {
           return report ? withSelectedPhotos(report, include) : null;
         },
       ),
+      findFirst: jest.fn(
+        async ({
+          where,
+          select,
+        }: {
+          where: { petReportId: number; status: string };
+          select?: ReportInclude;
+        }) => {
+          const report = reports.find(
+            (r) => r.petReportId === where.petReportId && matchesReportWhere(r, where),
+          );
+
+          return report ? withSelectedFields(report, select) : null;
+        },
+      ),
       update: jest.fn(
         async ({
           where,
