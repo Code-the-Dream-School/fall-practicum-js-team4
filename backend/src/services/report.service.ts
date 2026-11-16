@@ -330,6 +330,22 @@ export const updateReport = async (
   }
 };
 
+export const getReportById = async (userId: string, petReportId: number) => {
+  const report = await prisma.petReport.findUnique({
+    where: { petReportId },
+    include: { location: true, photos: PHOTOS },
+  });
+
+  if (!report) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  if (report.userId !== userId) {
+    throw new AppError(403, "FORBIDDEN", "You can only view your own reports");
+  }
+  return report;
+};
+
 // PATCH /api/reports/:id/close: the report ended without a reunion. Works from
 // ACTIVE or REUNITED; closing a closed report changes nothing (not even its
 // reason) and returns it as it is
