@@ -194,6 +194,21 @@ export const createFakePrisma = () => {
       findUnique: jest.fn(async ({ where }: { where: { petReportId: number } }) => {
         return reports.find((r) => r.petReportId === where.petReportId) ?? null;
       }),
+      findFirst: jest.fn(
+        async ({
+          where,
+          select,
+        }: {
+          where: { petReportId: number; status: string };
+          select?: ReportInclude;
+        }) => {
+          const report = reports.find(
+            (r) => r.petReportId === where.petReportId && matchesReportWhere(r, where),
+          );
+
+          return report ? withSelectedFields(report, select) : null;
+        },
+      ),
       update: jest.fn(
         async ({
           where,

@@ -14,6 +14,17 @@ export const listReports = async (req: Request, res: Response) => {
   });
 };
 
+export const getPublicReportById = async (req: Request, res: Response) => {
+  const { id } = req.params as unknown as ReportIdParam;
+  const report = await reportService.getPublicReportById(id);
+
+  res.json({
+    success: true,
+    data: report,
+  });
+};
+
+
 // All routes below use requireAuth, so req.user is always set
 
 export const createReport = async (req: Request, res: Response) => {
