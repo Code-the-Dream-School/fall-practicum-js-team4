@@ -175,11 +175,12 @@ owns a resource is your code's job; answer `403 FORBIDDEN` if they don't.
 
 Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
 
-| Method  | Path                | Auth | Purpose                                                   |
-| ------- | ------------------- | ---- | --------------------------------------------------------- |
-| `POST`  | `/api/reports`      | yes  | Create a lost or found report owned by the signed-in user |
-| `GET`   | `/api/reports/mine` | yes  | The signed-in user's reports, newest first, with `total`  |
-| `PATCH` | `/api/reports/:id`  | yes  | Update a report owned by the signed-in user               |
+| Method  | Path                     | Auth | Purpose                                                   |
+| ------- | ------------------------ | ---- | --------------------------------------------------------- |
+| `POST`  | `/api/reports`           | yes  | Create a lost or found report owned by the signed-in user |
+| `GET`   | `/api/reports/mine`      | yes  | The signed-in user's reports, newest first, with `total`  |
+| `PATCH` | `/api/reports/:id`       | yes  | Update a report owned by the signed-in user               |
+| `PATCH` | `/api/reports/:id/close` | yes  | Close a report owned by the signed-in user                |
 
 - The owner is always the signed-in user (`req.user.id`). Sending `userId`,
   `status` (on create), ids or timestamps in the body is a `400`.
@@ -194,6 +195,13 @@ Request and response formats: Swagger UI at `/api/docs` (`docs/openapi.yaml`).
   between `ACTIVE` and `REUNITED`, and adding, updating or clearing `location`
   with `null`). Editing another user's report returns `403 FORBIDDEN`; a missing
   report returns `404 NOT_FOUND`.
+- `PATCH /:id/close` ends a LOST or FOUND report without a reunion: `status`
+  becomes `CLOSED`, with an optional `{ "reason": ... }` (`NO_LONGER_SEARCHING`,
+  `TAKEN_TO_SHELTER`, `REHOMED`, `OWNER_NOT_FOUND`, `DUPLICATE`, `OTHER`) stored
+  as `closeReason`. Works on `ACTIVE` and `REUNITED` reports; closing a closed
+  report changes nothing and returns it as it is. Closed is final: `PATCH /:id`
+  can still edit other fields but not the status (`409 REPORT_CLOSED`). Closed
+  reports leave the public list and stay in `GET /mine`.
 - Photos are uploaded as files with `multipart/form-data` (see below). Photo
   URLs in a JSON body are a `400`. Reports return
   `photos: [{ petPhotoId, imageUrl, createdAt }]`; Cloudinary's `publicId` is

@@ -432,7 +432,9 @@ paths:
         Partially updates a pet report. Only the user who created the report can
         edit it (403 FORBIDDEN otherwise). At least one editable field must be
         provided. Both LOST and FOUND reports can be marked as REUNITED by their
-        owners. Owner, id, timestamps and coordinates cannot be changed.
+        owners. To close a report, use `PATCH /api/reports/{id}/close`; a closed
+        report's status can't be changed (409 REPORT_CLOSED), though its other
+        fields can. Owner, id, timestamps and coordinates cannot be changed.
         Sent with `Cache-Control: private, no-store`.
       security:
         - cookieAuth: []
@@ -503,6 +505,16 @@ paths:
                 success: false
                 code: NOT_FOUND
                 message: Report not found
+        "409":
+          description: The report is closed, and the request tried to change its status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: REPORT_CLOSED
+                message: A closed report can't change status
         "502":
           description: >-
             The photo storage service failed. Nothing is saved, and any photos already
@@ -515,6 +527,72 @@ paths:
                 success: false
                 code: PHOTO_UPLOAD_FAILED
                 message: Could not upload photos. Please try again.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/reports/{id}/close:
+    patch:
+      tags: [Reports]
+      operationId: closeReport
+      summary: Close a pet report owned by the signed-in user
+      description: >-
+        Ends a LOST or FOUND report without a reunion, optionally with a reason.
+        Works on ACTIVE and REUNITED reports. Closing a report that is already
+        closed changes nothing (its reason stays as it was) and returns it as it
+        is. Closed reports no longer appear in `GET /api/reports`; they stay in
+        `GET /api/reports/mine`. Only the owner can close a report.
+        Sent with `Cache-Control: private, no-store`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the pet report to close
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+          example: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseReportRequest"
+            example:
+              reason: TAKEN_TO_SHELTER
+      responses:
+        "200":
+          description: The closed report (unchanged if it was already closed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReportResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: The signed-in user does not own this report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: FORBIDDEN
+                message: You can only edit your own reports
+        "404":
+          description: No report exists with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: NOT_FOUND
+                message: Report not found
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -811,6 +889,17 @@ components:
             minimum: 1
           example: [21, 22]
 
+    CloseReason:
+      type: string
+      enum: [NO_LONGER_SEARCHING, TAKEN_TO_SHELTER, REHOMED, OWNER_NOT_FOUND, DUPLICATE, OTHER]
+
+    CloseReportRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          $ref: "#/components/schemas/CloseReason"
+
     CreateReportResponse:
       type: object
       required: [success, data]
@@ -1006,7 +1095,12 @@ components:
           nullable: true
         status:
           type: string
-          enum: [ACTIVE, REUNITED]
+          enum: [ACTIVE, REUNITED, CLOSED]
+        closeReason:
+          description: Why the report was closed; null unless status is CLOSED, and optional then
+          allOf:
+            - $ref: "#/components/schemas/CloseReason"
+          nullable: true
         createdAt:
           type: string
           format: date-time

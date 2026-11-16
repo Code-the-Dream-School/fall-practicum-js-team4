@@ -7,6 +7,7 @@ import asyncHandler from "../utils/asyncHandler";
 import AppError from "../utils/AppError";
 import { photoUpload } from "../middleware/photoUpload";
 import {
+  closeReportSchema,
   createReportSchema,
   listReportsQuerySchema,
   myReportsQuerySchema,
@@ -65,6 +66,16 @@ router.patch(
   photoUpload,
   validateUpdateReport,
   asyncHandler(controller.updateReport),
+);
+
+// Ends a report without a reunion; the body is empty or { "reason": ... }
+router.patch(
+  "/:id/close",
+  requireAuth,
+  validate(reportIdParamSchema, "params"),
+  reportLimiter,
+  validate(closeReportSchema),
+  asyncHandler(controller.closeReport),
 );
 
 export default router;

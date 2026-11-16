@@ -4,6 +4,7 @@ import AppError from "../utils/AppError";
 import { MAX_PHOTOS } from "../middleware/photoUpload";
 import { deleteImages, storePhotos } from "./photo.service";
 import type {
+  CloseReportInput,
   CreateReportInput,
   ListReportsQuery,
   MyReportsQuery,
@@ -220,6 +221,12 @@ export const updateReport = async (
     throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
   }
 
+  // Closed is a final state: other fields can still be fixed, but the status
+  // can't be changed back (CLOSED itself is only set by closeReport)
+  if (existing.status === "CLOSED" && data.status !== undefined) {
+    throw new AppError(409, "REPORT_CLOSED", "A closed report can't change status");
+  }
+
   const { location, deletePhotoIds, ...fields } = data;
 
   // Validate that all deletePhotoIds belong to this report
@@ -321,4 +328,33 @@ export const updateReport = async (
     }
     throw err;
   }
+};
+
+// PATCH /api/reports/:id/close: the report ended without a reunion. Works from
+// ACTIVE or REUNITED; closing a closed report changes nothing (not even its
+// reason) and returns it as it is
+export const closeReport = async (
+  userId: string,
+  petReportId: number,
+  { reason }: CloseReportInput = {},
+) => {
+  // Same shape as create, update and GET /mine: location plus photos (without publicId)
+  const include = { location: true, photos: PHOTOS } as const;
+  const existing = await prisma.petReport.findUnique({ where: { petReportId }, include });
+
+  if (!existing) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  if (existing.userId !== userId) {
+    throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
+  }
+
+  if (existing.status === "CLOSED") return existing;
+
+  return prisma.petReport.update({
+    where: { petReportId },
+    data: { status: "CLOSED", closeReason: reason ?? null },
+    include,
+  });
 };

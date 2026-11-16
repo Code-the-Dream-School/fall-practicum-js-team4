@@ -812,6 +812,182 @@ describe("PATCH /api/reports/:id", () => {
     expect(res.body.details[0].field).toBe(expectedField);
     expect(prisma.petReport.update).not.toHaveBeenCalled();
   });
+  describe("closing a report (PATCH /api/reports/:id/close)", () => {
+    const close = (id: number | string, body?: object) => {
+      const req = agent.patch(`/api/reports/${id}/close`);
+      return body === undefined ? req : req.send(body);
+    };
+    const stored = () => prisma._reports.find((r) => r.petReportId === myReportId)!;
+
+    it("closes my ACTIVE report without a reason (200)", async () => {
+      const res = await close(myReportId);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        petReportId: myReportId,
+        status: "CLOSED",
+        closeReason: null,
+      });
+      expect(stored().status).toBe("CLOSED");
+      expect(prisma.petReport.update).toHaveBeenCalledWith({
+        where: { petReportId: myReportId },
+        data: { status: "CLOSED", closeReason: null },
+        include: REPORT_INCLUDE,
+      });
+      expect(res.headers["cache-control"]).toBe("private, no-store");
+    });
+
+    it.each([
+      "NO_LONGER_SEARCHING",
+      "TAKEN_TO_SHELTER",
+      "REHOMED",
+      "OWNER_NOT_FOUND",
+      "DUPLICATE",
+      "OTHER",
+    ])("stores the reason %s (200)", async (reason) => {
+      const res = await close(myReportId, { reason });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ status: "CLOSED", closeReason: reason });
+      expect(stored().closeReason).toBe(reason);
+    });
+
+    it("closes FOUND reports too (200)", async () => {
+      const found = await agent.post("/api/reports").send({ ...baseReport, reportType: "FOUND" });
+
+      const res = await close(found.body.data.petReportId, { reason: "OWNER_NOT_FOUND" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ reportType: "FOUND", status: "CLOSED" });
+    });
+
+    it("closes a REUNITED report (200)", async () => {
+      await agent.patch(`/api/reports/${myReportId}`).send({ status: "REUNITED" });
+
+      const res = await close(myReportId, { reason: "DUPLICATE" });
+
+      expect(res.status).toBe(200);
+      expect(stored()).toMatchObject({ status: "CLOSED", closeReason: "DUPLICATE" });
+    });
+
+    it("changes nothing when the report is already closed, not even the reason (200)", async () => {
+      await close(myReportId, { reason: "REHOMED" });
+      jest.clearAllMocks();
+
+      const res = await close(myReportId, { reason: "OTHER" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ status: "CLOSED", closeReason: "REHOMED" });
+      expect(prisma.petReport.update).not.toHaveBeenCalled();
+      expect(stored().closeReason).toBe("REHOMED");
+    });
+
+    it("returns photos without publicId, also when it was already closed", async () => {
+      stored().photos = [
+        {
+          petPhotoId: 7,
+          petReportId: myReportId,
+          imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+          publicId: "pawradar/reports/buddy",
+          createdAt: new Date(),
+        },
+      ];
+
+      const first = await close(myReportId);
+      const again = await close(myReportId);
+
+      for (const res of [first, again]) {
+        expect(res.body.data.photos).toHaveLength(1);
+        expect(res.body.data.photos[0]).not.toHaveProperty("publicId");
+      }
+    });
+
+    it("never closes someone else's report (403)", async () => {
+      const other = await signUp("other@example.com");
+
+      const res = await other.agent.patch(`/api/reports/${myReportId}/close`).send({});
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("FORBIDDEN");
+      expect(prisma.petReport.update).not.toHaveBeenCalled();
+      expect(stored().status).toBe("ACTIVE");
+    });
+
+    it("returns 404 for a report that doesn't exist", async () => {
+      const res = await close(999999);
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe("NOT_FOUND");
+    });
+
+    it("requires signing in (401)", async () => {
+      const res = await request(app).patch(`/api/reports/${myReportId}/close`);
+
+      expect(res.status).toBe(401);
+      expect(stored().status).toBe("ACTIVE");
+    });
+
+    it.each<[string, () => number | string, object | undefined]>([
+      ["an unknown reason", () => myReportId, { reason: "LOST_INTEREST" }],
+      ["a lowercase reason", () => myReportId, { reason: "rehomed" }],
+      ["another field", () => myReportId, { status: "ACTIVE" }],
+      ["a report id that isn't a number", () => "abc", undefined],
+    ])("rejects %s (400)", async (_, id, body) => {
+      const res = await close(id(), body);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.update).not.toHaveBeenCalled();
+    });
+
+    it("drops the report from the public list, but keeps it in mine", async () => {
+      await close(myReportId);
+
+      const publicList = await request(app).get("/api/reports");
+      const mine = await agent.get("/api/reports/mine");
+
+      expect(publicList.body.data.total).toBe(0);
+      expect(mine.body.data.reports).toEqual([
+        expect.objectContaining({ petReportId: myReportId, status: "CLOSED" }),
+      ]);
+    });
+
+    describe("then the general PATCH", () => {
+      beforeEach(async () => {
+        await close(myReportId, { reason: "REHOMED" });
+        jest.clearAllMocks();
+      });
+
+      it.each(["ACTIVE", "REUNITED"])("can't change its status to %s (409)", async (status) => {
+        const res = await agent.patch(`/api/reports/${myReportId}`).send({ status });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("REPORT_CLOSED");
+        expect(prisma.petReport.update).not.toHaveBeenCalled();
+        expect(stored().status).toBe("CLOSED");
+      });
+
+      it("can still fix other fields, and it stays closed (200)", async () => {
+        const res = await agent
+          .patch(`/api/reports/${myReportId}`)
+          .send({ distinctiveFeatures: "Taken in by a neighbour" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({
+          status: "CLOSED",
+          closeReason: "REHOMED",
+          distinctiveFeatures: "Taken in by a neighbour",
+        });
+      });
+    });
+
+    it("can't close through the general PATCH, and says where to go (400)", async () => {
+      const res = await agent.patch(`/api/reports/${myReportId}`).send({ status: "CLOSED" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.details[0].message).toMatch(/PATCH \/api\/reports\/:id\/close/);
+    });
+  });
 });
 
 describe("GET /api/reports", () => {

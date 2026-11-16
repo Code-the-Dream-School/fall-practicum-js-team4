@@ -191,9 +191,13 @@ export const createFakePrisma = () => {
           return withSelectedPhotos(report, include);
         },
       ),
-      findUnique: jest.fn(async ({ where }: { where: { petReportId: number } }) => {
-        return reports.find((r) => r.petReportId === where.petReportId) ?? null;
-      }),
+      // Applies a photo `select` in `include` like Prisma (e.g. no publicId)
+      findUnique: jest.fn(
+        async ({ where, include }: { where: { petReportId: number }; include?: ReportInclude }) => {
+          const report = reports.find((r) => r.petReportId === where.petReportId);
+          return report ? withSelectedPhotos(report, include) : null;
+        },
+      ),
       update: jest.fn(
         async ({
           where,

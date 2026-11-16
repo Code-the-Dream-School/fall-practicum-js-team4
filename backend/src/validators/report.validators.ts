@@ -1,5 +1,12 @@
 import Joi from "joi";
-import type { PetGender, PetSize, PetType, ReportStatus, ReportType } from "@prisma/client";
+import type {
+  CloseReason,
+  PetGender,
+  PetSize,
+  PetType,
+  ReportStatus,
+  ReportType,
+} from "@prisma/client";
 
 // Shapes after validation (empty strings for optional text are allowed and
 // stored as null by the service)
@@ -31,6 +38,10 @@ export interface UpdateReportInput {
   status?: ReportStatus;
   location?: { zipCode: string; city: string; state: string } | null;
   deletePhotoIds?: number[];
+}
+
+export interface CloseReportInput {
+  reason?: CloseReason;
 }
 
 export interface ReportIdParam {
@@ -135,8 +146,10 @@ export const updateReportFieldsSchema = Joi.object<UpdateReportInput>({
     "date.max": "Event date cannot be in the future",
   }),
   contactInfo: Joi.string().max(255).allow(null, "").trim(),
+  // CLOSED has its own endpoint (PATCH /api/reports/:id/close), with an optional reason
   status: Joi.string().valid("ACTIVE", "REUNITED").messages({
-    "any.only": "Status must be either ACTIVE or REUNITED",
+    "any.only":
+      "Status must be either ACTIVE or REUNITED; use PATCH /api/reports/:id/close to close a report",
   }),
   location: locationSchema.allow(null),
   deletePhotoIds: Joi.array().items(Joi.number().integer().positive()).unique().max(5).messages({
@@ -148,6 +161,22 @@ export const updateReportFieldsSchema = Joi.object<UpdateReportInput>({
 
 export const updateReportSchema = updateReportFieldsSchema.min(1).messages({
   "object.min": "At least one field must be provided to update the report",
+});
+
+export const CLOSE_REASONS: CloseReason[] = [
+  "NO_LONGER_SEARCHING",
+  "TAKEN_TO_SHELTER",
+  "REHOMED",
+  "OWNER_NOT_FOUND",
+  "DUPLICATE",
+  "OTHER",
+];
+
+// Body for PATCH /api/reports/:id/close: nothing, or a reason
+export const closeReportSchema = Joi.object<CloseReportInput>({
+  reason: Joi.string()
+    .valid(...CLOSE_REASONS)
+    .messages({ "any.only": `Reason must be one of ${CLOSE_REASONS.join(", ")}` }),
 });
 
 // Query string for GET /api/reports/mine
