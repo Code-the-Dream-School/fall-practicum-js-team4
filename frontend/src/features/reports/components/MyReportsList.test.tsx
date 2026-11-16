@@ -105,10 +105,10 @@ describe('My reports on the profile page', () => {
 
     // The closed badge replaces "Lost pet"
     expect(
-      await within(miloCard).findByText(/case closed/i),
+      await within(miloCard).findByText(/report closed/i),
     ).toBeInTheDocument();
     expect(within(miloCard).queryByText('Lost pet')).not.toBeInTheDocument();
-    expect(within(miloCard).getByText('Report closed')).toBeInTheDocument();
+    expect(within(miloCard).getByText('Report archived')).toBeInTheDocument();
     // Focus continues from the card's heading
     expect(
       within(miloCard).getByRole('heading', { name: 'Milo' }),
@@ -117,7 +117,7 @@ describe('My reports on the profile page', () => {
     expect(within(miloCard).queryByRole('button')).not.toBeInTheDocument();
     expect(patches).toEqual([{ id: '1', body: {} }]);
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Case closed. The report has been archived.',
+      'Report closed. The report has been archived.',
     );
   });
 
