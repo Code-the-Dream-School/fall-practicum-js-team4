@@ -1,5 +1,12 @@
 export type ReportType = 'LOST' | 'FOUND';
-export type ReportStatus = 'ACTIVE' | 'REUNITED';
+export type ReportStatus = 'ACTIVE' | 'REUNITED' | 'CLOSED';
+export type CloseReason =
+  | 'NO_LONGER_SEARCHING'
+  | 'TAKEN_TO_SHELTER'
+  | 'REHOMED'
+  | 'OWNER_NOT_FOUND'
+  | 'DUPLICATE'
+  | 'OTHER';
 export type PetType = 'DOG' | 'CAT' | 'BIRD' | 'OTHER';
 export type PetSize = 'SMALL' | 'MEDIUM' | 'LARGE';
 export type PetGender = 'MALE' | 'FEMALE' | 'UNKNOWN';
@@ -21,6 +28,7 @@ export interface PetReport {
   userId: string;
   reportType: ReportType;
   status: ReportStatus;
+  closeReason?: CloseReason | null;
   petType: PetType;
   petName: string | null;
   breed: string | null;
@@ -68,6 +76,7 @@ export interface PublicReport {
   petReportId: number;
   reportType: ReportType;
   status: ReportStatus;
+  closeReason?: CloseReason | null;
   petType: PetType;
   petName: string | null;
   breed: string | null;
