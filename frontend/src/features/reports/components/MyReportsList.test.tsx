@@ -104,7 +104,9 @@ describe('My reports on the profile page', () => {
     await user.click(screen.getByRole('button', { name: 'Close report' }));
 
     // The closed badge replaces "Lost pet"
-    expect(await within(miloCard).findByText('Closed')).toBeInTheDocument();
+    expect(
+      await within(miloCard).findByText(/case closed/i),
+    ).toBeInTheDocument();
     expect(within(miloCard).queryByText('Lost pet')).not.toBeInTheDocument();
     expect(within(miloCard).getByText('Report closed')).toBeInTheDocument();
     // Focus continues from the card's heading
