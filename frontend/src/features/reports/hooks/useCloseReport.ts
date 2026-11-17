@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ApiError } from '../../../services/api';
 import { closeReport, type MyReports } from '../../../services/reportApi';
 import type { CloseReason, PetReport } from '../../../types/reports';
 import { myReportsKey } from './useMyReports';
 
-export const canCloseReport = (report: PetReport) =>
-  report.reportType === 'LOST' && report.status === 'ACTIVE';
+export const canCloseReport = (report: PetReport) => report.status === 'ACTIVE';
 
 export function useCloseReport() {
   const queryClient = useQueryClient();
@@ -23,14 +23,17 @@ export function useCloseReport() {
             }
           : old,
       );
-      // Invalidate global lists and details so they update
+      // Invalidate global lists so they update
       void queryClient.invalidateQueries({
         queryKey: ['reports'],
         predicate: (query) => query.queryKey[1] !== myReportsKey[1],
       });
-      void queryClient.invalidateQueries({
-        queryKey: ['pet-report', String(updated.petReportId)],
-      });
+    },
+    onError: (err) => {
+      // If the report was closed in another session/tab, refresh to stay in sync
+      if (err instanceof ApiError && err.code === 'REPORT_CLOSED') {
+        void queryClient.invalidateQueries({ queryKey: myReportsKey });
+      }
     },
   });
 }

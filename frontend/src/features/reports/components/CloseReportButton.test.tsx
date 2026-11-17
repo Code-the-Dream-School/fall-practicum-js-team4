@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { delay, http } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../../app/queryClient';
-import { milo, mockMyReports, report } from '../../../test/reports';
+import { foundDog, milo, mockMyReports, report } from '../../../test/reports';
 import { API, server } from '../../../test/server';
 import type { PetReport } from '../../../types/reports';
 import { CloseReportButton } from './CloseReportButton';
@@ -33,7 +33,7 @@ describe('CloseReportButton', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders "Close Report" button for an active report', () => {
+  it('renders "Close Report" button for an active lost report', () => {
     renderButton(milo);
 
     expect(
@@ -41,7 +41,15 @@ describe('CloseReportButton', () => {
     ).toBeInTheDocument();
   });
 
-  it('opens confirmation modal with generic copy when clicked', async () => {
+  it('renders "Close Report" button for an active found report', () => {
+    renderButton(foundDog);
+
+    expect(
+      screen.getByRole('button', { name: /close report/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens confirmation modal with generic copy when clicked and focuses Cancel by default', async () => {
     const { user } = renderButton(milo);
 
     await user.click(screen.getByRole('button', { name: /close report/i }));
@@ -55,7 +63,7 @@ describe('CloseReportButton', () => {
     expect(
       screen.getByRole('button', { name: 'Close report' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 
   it('closes the modal without calling API when cancel is clicked', async () => {

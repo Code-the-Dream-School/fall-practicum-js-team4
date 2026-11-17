@@ -39,8 +39,12 @@ describe('My reports on the profile page', () => {
     ).toBeInTheDocument();
     expect(within(lunaCard).queryByRole('button')).not.toBeInTheDocument();
 
+    const foundCard = await card('Found dog');
     expect(
-      within(await card('Found dog')).queryByRole('button'),
+      within(foundCard).getByRole('button', { name: /close report/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(foundCard).queryByRole('button', { name: /mark reunited/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -98,7 +102,7 @@ describe('My reports on the profile page', () => {
         'Confirm to close the report, this step cannot be undone.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close report' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
     expect(patches).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: 'Close report' }));
