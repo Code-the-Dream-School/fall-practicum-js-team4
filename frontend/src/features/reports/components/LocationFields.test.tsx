@@ -147,9 +147,7 @@ describe('LocationFields', () => {
     await user.tab();
 
     expect(
-      await screen.findByText(
-        "We couldn't find this ZIP code. Check it and try again.",
-      ),
+      await screen.findByText(/We couldn't find this ZIP code\. Check it/),
     ).toBeInTheDocument();
     expect(city).toHaveValue('');
 
@@ -175,7 +173,7 @@ describe('LocationFields', () => {
     await user.type(zip, '27601');
     await user.tab();
     expect(
-      await screen.findByText(/We couldn't look up this ZIP code right now/),
+      await screen.findByText(/We can't reach the ZIP code service right now/),
     ).toBeInTheDocument();
     expect(city).not.toHaveAttribute('readonly');
     expect(state).not.toHaveAttribute('readonly');

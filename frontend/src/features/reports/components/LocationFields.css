@@ -20,20 +20,15 @@
   color: var(--color-error);
 }
 
+.report-form__full-width.location-lookup p[role='status'] {
+  color: inherit;
+}
+
 .location-lookup__actions,
 .location-lookup__choices {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-.location-lookup__choices {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.location-lookup__choices legend {
-  margin-bottom: 8px;
-  padding: 0;
 }
 
 .location-lookup__button {
