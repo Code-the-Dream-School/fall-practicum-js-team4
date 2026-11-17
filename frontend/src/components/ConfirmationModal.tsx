@@ -39,9 +39,12 @@ export function ConfirmationModal({
   // Keep latest callbacks in refs so the keydown listener doesn't need to re-bind
   // or re-trigger effects on parent re-renders.
   const onCancelRef = useRef(onCancel);
-  onCancelRef.current = onCancel;
   const isPendingRef = useRef(isPending);
-  isPendingRef.current = isPending;
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+    isPendingRef.current = isPending;
+  }, [onCancel, isPending]);
 
   // Set initial focus only when the modal opens.
   // For destructive/danger actions, start on Cancel to prevent accidental confirms.
