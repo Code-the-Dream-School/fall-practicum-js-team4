@@ -1,9 +1,11 @@
 import type { PetType, Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import AppError from "../utils/AppError";
+import { errorCode } from "../utils/errorCode";
 import { MAX_PHOTOS } from "../middleware/photoUpload";
 import { deleteImages, storePhotos } from "./photo.service";
 import type {
+  CloseReportInput,
   CreateReportInput,
   ListReportsQuery,
   MyReportsQuery,
@@ -20,6 +22,8 @@ const PHOTOS = {
   // Same order the files were uploaded in
   orderBy: { petPhotoId: "asc" },
 } satisfies Prisma.PetReport$photosArgs;
+
+const REPORT_INCLUDE = { location: true, photos: PHOTOS } satisfies Prisma.PetReportInclude;
 
 // Public report summary fields for GET /api/reports: omits userId, contactInfo,
 // exact coordinates (latitude/longitude), and Cloudinary publicId
@@ -188,7 +192,7 @@ export const createReport = async (
   try {
     return await prisma.petReport.create({
       data: reportData,
-      include: { location: true, photos: PHOTOS },
+      include: REPORT_INCLUDE,
     });
   } catch (err) {
     // Don't leave images in Cloudinary that no report points to
@@ -207,7 +211,7 @@ export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) 
 
   return prisma.petReport.findMany({
     where,
-    include: { location: true, photos: PHOTOS },
+    include: REPORT_INCLUDE,
     // petReportId breaks ties between reports created in the same millisecond
     orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
   });
@@ -215,6 +219,10 @@ export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) 
 
 // Optional text fields where an empty string clears the stored value to null
 const NULLABLE_TEXT_FIELDS = ["petName", "breed", "distinctiveFeatures", "contactInfo"] as const;
+
+// A closed report's status is final (see updateReport and closeReport)
+const reportClosed = () =>
+  new AppError(409, "REPORT_CLOSED", "A closed report can't change status");
 
 export const updateReport = async (
   userId: string,
@@ -234,6 +242,13 @@ export const updateReport = async (
 
   if (existing.userId !== userId) {
     throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
+  }
+
+  // Closed is a final state: other fields can still be fixed, but the status
+  // can't be changed back (CLOSED itself is only set by closeReport)
+  const changesStatus = data.status !== undefined;
+  if (existing.status === "CLOSED" && changesStatus) {
+    throw reportClosed();
   }
 
   const { location, deletePhotoIds, ...fields } = data;
@@ -316,9 +331,12 @@ export const updateReport = async (
 
   try {
     const updated = await prisma.petReport.update({
-      where: { petReportId },
+      // The check above used data read earlier: if the report was closed since
+      // (e.g. in another tab), this condition makes the write fail (P2025)
+      // instead of reopening it
+      where: changesStatus ? { petReportId, status: { not: "CLOSED" } } : { petReportId },
       data: updateData,
-      include: { location: true, photos: PHOTOS },
+      include: REPORT_INCLUDE,
     });
 
     if (photosToDelete.length > 0) {
@@ -335,6 +353,7 @@ export const updateReport = async (
     if (newPhotos.length > 0) {
       await deleteImages(newPhotos.map((photo) => photo.publicId));
     }
+    if (changesStatus && errorCode(err) === "P2025") throw reportClosed();
     throw err;
   }
 };
@@ -342,7 +361,7 @@ export const updateReport = async (
 export const getReportById = async (userId: string, petReportId: number) => {
   const report = await prisma.petReport.findUnique({
     where: { petReportId },
-    include: { location: true, photos: PHOTOS },
+    include: REPORT_INCLUDE,
   });
 
   if (!report) {
@@ -353,4 +372,42 @@ export const getReportById = async (userId: string, petReportId: number) => {
     throw new AppError(403, "FORBIDDEN", "You can only view your own reports");
   }
   return report;
+};
+
+// PATCH /api/reports/:id/close: the report ended without a reunion. Works from
+// ACTIVE or REUNITED; closing a closed report changes nothing (not even its
+// reason) and returns it as it is
+export const closeReport = async (
+  userId: string,
+  petReportId: number,
+  { reason }: CloseReportInput = {},
+) => {
+  const existing = await prisma.petReport.findUnique({
+    where: { petReportId },
+    include: REPORT_INCLUDE,
+  });
+
+  if (!existing) {
+    throw new AppError(404, "NOT_FOUND", "Report not found");
+  }
+
+  if (existing.userId !== userId) {
+    throw new AppError(403, "FORBIDDEN", "You can only edit your own reports");
+  }
+
+  if (existing.status === "CLOSED") return existing;
+
+  try {
+    return await prisma.petReport.update({
+      // Only if still not closed: a close that happened since (another tab,
+      // a double click) wins, and its reason isn't overwritten
+      where: { petReportId, status: { not: "CLOSED" } },
+      data: { status: "CLOSED", closeReason: reason ?? null },
+      include: REPORT_INCLUDE,
+    });
+  } catch (err) {
+    if (errorCode(err) !== "P2025") throw err;
+    // Closed in the meantime: closing again changes nothing
+    return prisma.petReport.findUnique({ where: { petReportId }, include: REPORT_INCLUDE });
+  }
 };

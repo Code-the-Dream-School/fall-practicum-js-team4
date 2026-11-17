@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import * as reportService from "../services/report.service";
 import type {
+  CloseReportInput,
   ListReportsQuery,
   MyReportsQuery,
   ReportIdParam,
@@ -23,7 +24,6 @@ export const getPublicReportById = async (req: Request, res: Response) => {
     data: report,
   });
 };
-
 
 // All routes below use requireAuth, so req.user is always set
 
@@ -64,6 +64,15 @@ export const updateReport = async (req: Request, res: Response) => {
     req.body,
     (req.files as Express.Multer.File[] | undefined) ?? [],
   );
+  res.json({
+    success: true,
+    data: report,
+  });
+};
+
+export const closeReport = async (req: Request, res: Response) => {
+  const { id } = req.params as unknown as ReportIdParam;
+  const report = await reportService.closeReport(req.user!.id, id, req.body as CloseReportInput);
   res.json({
     success: true,
     data: report,
