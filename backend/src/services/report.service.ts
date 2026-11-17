@@ -23,6 +23,8 @@ const PHOTOS = {
   orderBy: { petPhotoId: "asc" },
 } satisfies Prisma.PetReport$photosArgs;
 
+const REPORT_INCLUDE = { location: true, photos: PHOTOS } satisfies Prisma.PetReportInclude;
+
 // Public report summary fields for GET /api/reports: omits userId, contactInfo,
 // exact coordinates (latitude/longitude), and Cloudinary publicId
 const PUBLIC_REPORT_SELECT = {
@@ -190,7 +192,7 @@ export const createReport = async (
   try {
     return await prisma.petReport.create({
       data: reportData,
-      include: { location: true, photos: PHOTOS },
+      include: REPORT_INCLUDE,
     });
   } catch (err) {
     // Don't leave images in Cloudinary that no report points to
@@ -209,7 +211,7 @@ export const getUserReports = (userId: string, { search }: MyReportsQuery = {}) 
 
   return prisma.petReport.findMany({
     where,
-    include: { location: true, photos: PHOTOS },
+    include: REPORT_INCLUDE,
     // petReportId breaks ties between reports created in the same millisecond
     orderBy: [{ createdAt: "desc" }, { petReportId: "desc" }],
   });
@@ -334,7 +336,7 @@ export const updateReport = async (
       // instead of reopening it
       where: changesStatus ? { petReportId, status: { not: "CLOSED" } } : { petReportId },
       data: updateData,
-      include: { location: true, photos: PHOTOS },
+      include: REPORT_INCLUDE,
     });
 
     if (photosToDelete.length > 0) {
@@ -359,7 +361,7 @@ export const updateReport = async (
 export const getReportById = async (userId: string, petReportId: number) => {
   const report = await prisma.petReport.findUnique({
     where: { petReportId },
-    include: { location: true, photos: PHOTOS },
+    include: REPORT_INCLUDE,
   });
 
   if (!report) {
@@ -380,9 +382,10 @@ export const closeReport = async (
   petReportId: number,
   { reason }: CloseReportInput = {},
 ) => {
-  // Same shape as create, update and GET /mine: location plus photos (without publicId)
-  const include = { location: true, photos: PHOTOS } as const;
-  const existing = await prisma.petReport.findUnique({ where: { petReportId }, include });
+  const existing = await prisma.petReport.findUnique({
+    where: { petReportId },
+    include: REPORT_INCLUDE,
+  });
 
   if (!existing) {
     throw new AppError(404, "NOT_FOUND", "Report not found");
@@ -400,11 +403,11 @@ export const closeReport = async (
       // a double click) wins, and its reason isn't overwritten
       where: { petReportId, status: { not: "CLOSED" } },
       data: { status: "CLOSED", closeReason: reason ?? null },
-      include,
+      include: REPORT_INCLUDE,
     });
   } catch (err) {
     if (errorCode(err) !== "P2025") throw err;
     // Closed in the meantime: closing again changes nothing
-    return prisma.petReport.findUnique({ where: { petReportId }, include });
+    return prisma.petReport.findUnique({ where: { petReportId }, include: REPORT_INCLUDE });
   }
 };

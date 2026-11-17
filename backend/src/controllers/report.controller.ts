@@ -25,7 +25,6 @@ export const getPublicReportById = async (req: Request, res: Response) => {
   });
 };
 
-
 // All routes below use requireAuth, so req.user is always set
 
 export const createReport = async (req: Request, res: Response) => {
