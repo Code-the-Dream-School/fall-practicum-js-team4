@@ -153,7 +153,7 @@ function MyReportCard({ report, onReunited, onClosed }: MyReportCardProps) {
           View report
         </Link>
 
-        {report.status !== 'CLOSED' && (
+        {!closed && (
           <Link
             to={PATHS.editReport(String(report.petReportId))}
             className="my-report-card__view"
