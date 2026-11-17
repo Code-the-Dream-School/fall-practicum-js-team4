@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -34,29 +35,99 @@ describe('ConfirmationModal', () => {
     );
 
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toBeInTheDocument();
-    expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(dialog).toHaveAttribute(
-      'aria-labelledby',
-      'confirmation-modal-title',
-    );
-    expect(dialog).toHaveAttribute(
-      'aria-describedby',
-      'confirmation-modal-description',
+    const heading = screen.getByRole('heading', { name: /close report/i });
+    const description = screen.getByText(
+      'Confirm to close the report, this step cannot be undone.',
     );
 
-    expect(
-      screen.getByRole('heading', { name: /close report/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Confirm to close the report, this step cannot be undone.',
-      ),
-    ).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.id);
+    expect(dialog).toHaveAttribute('aria-describedby', description.id);
+
+    expect(heading).toBeInTheDocument();
+    expect(description).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Close report' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('starts focus on Cancel for danger tone', () => {
+    render(
+      <ConfirmationModal
+        isOpen={true}
+        title="Close Report"
+        message="Confirm to close the report, this step cannot be undone."
+        confirmText="Close report"
+        cancelText="Cancel"
+        confirmTone="danger"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  });
+
+  it('starts focus on Confirm for success or primary tone', () => {
+    render(
+      <ConfirmationModal
+        isOpen={true}
+        title="Mark Reunited"
+        message="Confirm to mark reunited."
+        confirmText="Yes, we're reunited"
+        confirmTone="success"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
+    ).toHaveFocus();
+  });
+
+  it('does not reset focus when parent re-renders while open', async () => {
+    function ParentComponent() {
+      const [, setCount] = useState(0);
+      return (
+        <div>
+          <button type="button" onClick={() => setCount((c) => c + 1)}>
+            Trigger Parent Re-render
+          </button>
+          <ConfirmationModal
+            isOpen={true}
+            title="Mark Reunited"
+            message="Confirm reunion"
+            confirmText="Confirm"
+            cancelText="Cancel"
+            confirmTone="primary"
+            onConfirm={vi.fn()}
+            // New inline function on every render:
+            onCancel={() => {}}
+          />
+        </div>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<ParentComponent />);
+
+    // Initially focused on Confirm
+    expect(screen.getByRole('button', { name: 'Confirm' })).toHaveFocus();
+
+    // User tabs to Cancel
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+
+    // Trigger parent re-render (simulating toast dismiss or refetch)
+    await user.click(
+      screen.getByRole('button', { name: 'Trigger Parent Re-render' }),
+    );
+
+    // Focus must NOT jump back to Confirm!
+    expect(screen.getByRole('button', { name: 'Confirm' })).not.toHaveFocus();
   });
 
   it('calls onConfirm when the confirm button is clicked', async () => {

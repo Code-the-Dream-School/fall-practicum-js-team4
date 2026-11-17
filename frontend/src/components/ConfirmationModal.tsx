@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 import './ConfirmationModal.css';
@@ -30,30 +30,63 @@ export function ConfirmationModal({
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
+  const titleId = useId();
+  const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Lock body scroll and set initial focus when open
+  // Keep latest callbacks in refs so the keydown listener doesn't need to re-bind
+  // or re-trigger effects on parent re-renders.
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+  const isPendingRef = useRef(isPending);
+  isPendingRef.current = isPending;
+
+  // Set initial focus only when the modal opens.
+  // For destructive/danger actions, start on Cancel to prevent accidental confirms.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (confirmTone === 'danger') {
+      cancelRef.current?.focus();
+    } else {
+      confirmRef.current?.focus();
+    }
+  }, [isOpen, confirmTone]);
+
+  // Restore focus if a save fails and buttons are re-enabled
+  useEffect(() => {
+    if (error) {
+      if (confirmTone === 'danger') {
+        cancelRef.current?.focus();
+      } else {
+        confirmRef.current?.focus();
+      }
+    }
+  }, [error, confirmTone]);
+
+  // Handle body scroll lock and key listeners (Escape & focus trap)
   useEffect(() => {
     if (!isOpen) return;
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Focus confirm button by default
-    confirmRef.current?.focus();
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (!isPending) onCancel();
+        if (!isPendingRef.current) onCancelRef.current();
       } else if (e.key === 'Tab' && dialogRef.current) {
         // Focus trap
         const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
         );
-        if (focusable.length === 0) return;
+        if (focusable.length === 0) {
+          // Both buttons disabled while saving: keep focus on dialog container
+          e.preventDefault();
+          dialogRef.current.focus();
+          return;
+        }
 
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -74,7 +107,7 @@ export function ConfirmationModal({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, isPending, onCancel]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -82,15 +115,16 @@ export function ConfirmationModal({
     <div className="confirmation-modal-overlay">
       <div
         className="confirmation-modal-backdrop"
-        onClick={() => !isPending && onCancel()}
+        onClick={() => !isPendingRef.current && onCancelRef.current()}
         aria-hidden="true"
       />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirmation-modal-title"
-        aria-describedby="confirmation-modal-description"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         className="confirmation-modal"
       >
         <div className="confirmation-modal__header">
@@ -102,18 +136,12 @@ export function ConfirmationModal({
               <Icon name={icon} />
             </span>
           )}
-          <h2
-            id="confirmation-modal-title"
-            className="confirmation-modal__title"
-          >
+          <h2 id={titleId} className="confirmation-modal__title">
             {title}
           </h2>
         </div>
 
-        <p
-          id="confirmation-modal-description"
-          className="confirmation-modal__message"
-        >
+        <p id={descriptionId} className="confirmation-modal__message">
           {message}
         </p>
 
