@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 import type { ZipPlace } from '../../../services/locationApi';
@@ -19,8 +19,18 @@ const durham = zipPlace('Durham', 'North Carolina', 'NC');
 
 const PLACES: Record<string, ZipPlace[]> = {
   '27601': [raleigh],
+  '27701': [durham],
   '27703': [durham, raleigh],
 };
+
+const LOOKUP_DOWN = /We can't reach the ZIP code service right now/;
+
+const lookupDown = () =>
+  errorResponse(
+    503,
+    'ZIP_SERVICE_UNAVAILABLE',
+    'Zip lookup temporarily unavailable',
+  );
 
 const mockZipApi = () => {
   const requested: string[] = [];
@@ -66,12 +76,11 @@ const renderForm = (defaultValues?: Partial<ReportFormValues>) => {
 };
 
 describe('LocationFields', () => {
-  it('fills in city and state on blur and saves once confirmed', async () => {
+  it('fills in city and state from the ZIP code and saves once confirmed', async () => {
     mockZipApi();
     const { user, onValid, zip, city, state } = renderForm();
 
     await user.type(zip, '27601');
-    await user.tab();
 
     expect(await screen.findByText('Raleigh, NC')).toBeInTheDocument();
     expect(city).toHaveValue('Raleigh');
@@ -99,7 +108,6 @@ describe('LocationFields', () => {
     const { user, onValid, zip } = renderForm();
 
     await user.type(zip, '27601');
-    await user.tab();
     await screen.findByText('Raleigh, NC');
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -115,7 +123,6 @@ describe('LocationFields', () => {
     const { user, zip, city, state } = renderForm();
 
     await user.type(zip, '27703');
-    await user.tab();
     await user.click(await screen.findByRole('button', { name: 'Durham, NC' }));
 
     expect(city).toHaveValue('Durham');
@@ -128,7 +135,6 @@ describe('LocationFields', () => {
     const { user, zip, city, state } = renderForm();
 
     await user.type(zip, '27601');
-    await user.tab();
     await user.click(
       await screen.findByRole('button', { name: 'No, change ZIP' }),
     );
@@ -139,42 +145,55 @@ describe('LocationFields', () => {
     expect(zip).toHaveFocus();
   });
 
+  it('clears the ZIP error after "No, change ZIP"', async () => {
+    mockZipApi();
+    const { user, zip } = renderForm();
+
+    await user.type(zip, '27601');
+    await screen.findByRole('button', { name: "Yes, that's right" });
+    await user.keyboard('{Enter}');
+    expect(
+      await screen.findByText('Confirm the city and state for this ZIP code'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'No, change ZIP' }));
+
+    expect(
+      screen.queryByText(
+        /Still looking up this ZIP code|Confirm the city and state for this ZIP code/,
+      ),
+    ).not.toBeInTheDocument();
+    expect(zip).toHaveFocus();
+  });
+
   it('says when a ZIP code is not found and does not save', async () => {
     mockZipApi();
     const { user, onValid, zip, city } = renderForm();
 
     await user.type(zip, '00000');
-    await user.tab();
 
     expect(
       await screen.findByText(/We couldn't find this ZIP code\. Check it/),
     ).toBeInTheDocument();
     expect(city).toHaveValue('');
+    expect(city).toHaveAttribute('readonly');
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(
       await screen.findByText("We couldn't find this ZIP code"),
     ).toBeInTheDocument();
     expect(onValid).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText('City is required when providing a location'),
+    ).not.toBeInTheDocument();
   });
 
   it('lets the user type city and state when the lookup is down', async () => {
-    server.use(
-      http.get(`${API}/api/locations/zip/:zip`, () =>
-        errorResponse(
-          503,
-          'ZIP_SERVICE_UNAVAILABLE',
-          'Zip lookup temporarily unavailable',
-        ),
-      ),
-    );
+    server.use(http.get(`${API}/api/locations/zip/:zip`, lookupDown));
     const { user, onValid, zip, city, state } = renderForm();
 
     await user.type(zip, '27601');
-    await user.tab();
-    expect(
-      await screen.findByText(/We can't reach the ZIP code service right now/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
     expect(city).not.toHaveAttribute('readonly');
     expect(state).not.toHaveAttribute('readonly');
 
@@ -190,19 +209,66 @@ describe('LocationFields', () => {
     });
   });
 
+  it.each([
+    ['the service is down', lookupDown],
+    ['the network fails', () => HttpResponse.error()],
+  ])(
+    'clears the old city and state when a new lookup fails because %s',
+    async (_, respond) => {
+      server.use(http.get(`${API}/api/locations/zip/:zip`, respond));
+      const { user, onValid, zip, city, state } = renderForm({
+        zipCode: '27601',
+        city: 'Raleigh',
+        state: 'NC',
+      });
+
+      await user.clear(zip);
+      await user.type(zip, '27701');
+
+      expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
+      expect(city).toHaveValue('');
+      expect(state).toHaveValue('');
+
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(
+        await screen.findByText('City is required when providing a location'),
+      ).toBeInTheDocument();
+      expect(onValid).not.toHaveBeenCalled();
+    },
+  );
+
+  it('tries the lookup again after the service was down', async () => {
+    let calls = 0;
+    server.use(
+      http.get(`${API}/api/locations/zip/:zip`, ({ params }) => {
+        calls += 1;
+        if (calls === 1) return lookupDown();
+        const zip = String(params.zip);
+        return zipLookupResponse(zip, PLACES[zip]);
+      }),
+    );
+    const { user, zip, city } = renderForm();
+
+    await user.type(zip, '27601');
+    await user.click(
+      await screen.findByRole('button', { name: 'Try lookup again' }),
+    );
+
+    expect(await screen.findByText('Raleigh, NC')).toBeInTheDocument();
+    expect(city).toHaveValue('Raleigh');
+  });
+
   it('looks up a new ZIP code when it changes', async () => {
     mockZipApi();
     const { user, zip, city } = renderForm();
 
     await user.type(zip, '27601');
-    await user.tab();
     await user.click(
       await screen.findByRole('button', { name: "Yes, that's right" }),
     );
 
     await user.clear(zip);
     await user.type(zip, '27703');
-    await user.tab();
     await user.click(await screen.findByRole('button', { name: 'Durham, NC' }));
 
     expect(city).toHaveValue('Durham');
@@ -227,6 +293,51 @@ describe('LocationFields', () => {
     await user.tab();
 
     expect(requested).toEqual([]);
+  });
+
+  it('does not save a changed ZIP code submitted with Enter', async () => {
+    mockZipApi();
+    const { user, onValid, zip, city } = renderForm({
+      zipCode: '27601',
+      city: 'Raleigh',
+      state: 'NC',
+    });
+
+    await user.clear(zip);
+    await user.type(zip, '27701{Enter}');
+
+    expect(await screen.findByText('Durham, NC')).toBeInTheDocument();
+    expect(city).toHaveValue('Durham');
+    expect(onValid).not.toHaveBeenCalled();
+  });
+
+  it('does not save while the ZIP code is being looked up', async () => {
+    let answerZip = () => {};
+    const zipCanAnswer = new Promise<void>((resolve) => {
+      answerZip = resolve;
+    });
+    server.use(
+      http.get(`${API}/api/locations/zip/:zip`, async ({ params }) => {
+        await zipCanAnswer;
+        const zip = String(params.zip);
+        return zipLookupResponse(zip, PLACES[zip]);
+      }),
+    );
+    const { user, onValid, zip } = renderForm();
+
+    await user.type(zip, '27601');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(
+      await screen.findByText('Still looking up this ZIP code'),
+    ).toBeInTheDocument();
+    expect(onValid).not.toHaveBeenCalled();
+
+    answerZip();
+    expect(await screen.findByText('Raleigh, NC')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Still looking up this ZIP code'),
+    ).not.toBeInTheDocument();
   });
 
   it('does not look up an incomplete ZIP code', async () => {
@@ -278,14 +389,12 @@ describe('LocationFields', () => {
     const { user, zip, city } = renderForm();
 
     await user.type(zip, '27703');
-    await user.tab();
     expect(
       await screen.findByText(/Looking up this ZIP code/),
     ).toBeInTheDocument();
 
     await user.clear(zip);
     await user.type(zip, '27601');
-    await user.tab();
     await screen.findByRole('button', { name: "Yes, that's right" });
 
     answerSlowZip();
