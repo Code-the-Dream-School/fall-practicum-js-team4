@@ -1,5 +1,6 @@
 import { ApiError, apiRequest } from './api';
 import type {
+  CloseReason,
   CreateReportInput,
   PetReport,
   UpdateReportInput,
@@ -60,6 +61,13 @@ export const markReportReunited = (id: number) =>
   apiRequest<PetReport>(`/api/reports/${id}`, {
     method: 'PATCH',
     body: { status: 'REUNITED' },
+  });
+
+// Closes a report without a reunion (e.g. taken to shelter, rehomed, stopped searching)
+export const closeReport = (id: number, reason?: CloseReason) =>
+  apiRequest<PetReport>(`/api/reports/${id}/close`, {
+    method: 'PATCH',
+    body: reason ? { reason } : {},
   });
 
 /**
@@ -174,3 +182,11 @@ const SAVE_ERROR_TITLES: Record<ErrorKind, string> = {
 /** Message for a failed "Mark Reunited": what happened, then that nothing changed. */
 export const describeReunitedError = (err: unknown): string =>
   `${SAVE_ERROR_TITLES[describeApiError(err).kind]}. The report wasn't changed.`;
+
+/** Message for a failed "Close Report": what happened, then that nothing changed. */
+export const describeCloseError = (err: unknown): string => {
+  if (err instanceof ApiError && err.code === 'REPORT_CLOSED') {
+    return 'This report has already been closed. Please refresh the page.';
+  }
+  return `${SAVE_ERROR_TITLES[describeApiError(err).kind]}. The report wasn't closed.`;
+};

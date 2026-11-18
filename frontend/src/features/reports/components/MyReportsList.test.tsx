@@ -15,14 +15,20 @@ const card = async (name: string) =>
   (await screen.findByRole('heading', { name })).closest('li') as HTMLElement;
 
 describe('My reports on the profile page', () => {
-  it('offers "Mark Reunited" only on active lost reports', async () => {
+  it('offers "Mark Reunited" and "Close Report" on active lost reports', async () => {
     signedIn();
     mockMyReports([milo, luna, foundDog]);
     renderApp('/profile');
 
+    const miloCard = await card('Milo');
     expect(
-      within(await card('Milo')).getByRole('button', {
+      within(miloCard).getByRole('button', {
         name: /mark reunited/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(miloCard).getByRole('button', {
+        name: /close report/i,
       }),
     ).toBeInTheDocument();
 
@@ -33,12 +39,16 @@ describe('My reports on the profile page', () => {
     ).toBeInTheDocument();
     expect(within(lunaCard).queryByRole('button')).not.toBeInTheDocument();
 
+    const foundCard = await card('Found dog');
     expect(
-      within(await card('Found dog')).queryByRole('button'),
+      within(foundCard).getByRole('button', { name: /close report/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(foundCard).queryByRole('button', { name: /mark reunited/i }),
     ).not.toBeInTheDocument();
   });
 
-  it('marks the pet as reunited after the owner confirms', async () => {
+  it('marks the pet as reunited after the owner confirms in modal', async () => {
     signedIn();
     const patches = mockMyReports([milo]);
     const { user } = renderApp('/profile');
@@ -48,15 +58,15 @@ describe('My reports on the profile page', () => {
       within(miloCard).getByRole('button', { name: /mark reunited/i }),
     );
     expect(
-      within(miloCard).getByText(/is milo back home\?/i),
+      screen.getByText(/confirm to mark the report as reunited/i),
     ).toBeInTheDocument();
     expect(
-      within(miloCard).getByRole('button', { name: "Yes, we're reunited" }),
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
     ).toHaveFocus();
     expect(patches).toHaveLength(0);
 
     await user.click(
-      within(miloCard).getByRole('button', { name: "Yes, we're reunited" }),
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
     );
 
     // The reunited badge replaces "Lost pet"
@@ -78,6 +88,61 @@ describe('My reports on the profile page', () => {
     );
   });
 
+  it('marks the report as closed after the owner confirms in modal', async () => {
+    signedIn();
+    const patches = mockMyReports([milo]);
+    const { user } = renderApp('/profile');
+    const miloCard = await card('Milo');
+
+    await user.click(
+      within(miloCard).getByRole('button', { name: /close report/i }),
+    );
+    expect(
+      screen.getByText(
+        'Confirm to close the report, this step cannot be undone.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(patches).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Close report' }));
+
+    // The closed badge replaces "Lost pet"
+    expect(
+      await within(miloCard).findByText(/report closed/i),
+    ).toBeInTheDocument();
+    expect(within(miloCard).queryByText('Lost pet')).not.toBeInTheDocument();
+    expect(within(miloCard).getByText('Report archived')).toBeInTheDocument();
+    // Focus continues from the card's heading
+    expect(
+      within(miloCard).getByRole('heading', { name: 'Milo' }),
+    ).toHaveFocus();
+    // Buttons are gone
+    expect(within(miloCard).queryByRole('button')).not.toBeInTheDocument();
+    expect(patches).toEqual([{ id: '1', body: {} }]);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Report closed. The report has been archived.',
+    );
+  });
+
+  it('changes nothing when the owner cancels closing', async () => {
+    signedIn();
+    const patches = mockMyReports([milo]);
+    const { user } = renderApp('/profile');
+    const miloCard = await card('Milo');
+
+    await user.click(
+      within(miloCard).getByRole('button', { name: /close report/i }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(
+      within(miloCard).getByRole('button', { name: /close report/i }),
+    ).toHaveFocus();
+    expect(within(miloCard).getByText('Lost pet')).toBeInTheDocument();
+    expect(patches).toHaveLength(0);
+  });
+
   it('changes nothing when the owner cancels', async () => {
     signedIn();
     const patches = mockMyReports([milo]);
@@ -87,7 +152,7 @@ describe('My reports on the profile page', () => {
     await user.click(
       within(miloCard).getByRole('button', { name: /mark reunited/i }),
     );
-    await user.click(within(miloCard).getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(
       within(miloCard).getByRole('button', { name: /mark reunited/i }),
@@ -113,17 +178,17 @@ describe('My reports on the profile page', () => {
       within(miloCard).getByRole('button', { name: /mark reunited/i }),
     );
     await user.click(
-      within(miloCard).getByRole('button', { name: "Yes, we're reunited" }),
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
     );
 
-    expect(await within(miloCard).findByRole('alert')).toHaveTextContent(
+    expect(await screen.findByRole('alert')).toHaveTextContent(
       "Something went wrong on our side. The report wasn't changed.",
     );
     expect(within(miloCard).getByText('Lost pet')).toBeInTheDocument();
     expect(attempts).toBe(1);
     expect(
-      within(miloCard).getByRole('button', { name: "Yes, we're reunited" }),
-    ).toHaveFocus();
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 

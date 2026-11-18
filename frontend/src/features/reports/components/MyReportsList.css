@@ -134,6 +134,12 @@
   --accent-text: var(--color-success);
 }
 
+.my-report-card--closed {
+  --accent: var(--color-on-surface-variant);
+  --accent-text: var(--color-on-surface-variant);
+  opacity: 0.85;
+}
+
 /* As in the design: lighter, with a glow in the report's colour.
    focus-within gives keyboard users the same cue */
 .my-report-card:hover,
@@ -263,6 +269,10 @@
     transparent
   );
   color: var(--color-success);
+}
+
+.my-report-card__note--closed {
+  color: var(--color-on-surface-variant);
 }
 
 .my-report-card__actions {

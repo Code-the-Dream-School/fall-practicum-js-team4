@@ -7,6 +7,7 @@ import { PATHS } from '../../../app/paths';
 import type { PetReport } from '../../../types/reports';
 import { useMyReports } from '../hooks/useMyReports';
 import { MarkReunitedButton } from './MarkReunitedButton';
+import { CloseReportButton } from './CloseReportButton';
 import './MyReportsList.css';
 
 // Event dates are stored as midnight UTC: format in UTC so they don't move a day
@@ -26,10 +27,13 @@ const capitalize = (word: string) =>
 const titleCase = (text: string) =>
   text.trim().replace(/(^|\s)(\S)/g, (_, space, c) => space + c.toUpperCase());
 
-// Reunited replaces the lost/found look, as in the design
+// Reunited and closed replace the lost/found look, as in the design
 const cardVariant = (report: PetReport) => {
   if (report.status === 'REUNITED') {
     return { tone: 'reunited', label: 'Reunited safe' };
+  }
+  if (report.status === 'CLOSED') {
+    return { tone: 'closed', label: 'Report closed' };
   }
   return report.reportType === 'LOST'
     ? { tone: 'lost', label: 'Lost pet' }
@@ -39,11 +43,13 @@ const cardVariant = (report: PetReport) => {
 interface MyReportCardProps {
   report: PetReport;
   onReunited: () => void;
+  onClosed: () => void;
 }
 
-function MyReportCard({ report, onReunited }: MyReportCardProps) {
+function MyReportCard({ report, onReunited, onClosed }: MyReportCardProps) {
   const lost = report.reportType === 'LOST';
   const reunited = report.status === 'REUNITED';
+  const closed = report.status === 'CLOSED';
   const title =
     report.petName ||
     `${lost ? 'Lost' : 'Found'} ${report.petType.toLowerCase()}`;
@@ -54,10 +60,14 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
   ].filter(Boolean);
   const { tone, label } = cardVariant(report);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  // The button that had focus is gone once reunited: continue from the card
+  // The button that had focus is gone once reunited or closed: continue from the card
   const handleReunited = () => {
     headingRef.current?.focus();
     onReunited();
+  };
+  const handleClosed = () => {
+    headingRef.current?.focus();
+    onClosed();
   };
   const photo = report.photos?.[0]?.imageUrl;
   const place = report.location
@@ -92,6 +102,8 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
             <span className="my-report-card__badge">
               {reunited ? (
                 <Icon name="done_all" />
+              ) : closed ? (
+                <Icon name="archive" />
               ) : (
                 <span
                   className="my-report-card__badge-dot"
@@ -122,6 +134,12 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
               Reunited with family
             </span>
           )}
+          {closed && (
+            <span className="my-report-card__note my-report-card__note--closed">
+              <Icon name="archive" />
+              Report archived
+            </span>
+          )}
         </div>
       </div>
 
@@ -135,14 +153,17 @@ function MyReportCard({ report, onReunited }: MyReportCardProps) {
           View report
         </Link>
 
-        <Link
-          to={PATHS.editReport(String(report.petReportId))}
-          className="my-report-card__view"
-          aria-label={`Edit report for ${title}`}
-        >
-          Edit
-        </Link>
+        {!closed && (
+          <Link
+            to={PATHS.editReport(String(report.petReportId))}
+            className="my-report-card__view"
+            aria-label={`Edit report for ${title}`}
+          >
+            Edit
+          </Link>
+        )}
         <MarkReunitedButton report={report} onReunited={handleReunited} />
+        <CloseReportButton report={report} onClosed={handleClosed} />
       </div>
     </li>
   );
@@ -153,6 +174,10 @@ export function MyReportsList() {
   const [toast, setToast] = useState<string | null>(null);
   const showReunitedToast = useCallback(
     () => setToast('🎉 Case updated to Reunited! Recovery rate incremented.'),
+    [],
+  );
+  const showClosedToast = useCallback(
+    () => setToast('Report closed. The report has been archived.'),
     [],
   );
   const hideToast = useCallback(() => setToast(null), []);
@@ -195,6 +220,7 @@ export function MyReportsList() {
                   key={report.petReportId}
                   report={report}
                   onReunited={showReunitedToast}
+                  onClosed={showClosedToast}
                 />
               ))}
             </ul>
