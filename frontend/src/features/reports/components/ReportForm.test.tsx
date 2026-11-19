@@ -54,7 +54,10 @@ describe('ReportForm', () => {
     fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
       target: { value: '2026-10-20' },
     });
-    await user.type(screen.getByLabelText('ZIP Code (optional)'), '23220');
+    await user.type(
+      screen.getByLabelText('ZIP Code (required if providing location)'),
+      '23220',
+    );
 
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
@@ -88,7 +91,10 @@ describe('ReportForm', () => {
       target: { value: '2026-10-20' },
     });
 
-    await user.type(screen.getByLabelText('ZIP Code (optional)'), '23220');
+    await user.type(
+      screen.getByLabelText('ZIP Code (required if providing location)'),
+      '23220',
+    );
 
     fireEvent.change(
       screen.getByLabelText('City (required if providing location)'),

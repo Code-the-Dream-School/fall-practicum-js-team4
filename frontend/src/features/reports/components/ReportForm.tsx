@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { ReportType } from '../../../types/reports';
 import { PhotoUpload } from './PhotoUpload';
+import { LocationFields } from './LocationFields';
 
 interface ReportFormProps {
   reportType: ReportType;
@@ -48,11 +49,12 @@ export function ReportForm({
   showPhotoUpload = true,
   maxPhotos = 5,
 }: ReportFormProps) {
+  const form = useForm<ReportFormValues>({ defaultValues: initialValues });
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ReportFormValues>({ defaultValues: initialValues });
+  } = form;
 
   const [photos, setPhotos] = useState<File[]>([]);
 
@@ -246,113 +248,7 @@ export function ReportForm({
           </p>
         )}
       </div>
-      <div>
-        <label htmlFor="report-zip-code">ZIP Code (optional)</label>
-        <input
-          id="report-zip-code"
-          type="text"
-          inputMode="numeric"
-          autoComplete="postal-code"
-          maxLength={5}
-          placeholder="Enter 5-digit ZIP code"
-          aria-invalid={Boolean(errors.zipCode)}
-          aria-describedby={
-            errors.zipCode ? 'report-zip-code-error' : undefined
-          }
-          {...register('zipCode', {
-            deps: ['city', 'state'],
-            validate: (value, formValues) => {
-              const hasLocation = Boolean(
-                value?.trim() ||
-                formValues.city?.trim() ||
-                formValues.state?.trim(),
-              );
-
-              if (!hasLocation) return true;
-
-              if (!value?.trim()) {
-                return 'ZIP code is required when providing a location';
-              }
-
-              return /^\d{5}$/.test(value) || 'Enter a valid 5-digit ZIP code';
-            },
-          })}
-        />
-        {errors.zipCode && (
-          <p id="report-zip-code-error" role="alert">
-            {errors.zipCode.message}
-          </p>
-        )}
-      </div>
-      <div>
-        <label htmlFor="report-city">
-          City (required if providing location)
-        </label>
-        <input
-          id="report-city"
-          type="text"
-          autoComplete="address-level2"
-          placeholder="Enter city"
-          aria-invalid={Boolean(errors.city)}
-          aria-describedby={errors.city ? 'report-city-error' : undefined}
-          {...register('city', {
-            deps: ['zipCode', 'state'],
-            maxLength: {
-              value: 100,
-              message: 'City must be 100 characters or fewer',
-            },
-            validate: (value, formValues) =>
-              (!formValues.zipCode?.trim() && !formValues.state?.trim()) ||
-              Boolean(value.trim()) ||
-              'City is required when providing a location',
-          })}
-        />
-        {errors.city && (
-          <p id="report-city-error" role="alert">
-            {errors.city.message}
-          </p>
-        )}
-      </div>
-      <div>
-        <label htmlFor="report-state">
-          State (required if providing location)
-        </label>
-        <input
-          id="report-state"
-          type="text"
-          autoComplete="address-level1"
-          maxLength={2}
-          placeholder="e.g. VA"
-          aria-invalid={Boolean(errors.state)}
-          aria-describedby={errors.state ? 'report-state-error' : undefined}
-          {...register('state', {
-            deps: ['zipCode', 'city'],
-            setValueAs: (value: string) => value.trim().toUpperCase(),
-            validate: (value, formValues) => {
-              const hasLocation = Boolean(
-                formValues.zipCode?.trim() ||
-                formValues.city?.trim() ||
-                value?.trim(),
-              );
-
-              if (!hasLocation) return true;
-
-              if (!value?.trim()) {
-                return 'State is required when providing a location';
-              }
-
-              return (
-                /^[A-Z]{2}$/.test(value) || 'Enter a valid 2-letter state code'
-              );
-            },
-          })}
-        />
-        {errors.state && (
-          <p id="report-state-error" role="alert">
-            {errors.state.message}
-          </p>
-        )}
-      </div>
+      <LocationFields form={form} />
 
       <h2 className="report-form__section-title">3. Contact Information</h2>
 

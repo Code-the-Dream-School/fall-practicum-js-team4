@@ -125,7 +125,10 @@ describe('ReportPetPage', () => {
       target: { value: '2026-10-20' },
     });
 
-    await user.type(screen.getByLabelText('ZIP Code (optional)'), '23220');
+    await user.type(
+      screen.getByLabelText('ZIP Code (required if providing location)'),
+      '23220',
+    );
     await user.type(
       screen.getByLabelText('City (required if providing location)'),
       'Richmond',
