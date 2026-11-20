@@ -1,342 +1,417 @@
-import { useAuth } from '../context/useAuth';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PetDetailsPage } from './PetDetailsPage';
+import { screen } from '@testing-library/react';
+import { http, HttpResponse, delay } from 'msw';
+import { describe, expect, it } from 'vitest';
+import { PATHS } from '../app/paths';
+import { formatEventDate } from '../features/reports/format';
+import { renderApp } from '../test/renderApp';
+import { milo, luna } from '../test/reports';
 import {
-  getReportDetails,
-  isReportOwnedByCurrentUser,
-} from '../services/reportApi';
-import { ApiError } from '../services/api';
-import type { PublicReport } from '../types/reports';
+  API,
+  errorResponse,
+  server,
+  signedIn,
+  testReports,
+} from '../test/server';
+import type { PetReport, PublicReport } from '../types/reports';
 
-vi.mock('../services/reportApi', () => ({
-  getReportDetails: vi.fn(),
-  isReportOwnedByCurrentUser: vi.fn(),
-}));
-
-vi.mock('../context/useAuth', () => ({
-  useAuth: vi.fn(),
-}));
-
-const mockUseAuth = vi.mocked(useAuth);
-
-const mockGetReportDetails = vi.mocked(getReportDetails);
-
-const mockIsReportOwnedByCurrentUser = vi.mocked(isReportOwnedByCurrentUser);
-
-const report: PublicReport = {
-  petReportId: 123,
-  reportType: 'LOST',
-  status: 'ACTIVE',
-  createdAt: '2026-11-02T12:00:00.000Z',
-  petType: 'DOG',
-  petName: 'Milo',
-  breed: 'Mixed breed',
-  color: 'Brown and white',
-  size: 'MEDIUM',
-  gender: 'MALE',
-  distinctiveFeatures: 'White patch on chest',
-  eventDate: '2026-11-02',
-  location: {
-    zipCode: '23220',
-    city: 'Richmond',
-    state: 'VA',
-  },
-  photos: [],
-};
-
-function renderDetails(path = '/pets/123', state?: { successMessage: string }) {
-  return render(
-    <MemoryRouter initialEntries={[{ pathname: path, state }]}>
-      <Routes>
-        <Route path="/pets/:id" element={<PetDetailsPage />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-}
+const successResponse = (data: PetReport | PublicReport) =>
+  HttpResponse.json({ success: true, data });
 
 describe('PetDetailsPage', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    mockIsReportOwnedByCurrentUser.mockResolvedValue(false);
+  it('loads an ACTIVE report for a guest using only the public endpoint', async () => {
+    const requests: string[] = [];
+    const biscuit = testReports[0];
 
-    mockUseAuth.mockReturnValue({
-      user: null,
-      status: 'unauthenticated',
-      signedOutByUser: false,
-      sessionExpired: false,
-      setSession: vi.fn(),
-      signOut: vi.fn(async () => {}),
-      expireSession: vi.fn(),
-      clearSignedOutByUser: vi.fn(),
-    });
-  });
-
-  it('loads and displays a pet report', async () => {
-    mockGetReportDetails.mockResolvedValue(report);
-
-    renderDetails();
-
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Loading pet report...',
-    );
-
-    expect(
-      await screen.findByRole('heading', { name: 'Milo' }),
-    ).toBeInTheDocument();
-
-    expect(screen.getByText('Mixed breed')).toBeInTheDocument();
-    expect(screen.getByText('Brown and white')).toBeInTheDocument();
-    expect(screen.getByText('Richmond, VA 23220')).toBeInTheDocument();
-
-    expect(mockGetReportDetails).toHaveBeenCalledWith('123');
-  });
-
-  it('displays the success message after updating a report', async () => {
-    mockGetReportDetails.mockResolvedValue(report);
-
-    renderDetails('/pets/123', {
-      successMessage: 'Report updated successfully.',
-    });
-
-    expect(
-      await screen.findByRole('heading', { name: 'Milo' }),
-    ).toBeInTheDocument();
-
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Report updated successfully.',
-    );
-  });
-
-  it('handles a report with missing optional details', async () => {
-    mockGetReportDetails.mockResolvedValue({
-      ...report,
-      petName: null,
-      breed: null,
-      distinctiveFeatures: null,
-      location: null,
-    });
-
-    renderDetails();
-
-    expect(
-      await screen.findByRole('heading', { name: 'DOG Report' }),
-    ).toBeInTheDocument();
-
-    expect(screen.getAllByText('Not provided').length).toBeGreaterThan(0);
-    expect(screen.getByText('no photos available')).toBeInTheDocument();
-  });
-
-  it('displays available pet photos', async () => {
-    mockGetReportDetails.mockResolvedValue({
-      ...report,
-      photos: [
-        {
-          petPhotoId: 1,
-          imageUrl: 'https://example.com/milo.jpg',
-        },
-      ],
-    });
-
-    renderDetails();
-
-    expect(
-      await screen.findByRole('img', { name: 'Photo 1 of Milo' }),
-    ).toHaveAttribute('src', 'https://example.com/milo.jpg');
-  });
-
-  it('shows a not-found message for a missing report', async () => {
-    mockGetReportDetails.mockRejectedValue(
-      new ApiError(404, 'NOT_FOUND', 'Report not found'),
-    );
-
-    renderDetails();
-
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Report not found',
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, ({ params }) => {
+        requests.push(String(params.id));
+        return successResponse(biscuit);
       }),
+    );
+
+    renderApp(PATHS.petDetails('1'));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('Beagle')).toBeInTheDocument();
+    expect(screen.getByText('Tricolor')).toBeInTheDocument();
+    expect(screen.getByText('Raleigh, NC 27601')).toBeInTheDocument();
+    expect(
+      screen.getByText(formatEventDate(biscuit.eventDate)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Photo 1 of Biscuit' }),
+    ).toHaveAttribute('src', 'https://example.com/biscuit.jpg');
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+
+    expect(requests).toEqual(['1']);
+  });
+
+  it('shows Edit to the authenticated owner of an ACTIVE report', async () => {
+    signedIn();
+    const requests: string[] = [];
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, ({ params }) => {
+        requests.push(String(params.id));
+        return successResponse(milo);
+      }),
+    );
+
+    renderApp(PATHS.petDetails('1'));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Milo' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByRole('link', { name: 'Edit report' })).toHaveAttribute(
+      'href',
+      PATHS.editReport('1'),
+    );
+
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(requests).toEqual(['1']);
+  });
+
+  it('shows REUNITED details and Edit to the report owner', async () => {
+    signedIn();
+    const requests: string[] = [];
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, ({ params }) => {
+        requests.push(`owner:${params.id}`);
+        return successResponse(luna);
+      }),
+    );
+
+    renderApp(PATHS.petDetails('2'));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Luna' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('Reunited')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit report' })).toHaveAttribute(
+      'href',
+      PATHS.editReport('2'),
+    );
+
+    expect(requests).toEqual(['owner:2']);
+  });
+
+  it('falls back to public details for an authenticated nonowner', async () => {
+    signedIn();
+    const requests: string[] = [];
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, () => {
+        requests.push('owner');
+        return errorResponse(403, 'FORBIDDEN');
+      }),
+      http.get(`${API}/api/reports/:id/public`, () => {
+        requests.push('public');
+        return successResponse(testReports[0]);
+      }),
+    );
+
+    renderApp(PATHS.petDetails('1'));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit' }),
     ).toBeInTheDocument();
 
     expect(
-      screen.queryByRole('button', { name: 'Try again' }),
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+
+    expect(requests).toEqual(['owner', 'public']);
+  });
+
+  it('does not expose a REUNITED report to a guest', async () => {
+    const requests: string[] = [];
+
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, () => {
+        requests.push('public');
+        return errorResponse(404, 'NOT_FOUND', 'Report not found');
+      }),
+    );
+
+    renderApp(PATHS.petDetails('2'));
+
+    expect(
+      await screen.findByRole('heading', { name: "This doesn't exist" }),
+    ).toBeInTheDocument();
+
+    expect(screen.queryByText('Luna')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+
+    expect(requests).toEqual(['public']);
+  });
+
+  it('does not expose a REUNITED report to an authenticated nonowner', async () => {
+    signedIn();
+    const requests: string[] = [];
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, () => {
+        requests.push('owner');
+        return errorResponse(403, 'FORBIDDEN');
+      }),
+      http.get(`${API}/api/reports/:id/public`, () => {
+        requests.push('public');
+        return errorResponse(404, 'NOT_FOUND', 'Report not found');
+      }),
+    );
+
+    renderApp(PATHS.petDetails('2'));
+
+    expect(
+      await screen.findByRole('heading', { name: "This doesn't exist" }),
+    ).toBeInTheDocument();
+
+    expect(screen.queryByText('Luna')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+
+    expect(requests).toEqual(['owner', 'public']);
+  });
+
+  it('displays the shared not-found state for a missing public report', async () => {
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, () =>
+        errorResponse(404, 'NOT_FOUND', 'Report not found'),
+      ),
+    );
+
+    renderApp(PATHS.petDetails('99'));
+
+    expect(
+      await screen.findByRole('heading', { name: "This doesn't exist" }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
     ).not.toBeInTheDocument();
   });
 
-  it('shows an error and allows retrying', async () => {
-    const user = userEvent.setup();
+  it('handles missing optional information and photos', async () => {
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, () =>
+        successResponse(testReports[1]),
+      ),
+    );
 
-    mockGetReportDetails
-      .mockRejectedValueOnce(
-        new ApiError(0, 'NETWORK_ERROR', 'Connection failed'),
-      )
-      .mockResolvedValueOnce(report);
-
-    renderDetails();
+    renderApp(PATHS.petDetails('2'));
 
     expect(
-      await screen.findByRole('heading', {
-        name: 'Unable to load report',
-      }),
+      await screen.findByRole('heading', { name: 'CAT Report' }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
-
+    expect(screen.getByText('no photos available')).toBeInTheDocument();
+    expect(screen.getAllByText('Not provided').length).toBeGreaterThan(0);
     expect(
-      await screen.findByRole('heading', { name: 'Milo' }),
-    ).toBeInTheDocument();
-
-    expect(mockGetReportDetails).toHaveBeenCalledTimes(2);
+      screen.getByRole('link', { name: /Back to Found Pets/ }),
+    ).toHaveAttribute('href', PATHS.foundPets);
   });
 
-  it('rejects an invalid report ID without making a request', () => {
-    renderDetails('/pets/not-a-number');
+  it('rejects an invalid report ID before fetching report details', () => {
+    renderApp('/pets/not-a-number');
 
     expect(screen.getByRole('alert')).toHaveTextContent('Invalid report link.');
-
-    expect(mockGetReportDetails).not.toHaveBeenCalled();
   });
 
-  it('does not show Edit to a guest', async () => {
-    mockGetReportDetails.mockResolvedValue(report);
-
-    renderDetails();
-
-    await screen.findByRole('heading', { name: 'Milo' });
-
-    expect(
-      screen.queryByRole('link', { name: 'Edit report' }),
-    ).not.toBeInTheDocument();
-
-    expect(mockIsReportOwnedByCurrentUser).not.toHaveBeenCalled();
-  });
-
-  it('does not show Edit to a logged-in non-owner', async () => {
-    mockUseAuth.mockReturnValue({
-      ...mockUseAuth(),
-      status: 'authenticated',
-      user: {
-        id: 'other-user',
-        email: 'other@example.com',
-        name: 'Other User',
-        createdAt: '2026-11-05T00:00:00.000Z',
-      },
-    });
-
-    mockGetReportDetails.mockResolvedValue(report);
-    mockIsReportOwnedByCurrentUser.mockResolvedValue(false);
-
-    renderDetails();
-
-    await screen.findByRole('heading', { name: 'Milo' });
-
-    await waitFor(() => {
-      expect(mockIsReportOwnedByCurrentUser).toHaveBeenCalledWith(123);
-    });
-
-    expect(
-      screen.queryByRole('link', { name: 'Edit report' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('shows Edit to the authenticated report owner', async () => {
-    mockUseAuth.mockReturnValue({
-      ...mockUseAuth(),
-      status: 'authenticated',
-      user: {
-        id: 'report-owner',
-        email: 'owner@example.com',
-        name: 'Report Owner',
-        createdAt: '2026-11-05T00:00:00.000Z',
-      },
-    });
-
-    mockGetReportDetails.mockResolvedValue(report);
-    mockIsReportOwnedByCurrentUser.mockResolvedValue(true);
-
-    renderDetails();
-
-    expect(
-      await screen.findByRole('link', { name: 'Edit report' }),
-    ).toHaveAttribute('href', '/pets/123/edit');
-
-    expect(mockIsReportOwnedByCurrentUser).toHaveBeenCalledWith(123);
-  });
-
-  it('keeps public details visible if ownership lookup fails', async () => {
-    mockUseAuth.mockReturnValue({
-      ...mockUseAuth(),
-      status: 'authenticated',
-      user: {
-        id: 'report-owner',
-        email: 'owner@example.com',
-        name: 'Report Owner',
-        createdAt: '2026-11-05T00:00:00.000Z',
-      },
-    });
-
-    mockGetReportDetails.mockResolvedValue(report);
-
-    mockIsReportOwnedByCurrentUser.mockRejectedValue(
-      new ApiError(0, 'NETWORK_ERROR', 'Connection failed'),
+  it('preserves directory filters when navigating to details and back', async () => {
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, () =>
+        successResponse(testReports[0]),
+      ),
     );
 
-    renderDetails();
+    const directoryUrl = '/lost-pets?size=MEDIUM&sort=oldest';
+    const { user } = renderApp(directoryUrl);
 
+    await user.click(await screen.findByRole('link', { name: 'Biscuit' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit', level: 1 }),
+    ).toBeInTheDocument();
+
+    const backLink = screen.getByRole('link', {
+      name: /Back to Lost Pets/,
+    });
+
+    expect(backLink).toHaveAttribute('href', directoryUrl);
+
+    await user.click(backLink);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit' }),
+    ).toBeInTheDocument();
+  });
+
+  it('uses the correct directory fallback for a direct report link', async () => {
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, () =>
+        successResponse(testReports[0]),
+      ),
+    );
+
+    renderApp(PATHS.petDetails('1'));
+
+    await screen.findByRole('heading', { name: 'Biscuit' });
+
+    expect(
+      screen.getByRole('link', { name: /Back to Lost Pets/ }),
+    ).toHaveAttribute('href', PATHS.lostPets);
+  });
+
+  it('shows loading while waiting for report details', async () => {
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, async () => {
+        await delay(120);
+        return successResponse(testReports[0]);
+      }),
+    );
+
+    renderApp(PATHS.petDetails('1'));
+
+    expect(
+      await screen.findByText('Loading pet report...'),
+    ).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit' }),
+    ).toBeInTheDocument();
+
+    expect(screen.queryByText('Loading pet report...')).not.toBeInTheDocument();
+  });
+
+  it('retries server errors automatically and allows manual retry', async () => {
+    let attempts = 0;
+    let shouldFail = true;
+
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, () => {
+        attempts++;
+
+        return shouldFail
+          ? errorResponse(500, 'INTERNAL_ERROR')
+          : successResponse(testReports[0]);
+      }),
+    );
+
+    const { user } = renderApp(PATHS.petDetails('1'));
+
+    const retryButton = await screen.findByRole('button', {
+      name: 'Try again',
+    });
+
+    // Initial request plus two automatic retries
+    expect(attempts).toBe(3);
+
+    // Simulate the server recovering
+    shouldFail = false;
+    await user.click(retryButton);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit' }),
+    ).toBeInTheDocument();
+
+    expect(attempts).toBe(4);
+  });
+
+  it('does not fall back to public details on an owner server error', async () => {
+    signedIn();
+
+    let ownerRequests = 0;
+    let publicRequests = 0;
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, () => {
+        ownerRequests++;
+        return errorResponse(500, 'INTERNAL_ERROR');
+      }),
+      http.get(`${API}/api/reports/:id/public`, () => {
+        publicRequests++;
+        return successResponse(testReports[0]);
+      }),
+    );
+
+    renderApp(PATHS.petDetails('1'));
+
+    expect(
+      await screen.findByRole('button', { name: 'Try again' }),
+    ).toBeInTheDocument();
+
+    expect(ownerRequests).toBe(3);
+    expect(publicRequests).toBe(0);
+
+    expect(
+      screen.queryByRole('link', { name: 'Edit report' }),
+    ).not.toBeInTheDocument();
+  });
+  it('removes owner-only details after logout and shows public data when revisiting', async () => {
+    signedIn();
+
+    const requests: string[] = [];
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, () => {
+        requests.push('owner');
+        return successResponse(milo);
+      }),
+      http.get(`${API}/api/reports/:id/public`, () => {
+        requests.push('public');
+        return successResponse(testReports[0]);
+      }),
+    );
+
+    const { user } = renderApp(PATHS.petDetails('1'));
+
+    // The signed-in owner can see their report and Edit link
     expect(
       await screen.findByRole('heading', { name: 'Milo' }),
     ).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(mockIsReportOwnedByCurrentUser).toHaveBeenCalledWith(123);
-    });
-
     expect(
-      screen.queryByRole('link', { name: 'Edit report' }),
-    ).not.toBeInTheDocument();
-  });
-
-  it('hides Edit when the report owner signs out', async () => {
-    mockUseAuth.mockReturnValue({
-      ...mockUseAuth(),
-      status: 'authenticated',
-      user: {
-        id: 'report-owner',
-        email: 'owner@example.com',
-        name: 'Report Owner',
-        createdAt: '2026-11-05T00:00:00.000Z',
-      },
-    });
-    mockGetReportDetails.mockResolvedValue(report);
-    mockIsReportOwnedByCurrentUser.mockResolvedValue(true);
-
-    const view = renderDetails();
-
-    expect(
-      await screen.findByRole('link', { name: 'Edit report' }),
+      screen.getByRole('link', { name: 'Edit report' }),
     ).toBeInTheDocument();
 
-    //user signout simulation
-    mockUseAuth.mockReturnValue({
-      ...mockUseAuth(),
-      status: 'unauthenticated',
-      user: null,
-    });
+    // Signing out returns the user to the login page
+    await user.click(screen.getByRole('button', { name: /log out/i }));
 
-    view.rerender(
-      <MemoryRouter initialEntries={['/pets/123']}>
-        <Routes>
-          <Route path="/pets/:id" element={<PetDetailsPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    expect(
+      await screen.findByRole('heading', {
+        name: /welcome back to pawradar/i,
+      }),
+    ).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: 'Milo' })).toBeInTheDocument();
+    // Visit the public Lost Pets directory and reopen the report
+    await user.click(screen.getByRole('link', { name: 'Lost Pets' }));
+    await user.click(await screen.findByRole('link', { name: 'Biscuit' }));
 
+    expect(
+      await screen.findByRole('heading', { name: 'Biscuit', level: 1 }),
+    ).toBeInTheDocument();
+
+    // No owner-only information or controls should remain
+    expect(
+      screen.queryByRole('heading', { name: 'Milo' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Edit report' }),
     ).not.toBeInTheDocument();
+
+    // The report must be retrieved through the public endpoint.
+    expect(requests[0]).toBe('owner');
+    expect(requests).toContain('public');
   });
 });

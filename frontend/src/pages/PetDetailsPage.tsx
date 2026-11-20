@@ -1,61 +1,63 @@
+import { useQuery } from '@tanstack/react-query';
+import { QueryView } from '../components/QueryView';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/useAuth';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { PATHS } from '../app/paths';
-import { ApiError } from '../services/api';
 import {
-  getReportDetails,
-  isReportOwnedByCurrentUser,
-} from '../services/reportApi';
+  formatEventDate,
+  PET_TYPE,
+  SIZE,
+  GENDER,
+} from '../features/reports/format';
+import { getReportDetailsForViewer } from '../services/reportApi';
 import type { PublicReport } from '../types/reports';
 import './PetDetailsPage.css';
 
-function ReportContent({ report }: { report: PublicReport }) {
+function ReportContent({
+  report,
+  isOwner,
+}: {
+  report: PublicReport;
+  isOwner: boolean;
+}) {
   const isLost = report.reportType === 'LOST';
 
-  const { state } = useLocation();
-  const successMessage =
-    typeof state?.successMessage === 'string' ? state.successMessage : null;
+  const routeLocation = useLocation();
+  const navigate = useNavigate();
+  const { state } = routeLocation;
 
-  //visitor login confirmation & owner confirmation
-  const { status, user } = useAuth();
-  const userId = user?.id;
-
-  const [ownership, setOwnership] = useState<{
-    userId: string;
-    reportId: number;
-    owned: boolean;
-  } | null>(null);
+  const [successMessage] = useState<string | null>(() =>
+    typeof state?.successMessage === 'string' ? state.successMessage : null,
+  );
 
   useEffect(() => {
-    if (status !== 'authenticated' || !userId) return;
+    if (typeof state?.successMessage !== 'string') return;
 
-    let active = true;
+    const nextState = { ...state };
+    delete nextState.successMessage;
 
-    isReportOwnedByCurrentUser(report.petReportId)
-      .then((owned) => {
-        if (active) {
-          setOwnership({
-            userId,
-            reportId: report.petReportId,
-            owned,
-          });
-        }
-      })
-      .catch(() => {
-        if (active) setOwnership(null);
-      });
+    navigate(
+      `${routeLocation.pathname}${routeLocation.search}${routeLocation.hash}`,
+      { replace: true, state: nextState },
+    );
+  }, [
+    state,
+    navigate,
+    routeLocation.pathname,
+    routeLocation.search,
+    routeLocation.hash,
+  ]);
+  // Remember the directory filters and page when returning
+  const directoryPath = isLost ? PATHS.lostPets : PATHS.foundPets;
+  const fromDirectory = state?.fromDirectory;
 
-    return () => {
-      active = false;
-    };
-  }, [status, userId, report.petReportId]);
-
-  const canEdit =
-    status === 'authenticated' &&
-    ownership?.userId === userId &&
-    ownership?.reportId === report.petReportId &&
-    ownership.owned;
+  const backToDirectory =
+    typeof fromDirectory === 'string' &&
+    (fromDirectory === directoryPath ||
+      fromDirectory.startsWith(`${directoryPath}?`))
+      ? fromDirectory
+      : directoryPath;
 
   const petName = report.petName || `${report.petType} Report`;
 
@@ -66,10 +68,7 @@ function ReportContent({ report }: { report: PublicReport }) {
   return (
     <article className="pet-details-page">
       {successMessage && <p role="status">{successMessage}</p>}
-      <Link
-        to={isLost ? PATHS.lostPets : PATHS.foundPets}
-        className="pet-details__back"
-      >
+      <Link to={backToDirectory} className="pet-details__back">
         ← Back to {isLost ? 'Lost' : 'Found'} Pets
       </Link>
 
@@ -85,9 +84,9 @@ function ReportContent({ report }: { report: PublicReport }) {
           {report.status === 'REUNITED' ? 'Reunited' : 'Active'}
         </span>
 
-        {canEdit && (
+        {isOwner && (
           <Link
-            to={`${PATHS.petDetails(String(report.petReportId))}/edit`}
+            to={PATHS.editReport(String(report.petReportId))}
             className="pet-details__edit"
           >
             Edit report
@@ -123,7 +122,7 @@ function ReportContent({ report }: { report: PublicReport }) {
           <dl className="pet-details__facts">
             <div>
               <dt>Pet Type</dt>
-              <dd>{report.petType}</dd>
+              <dd>{PET_TYPE[report.petType]}</dd>
             </div>
             <div>
               <dt>Breed</dt>
@@ -135,15 +134,15 @@ function ReportContent({ report }: { report: PublicReport }) {
             </div>
             <div>
               <dt>Size</dt>
-              <dd>{report.size}</dd>
+              <dd>{SIZE[report.size]}</dd>
             </div>
             <div>
               <dt>Gender</dt>
-              <dd>{report.gender}</dd>
+              <dd>{GENDER[report.gender] ?? 'Unknown'}</dd>
             </div>
             <div>
               <dt>Date Lost/Found</dt>
-              <dd>{report.eventDate.slice(0, 10)}</dd>
+              <dd>{formatEventDate(report.eventDate)}</dd>
             </div>
             <div className="pet-details__full-width">
               <dt>Location</dt>
@@ -160,85 +159,21 @@ function ReportContent({ report }: { report: PublicReport }) {
   );
 }
 
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'ready'; report: PublicReport }
-  | { status: 'missing' }
-  | { status: 'error' };
-
 function ReportLoader({ id }: { id: string }) {
-  const [state, setState] = useState<LoadState>({
-    status: 'loading',
+  const { status, user } = useAuth();
+
+  const query = useQuery({
+    queryKey: ['report-details', id, status, user?.id ?? null],
+    enabled: status !== 'loading',
+    queryFn: () => getReportDetailsForViewer(id, status === 'authenticated'),
   });
-  const [retry, setRetry] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-
-    getReportDetails(id)
-      .then((report) => {
-        if (active) {
-          setState({ status: 'ready', report });
-        }
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-
-        setState({
-          status:
-            error instanceof ApiError && error.status === 404
-              ? 'missing'
-              : 'error',
-        });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [id, retry]);
-
-  if (state.status === 'loading') {
-    return (
-      <p className="pet-details-page" role="status">
-        Loading pet report...
-      </p>
-    );
-  }
-
-  if (state.status === 'ready') {
-    return <ReportContent report={state.report} />;
-  }
 
   return (
-    <section className="pet-details-page">
-      <h1>
-        {state.status === 'missing'
-          ? 'Report not found'
-          : 'Unable to load report'}
-      </h1>
-
-      <p role="alert">
-        {state.status === 'missing'
-          ? 'This pet report could not be found.'
-          : 'Something went wrong while loading this report.'}
-      </p>
-
-      {state.status === 'error' && (
-        <button
-          type="button"
-          onClick={() => {
-            setState({ status: 'loading' });
-            setRetry((count) => count + 1);
-          }}
-        >
-          Try again
-        </button>
+    <QueryView query={query} loading="Loading pet report...">
+      {({ report, isOwner }) => (
+        <ReportContent report={report} isOwner={isOwner} />
       )}
-
-      <p>
-        <Link to={PATHS.home}>Return home</Link>
-      </p>
-    </section>
+    </QueryView>
   );
 }
 

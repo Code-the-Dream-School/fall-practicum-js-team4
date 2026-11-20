@@ -186,3 +186,44 @@ export const isReportOwnedByCurrentUser = async (
 
   return reports.some((report) => report.petReportId === reportId);
 };
+
+export interface ReportDetailsResult {
+  report: PublicReport;
+  isOwner: boolean;
+}
+
+export async function getReportDetailsForViewer(
+  id: string,
+  authenticated: boolean,
+): Promise<ReportDetailsResult> {
+  if (!authenticated) {
+    return {
+      report: await getReportDetails(id),
+      isOwner: false,
+    };
+  }
+  try {
+    const ownerReport = await getReportById(id);
+
+    return {
+      report: {
+        ...ownerReport,
+        photos: ownerReport.photos ?? [],
+      },
+      isOwner: true,
+    };
+  } catch (error) {
+    if (
+      !(error instanceof ApiError) ||
+      error.status !== 403 ||
+      error.code !== 'FORBIDDEN'
+    ) {
+      throw error;
+    }
+
+    return {
+      report: await getReportDetails(id),
+      isOwner: false,
+    };
+  }
+}

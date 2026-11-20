@@ -1,7 +1,14 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/renderApp';
-import { API, server, signedIn, testUser } from '../test/server';
+import {
+  API,
+  reportListResponse,
+  server,
+  signedIn,
+  testReports,
+  testUser,
+} from '../test/server';
 import { PATHS } from '../app/paths';
 import type { PetReport } from '../types/reports';
 import { http, HttpResponse, delay } from 'msw';
@@ -105,7 +112,7 @@ describe('UpdateReportPage', () => {
       http.get(`${API}/api/reports/100`, () => {
         return HttpResponse.json({
           success: true,
-          data: testReport,
+          data: patchCalled ? { ...testReport, petName: 'Chucha' } : testReport,
         });
       }),
 
@@ -148,6 +155,12 @@ describe('UpdateReportPage', () => {
           },
         }),
       ),
+
+      http.get(`${API}/api/reports`, () =>
+        reportListResponse([
+          { ...testReports[0], petReportId: 100, petName: 'Chucha' },
+        ]),
+      ),
     );
 
     renderApp(PATHS.editReport('100'));
@@ -172,6 +185,18 @@ describe('UpdateReportPage', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Report updated successfully.',
     );
+
+    await user.click(screen.getByRole('link', { name: /Back to Lost Pets/ }));
+
+    await user.click(await screen.findByRole('link', { name: 'Chucha' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Chucha', level: 1 }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText('Report updated successfully.'),
+    ).not.toBeInTheDocument();
   });
 
   it('4. displays a 404 error when the report is not found', async () => {
