@@ -1,0 +1,59 @@
+/* "Close Report" action button: neutral high-surface with subtle border,
+   glows with warning tint on hover */
+.close-report-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: 1px solid color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  border-radius: 8px;
+  background-color: var(--color-surface-high);
+  color: var(--color-on-surface);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 200ms,
+    border-color 200ms,
+    color 200ms,
+    box-shadow 200ms;
+}
+
+.close-report-button .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--color-on-surface-variant);
+  transition: color 200ms;
+}
+
+.close-report-button:hover:not(:disabled),
+.close-report-button:focus-visible {
+  background-color: color-mix(
+    in srgb,
+    var(--color-error-container) 45%,
+    var(--color-surface-high)
+  );
+  border-color: var(--color-error);
+  color: var(--color-error);
+  box-shadow: 0 0 12px
+    color-mix(in srgb, var(--color-error-container) 35%, transparent);
+}
+
+.close-report-button:hover:not(:disabled) .material-symbols-outlined,
+.close-report-button:focus-visible .material-symbols-outlined {
+  color: var(--color-error);
+}
+
+.close-report-button:focus-visible {
+  outline: 2px solid var(--color-error);
+  outline-offset: 2px;
+}
+
+.close-report-button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}

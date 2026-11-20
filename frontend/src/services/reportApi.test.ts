@@ -4,6 +4,7 @@ import { API, server, reportListResponse, testReports } from '../test/server';
 import { ApiError } from './api';
 import {
   createReport,
+  describeCloseError,
   describeReportError,
   describeReunitedError,
   getReports,
@@ -261,5 +262,21 @@ describe('describeReunitedError', () => {
     [new Error('bug'), 'Something went wrong.'],
   ])('describes %s as a failed save', (error, title) => {
     expect(describeReunitedError(error)).toBe(title + unchanged);
+  });
+});
+
+describe('describeCloseError', () => {
+  it('returns a clear message when report is already closed (409 REPORT_CLOSED)', () => {
+    const error = new ApiError(409, 'REPORT_CLOSED', 'Report already closed');
+    expect(describeCloseError(error)).toBe(
+      'This report has already been closed. Please refresh the page.',
+    );
+  });
+
+  it('describes generic failure when closing report', () => {
+    const error = new ApiError(500, 'INTERNAL_ERROR', 'raw');
+    expect(describeCloseError(error)).toBe(
+      "Something went wrong on our side. The report wasn't closed.",
+    );
   });
 });

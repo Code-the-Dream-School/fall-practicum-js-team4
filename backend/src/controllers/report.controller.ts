@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import * as reportService from "../services/report.service";
 import type {
+  CloseReportInput,
   ListReportsQuery,
   MyReportsQuery,
   ReportIdParam,
@@ -11,6 +12,16 @@ export const listReports = async (req: Request, res: Response) => {
   res.json({
     success: true,
     data,
+  });
+};
+
+export const getPublicReportById = async (req: Request, res: Response) => {
+  const { id } = req.params as unknown as ReportIdParam;
+  const report = await reportService.getPublicReportById(id);
+
+  res.json({
+    success: true,
+    data: report,
   });
 };
 
@@ -53,6 +64,15 @@ export const updateReport = async (req: Request, res: Response) => {
     req.body,
     (req.files as Express.Multer.File[] | undefined) ?? [],
   );
+  res.json({
+    success: true,
+    data: report,
+  });
+};
+
+export const closeReport = async (req: Request, res: Response) => {
+  const { id } = req.params as unknown as ReportIdParam;
+  const report = await reportService.closeReport(req.user!.id, id, req.body as CloseReportInput);
   res.json({
     success: true,
     data: report,

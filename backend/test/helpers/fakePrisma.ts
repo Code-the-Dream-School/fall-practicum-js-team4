@@ -191,20 +191,44 @@ export const createFakePrisma = () => {
           return withSelectedPhotos(report, include);
         },
       ),
-      findUnique: jest.fn(async ({ where }: { where: { petReportId: number } }) => {
-        return reports.find((r) => r.petReportId === where.petReportId) ?? null;
-      }),
+      // Applies a photo `select` in `include` like Prisma (e.g. no publicId)
+      findUnique: jest.fn(
+        async ({ where, include }: { where: { petReportId: number }; include?: ReportInclude }) => {
+          const report = reports.find((r) => r.petReportId === where.petReportId);
+          return report ? withSelectedPhotos(report, include) : null;
+        },
+      ),
+      findFirst: jest.fn(
+        async ({
+          where,
+          select,
+        }: {
+          where: { petReportId: number; status: string };
+          select?: ReportInclude;
+        }) => {
+          const report = reports.find(
+            (r) => r.petReportId === where.petReportId && matchesReportWhere(r, where),
+          );
+
+          return report ? withSelectedFields(report, select) : null;
+        },
+      ),
       update: jest.fn(
         async ({
           where,
           data,
           include,
         }: {
-          where: { petReportId: number };
+          // status: { not } is the "still not closed" condition the services add
+          where: { petReportId: number; status?: { not: string } };
           data: Record<string, unknown>;
           include?: ReportInclude;
         }) => {
-          const report = reports.find((r) => r.petReportId === where.petReportId)!;
+          const report = reports.find((r) => r.petReportId === where.petReportId);
+          // Like Prisma when no row matches `where` (P2025)
+          if (!report || (where.status && report.status === where.status.not)) {
+            throw Object.assign(new Error("Record to update not found."), { code: "P2025" });
+          }
           const { location, photos, ...fields } = data as {
             location?: {
               delete?: boolean;

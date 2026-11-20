@@ -37,6 +37,18 @@ enum ReportType {
 enum ReportStatus {
   ACTIVE
   REUNITED
+  // Ended without a reunion (see closeReason); set only by PATCH /api/reports/:id/close
+  CLOSED
+}
+
+// Why a report was closed instead of reunited
+enum CloseReason {
+  NO_LONGER_SEARCHING
+  TAKEN_TO_SHELTER
+  REHOMED
+  OWNER_NOT_FOUND
+  DUPLICATE
+  OTHER
 }
 
 //-----------------USER MODEL---------------
@@ -74,6 +86,7 @@ model PetReport {
   contactInfo         String?      @map("contact_info") @db.VarChar(255)
   reportType          ReportType   @map("report_type")
   status              ReportStatus @default(ACTIVE)
+  closeReason         CloseReason? @map("close_reason")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
 

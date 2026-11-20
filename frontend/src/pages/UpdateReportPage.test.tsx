@@ -72,13 +72,16 @@ describe('UpdateReportPage', () => {
     expect(screen.getByLabelText('Contact Information (optional)')).toHaveValue(
       'sam@example.com',
     );
-    expect(screen.getByLabelText('ZIP Code (optional)')).toHaveValue('92101');
+    expect(
+      screen.getByLabelText('ZIP Code (required if providing location)'),
+    ).toHaveValue('92101');
     expect(
       screen.getByLabelText('City (required if providing location)'),
     ).toHaveValue('San Diego');
     expect(
       screen.getByLabelText('State (required if providing location)'),
     ).toHaveValue('CA');
+    expect(screen.getByText(/Location: San Diego, CA/)).toBeInTheDocument();
   });
 
   it('2. displays loading state while fetching the report', async () => {

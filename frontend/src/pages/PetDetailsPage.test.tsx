@@ -104,6 +104,34 @@ describe('PetDetailsPage', () => {
     expect(requests).toEqual(['owner:2']);
   });
 
+  it('shows CLOSED details and Edit to the report owner', async () => {
+    signedIn();
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, () =>
+        successResponse({
+          ...milo,
+          petReportId: 4,
+          status: 'CLOSED',
+        }),
+      ),
+    );
+
+    renderApp(PATHS.petDetails('4'));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Milo' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.queryByText('Active')).not.toBeInTheDocument();
+
+    expect(screen.getByRole('link', { name: 'Edit report' })).toHaveAttribute(
+      'href',
+      PATHS.editReport('4'),
+    );
+  });
+
   it('falls back to public details for an authenticated nonowner', async () => {
     signedIn();
     const requests: string[] = [];

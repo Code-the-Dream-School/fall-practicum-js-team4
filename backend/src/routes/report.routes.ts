@@ -7,6 +7,7 @@ import asyncHandler from "../utils/asyncHandler";
 import AppError from "../utils/AppError";
 import { photoUpload } from "../middleware/photoUpload";
 import {
+  closeReportSchema,
   createReportSchema,
   listReportsQuerySchema,
   myReportsQuerySchema,
@@ -49,7 +50,12 @@ router.get(
   validate(myReportsQuerySchema, "query"),
   asyncHandler(controller.getMyReports),
 );
-
+// Public details for an active report (anonymous access allowed)
+router.get(
+  "/:id/public",
+  validate(reportIdParamSchema, "params"),
+  asyncHandler(controller.getPublicReportById),
+);
 router.get(
   "/:id",
   requireAuth,
@@ -73,6 +79,35 @@ router.patch(
   photoUpload,
   validateUpdateReport,
   asyncHandler(controller.updateReport),
+);
+
+// The close reason must be JSON: express.json() ignores other bodies (form-data,
+// text), which would silently close the report without the reason that was sent.
+// No body, or an empty one (Content-Length: 0, as Postman sends), is fine.
+const jsonBodyOnly: express.RequestHandler = (req, res, next) => {
+  const hasBody =
+    req.headers["transfer-encoding"] !== undefined || Number(req.headers["content-length"]) > 0;
+  if (hasBody && !req.is("application/json")) {
+    return next(
+      new AppError(
+        415,
+        "UNSUPPORTED_MEDIA_TYPE",
+        "Send the body as JSON (Content-Type: application/json), or no body",
+      ),
+    );
+  }
+  next();
+};
+
+// Ends a report without a reunion; the body is empty or { "reason": ... }
+router.patch(
+  "/:id/close",
+  requireAuth,
+  validate(reportIdParamSchema, "params"),
+  reportLimiter,
+  jsonBodyOnly,
+  validate(closeReportSchema),
+  asyncHandler(controller.closeReport),
 );
 
 export default router;

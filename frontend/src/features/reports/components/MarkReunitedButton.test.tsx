@@ -1,16 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { delay, http } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../../app/queryClient';
-import {
-  foundDog,
-  luna,
-  milo,
-  mockMyReports,
-  report,
-} from '../../../test/reports';
+import { foundDog, luna, milo, mockMyReports } from '../../../test/reports';
 import { API, server } from '../../../test/server';
 import type { PetReport } from '../../../types/reports';
 import { MarkReunitedButton } from './MarkReunitedButton';
@@ -41,12 +35,31 @@ describe('MarkReunitedButton', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('asks about the pet type when the pet has no name', async () => {
-    const { user } = renderButton(report({ petName: null, petType: 'CAT' }));
+  it('opens confirmation modal with generic copy when clicked', async () => {
+    const { user } = renderButton(milo);
 
     await user.click(screen.getByRole('button', { name: /mark reunited/i }));
 
-    expect(screen.getByText(/is your cat back home\?/i)).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Confirm to mark the report as reunited, this step cannot be undone.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('closes the modal without calling API when cancel is clicked', async () => {
+    const { user } = renderButton(milo);
+
+    await user.click(screen.getByRole('button', { name: /mark reunited/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('passes the saved report to onReunited', async () => {
@@ -64,10 +77,10 @@ describe('MarkReunitedButton', () => {
       petReportId: milo.petReportId,
       status: 'REUNITED',
     });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('disables both buttons while saving', async () => {
-    // The save never answers, so the "Saving…" state stays on screen
     server.use(http.patch(`${API}/api/reports/:id`, () => delay('infinite')));
     const { user } = renderButton(milo);
 
@@ -80,5 +93,32 @@ describe('MarkReunitedButton', () => {
       await screen.findByRole('button', { name: 'Saving…' }),
     ).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  });
+
+  it('shows an error when the save fails', async () => {
+    server.use(
+      http.patch(`${API}/api/reports/:id`, () =>
+        HttpResponse.json(
+          {
+            success: false,
+            code: 'INTERNAL_ERROR',
+            message: 'Database down',
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+    const { user } = renderButton(milo);
+
+    await user.click(screen.getByRole('button', { name: /mark reunited/i }));
+    await user.click(
+      screen.getByRole('button', { name: "Yes, we're reunited" }),
+    );
+
+    expect(
+      await screen.findByText(
+        /something went wrong on our side\. the report wasn't changed\./i,
+      ),
+    ).toBeVisible();
   });
 });

@@ -81,7 +81,9 @@ function ReportContent({
         </div>
 
         <span className="pet-details__status">
-          {report.status === 'REUNITED' ? 'Reunited' : 'Active'}
+          {report.status === 'ACTIVE' && 'Active'}
+          {report.status === 'REUNITED' && 'Reunited'}
+          {report.status === 'CLOSED' && 'Closed'}
         </span>
 
         {isOwner && (

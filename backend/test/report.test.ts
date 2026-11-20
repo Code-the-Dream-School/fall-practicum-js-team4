@@ -812,6 +812,398 @@ describe("PATCH /api/reports/:id", () => {
     expect(res.body.details[0].field).toBe(expectedField);
     expect(prisma.petReport.update).not.toHaveBeenCalled();
   });
+  describe("closing a report (PATCH /api/reports/:id/close)", () => {
+    const close = (id: number | string, body?: object) => {
+      const req = agent.patch(`/api/reports/${id}/close`);
+      return body === undefined ? req : req.send(body);
+    };
+    const stored = () => prisma._reports.find((r) => r.petReportId === myReportId)!;
+
+    it("closes my ACTIVE report without a reason (200)", async () => {
+      const res = await close(myReportId);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        petReportId: myReportId,
+        status: "CLOSED",
+        closeReason: null,
+      });
+      expect(stored().status).toBe("CLOSED");
+      expect(prisma.petReport.update).toHaveBeenCalledWith({
+        where: { petReportId: myReportId, status: { not: "CLOSED" } },
+        data: { status: "CLOSED", closeReason: null },
+        include: REPORT_INCLUDE,
+      });
+      expect(res.headers["cache-control"]).toBe("private, no-store");
+    });
+
+    it.each([
+      "NO_LONGER_SEARCHING",
+      "TAKEN_TO_SHELTER",
+      "REHOMED",
+      "OWNER_NOT_FOUND",
+      "DUPLICATE",
+      "OTHER",
+    ])("stores the reason %s (200)", async (reason) => {
+      const res = await close(myReportId, { reason });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ status: "CLOSED", closeReason: reason });
+      expect(stored().closeReason).toBe(reason);
+    });
+
+    it("closes FOUND reports too (200)", async () => {
+      const found = await agent.post("/api/reports").send({ ...baseReport, reportType: "FOUND" });
+
+      const res = await close(found.body.data.petReportId, { reason: "OWNER_NOT_FOUND" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ reportType: "FOUND", status: "CLOSED" });
+    });
+
+    it("closes a REUNITED report (200)", async () => {
+      await agent.patch(`/api/reports/${myReportId}`).send({ status: "REUNITED" });
+
+      const res = await close(myReportId, { reason: "DUPLICATE" });
+
+      expect(res.status).toBe(200);
+      expect(stored()).toMatchObject({ status: "CLOSED", closeReason: "DUPLICATE" });
+    });
+
+    it("changes nothing when the report is already closed, not even the reason (200)", async () => {
+      await close(myReportId, { reason: "REHOMED" });
+      jest.clearAllMocks();
+
+      const res = await close(myReportId, { reason: "OTHER" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ status: "CLOSED", closeReason: "REHOMED" });
+      expect(prisma.petReport.update).not.toHaveBeenCalled();
+      expect(stored().closeReason).toBe("REHOMED");
+    });
+
+    it("returns photos without publicId, also when it was already closed", async () => {
+      stored().photos = [
+        {
+          petPhotoId: 7,
+          petReportId: myReportId,
+          imageUrl: "https://res.cloudinary.com/demo/image/upload/v1/pawradar/reports/buddy.webp",
+          publicId: "pawradar/reports/buddy",
+          createdAt: new Date(),
+        },
+      ];
+
+      const first = await close(myReportId);
+      const again = await close(myReportId);
+
+      for (const res of [first, again]) {
+        expect(res.body.data.photos).toHaveLength(1);
+        expect(res.body.data.photos[0]).not.toHaveProperty("publicId");
+      }
+    });
+
+    it("never closes someone else's report (403)", async () => {
+      const other = await signUp("other@example.com");
+
+      const res = await other.agent.patch(`/api/reports/${myReportId}/close`).send({});
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("FORBIDDEN");
+      expect(prisma.petReport.update).not.toHaveBeenCalled();
+      expect(stored().status).toBe("ACTIVE");
+    });
+
+    it("returns 404 for a report that doesn't exist", async () => {
+      const res = await close(999999);
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe("NOT_FOUND");
+    });
+
+    it("requires signing in (401)", async () => {
+      const res = await request(app).patch(`/api/reports/${myReportId}/close`);
+
+      expect(res.status).toBe(401);
+      expect(stored().status).toBe("ACTIVE");
+    });
+
+    it.each<[string, () => number | string, object | undefined]>([
+      ["an unknown reason", () => myReportId, { reason: "LOST_INTEREST" }],
+      ["a lowercase reason", () => myReportId, { reason: "rehomed" }],
+      ["another field", () => myReportId, { status: "ACTIVE" }],
+      ["a report id that isn't a number", () => "abc", undefined],
+    ])("rejects %s (400)", async (_, id, body) => {
+      const res = await close(id(), body);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["form data", (req: request.Test) => req.field("reason", "REHOMED")],
+      ["plain text", (req: request.Test) => req.set("Content-Type", "text/plain").send("REHOMED")],
+      ["a urlencoded form", (req: request.Test) => req.type("form").send({ reason: "REHOMED" })],
+    ])("rejects a reason sent as %s, instead of closing without it (415)", async (_, send) => {
+      const res = await send(agent.patch(`/api/reports/${myReportId}/close`));
+
+      expect(res.status).toBe(415);
+      expect(res.body.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+      expect(stored().status).toBe("ACTIVE");
+    });
+
+    it("accepts JSON with a charset, and no body without a Content-Type (200)", async () => {
+      const withCharset = await agent
+        .patch(`/api/reports/${myReportId}/close`)
+        .set("Content-Type", "application/json; charset=utf-8")
+        .send(JSON.stringify({ reason: "REHOMED" }));
+
+      expect(withCharset.status).toBe(200);
+      expect(withCharset.body.data.closeReason).toBe("REHOMED");
+
+      const other = await agent.post("/api/reports").send(baseReport);
+      const noBody = await agent.patch(`/api/reports/${other.body.data.petReportId}/close`);
+
+      expect(noBody.status).toBe(200);
+    });
+
+    it("drops the report from the public list, but keeps it in mine", async () => {
+      await close(myReportId);
+
+      const publicList = await request(app).get("/api/reports");
+      const mine = await agent.get("/api/reports/mine");
+
+      expect(publicList.body.data.total).toBe(0);
+      expect(mine.body.data.reports).toEqual([
+        expect.objectContaining({ petReportId: myReportId, status: "CLOSED" }),
+      ]);
+    });
+
+    describe("then the general PATCH", () => {
+      beforeEach(async () => {
+        await close(myReportId, { reason: "REHOMED" });
+        jest.clearAllMocks();
+      });
+
+      it.each(["ACTIVE", "REUNITED"])("can't change its status to %s (409)", async (status) => {
+        const res = await agent.patch(`/api/reports/${myReportId}`).send({ status });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("REPORT_CLOSED");
+        expect(prisma.petReport.update).not.toHaveBeenCalled();
+        expect(stored().status).toBe("CLOSED");
+      });
+
+      it("can still fix other fields, and it stays closed (200)", async () => {
+        const res = await agent
+          .patch(`/api/reports/${myReportId}`)
+          .send({ distinctiveFeatures: "Taken in by a neighbour" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({
+          status: "CLOSED",
+          closeReason: "REHOMED",
+          distinctiveFeatures: "Taken in by a neighbour",
+        });
+      });
+    });
+
+    // Two requests at once (two tabs, a double click): the report is read as
+    // ACTIVE, but another request closes it before this one writes
+    describe("when it gets closed between reading and writing", () => {
+      const readAsActiveButCloseFirst = (reason: string) => {
+        prisma.petReport.findUnique.mockImplementationOnce(async () => {
+          const before = { ...stored(), status: "ACTIVE", closeReason: null };
+          Object.assign(stored(), { status: "CLOSED", closeReason: reason });
+          return before;
+        });
+      };
+
+      it("doesn't overwrite the other close's reason, and returns the report (200)", async () => {
+        readAsActiveButCloseFirst("REHOMED");
+
+        const res = await close(myReportId, { reason: "OTHER" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({ status: "CLOSED", closeReason: "REHOMED" });
+        expect(stored().closeReason).toBe("REHOMED");
+      });
+
+      it("doesn't let a status change reopen it (409)", async () => {
+        readAsActiveButCloseFirst("REHOMED");
+
+        const res = await agent.patch(`/api/reports/${myReportId}`).send({ status: "REUNITED" });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("REPORT_CLOSED");
+        expect(stored()).toMatchObject({ status: "CLOSED", closeReason: "REHOMED" });
+      });
+
+      it("still saves an edit that doesn't touch the status (200)", async () => {
+        readAsActiveButCloseFirst("REHOMED");
+
+        const res = await agent.patch(`/api/reports/${myReportId}`).send({ petName: "Max" });
+
+        expect(res.status).toBe(200);
+        expect(stored()).toMatchObject({ status: "CLOSED", petName: "Max" });
+      });
+    });
+
+    it("can't close through the general PATCH, and says where to go (400)", async () => {
+      const res = await agent.patch(`/api/reports/${myReportId}`).send({ status: "CLOSED" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.details[0].message).toMatch(/PATCH \/api\/reports\/:id\/close/);
+    });
+  });
+});
+
+describe("GET /api/reports/:id/public", () => {
+  let ownerAgent: Agent;
+  let reportId: number;
+
+  beforeEach(async () => {
+    prisma._users.length = 0;
+    prisma._reports.length = 0;
+    jest.clearAllMocks();
+
+    ownerAgent = request.agent(app);
+
+    await ownerAgent.post("/api/auth/register").send({
+      name: "Report Owner",
+      email: "public-owner@example.com",
+      password: "password123!",
+    });
+
+    const created = await ownerAgent.post("/api/reports").send({
+      reportType: "LOST",
+      petType: "DOG",
+      petName: "Buddy",
+      color: "Golden",
+      size: "LARGE",
+      gender: "MALE",
+      eventDate: "2026-10-20T10:00:00.000Z",
+      contactInfo: "private-owner@example.com",
+      location: {
+        zipCode: "10001",
+        city: "New York",
+        state: "NY",
+      },
+    });
+
+    expect(created.status).toBe(201);
+    reportId = created.body.data.petReportId;
+  });
+
+  it("allows anonymous visitors to view an ACTIVE report (200)", async () => {
+    const res = await request(app).get(`/api/reports/${reportId}/public`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      data: {
+        petReportId: reportId,
+        petName: "Buddy",
+        reportType: "LOST",
+        status: "ACTIVE",
+        location: {
+          zipCode: "10001",
+          city: "New York",
+          state: "NY",
+        },
+      },
+    });
+
+    expect(prisma.petReport.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { petReportId: reportId, status: "ACTIVE" },
+      }),
+    );
+  });
+
+  it("never exposes private contact details, coordinates, or photo publicId", async () => {
+    const stored = prisma._reports.find((r) => r.petReportId === reportId)!;
+
+    stored.location = {
+      ...stored.location,
+      latitude: "40.7128000",
+      longitude: "-74.0060000",
+    };
+
+    stored.photos = [
+      {
+        petPhotoId: 10,
+        petReportId: reportId,
+        imageUrl: "https://example.com/buddy.webp",
+        publicId: "secret-cloudinary-id",
+        createdAt: new Date("2026-10-20T12:00:00.000Z"),
+      },
+    ];
+
+    const res = await request(app).get(`/api/reports/${reportId}/public`);
+
+    expect(res.status).toBe(200);
+
+    const report = res.body.data;
+
+    expect(report).not.toHaveProperty("userId");
+    expect(report).not.toHaveProperty("contactInfo");
+    expect(report.location).not.toHaveProperty("latitude");
+    expect(report.location).not.toHaveProperty("longitude");
+    expect(report.photos[0]).not.toHaveProperty("publicId");
+
+    expect(report.photos[0]).toMatchObject({
+      petPhotoId: 10,
+      imageUrl: "https://example.com/buddy.webp",
+    });
+  });
+
+  it("allows another signed-in user to view only public fields (200)", async () => {
+    const otherAgent = request.agent(app);
+
+    await otherAgent.post("/api/auth/register").send({
+      name: "Another User",
+      email: "other-viewer@example.com",
+      password: "password123!",
+    });
+
+    const res = await otherAgent.get(`/api/reports/${reportId}/public`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.petReportId).toBe(reportId);
+    expect(res.body.data).not.toHaveProperty("contactInfo");
+    expect(res.body.data).not.toHaveProperty("userId");
+  });
+
+  it("returns 404 when the report does not exist", async () => {
+    const res = await request(app).get("/api/reports/999999/public");
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("NOT_FOUND");
+  });
+
+  it("returns 404 for a REUNITED report, including for its owner", async () => {
+    const updated = await ownerAgent.patch(`/api/reports/${reportId}`).send({ status: "REUNITED" });
+
+    expect(updated.status).toBe(200);
+
+    const guestRes = await request(app).get(`/api/reports/${reportId}/public`);
+    const ownerRes = await ownerAgent.get(`/api/reports/${reportId}/public`);
+
+    expect(guestRes.status).toBe(404);
+    expect(ownerRes.status).toBe(404);
+  });
+
+  it.each(["abc", "0", "-1", "2147483648"])(
+    "rejects invalid report ID %s (400)",
+    async (invalidId) => {
+      const res = await request(app).get(`/api/reports/${invalidId}/public`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+      expect(prisma.petReport.findFirst).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("GET /api/reports", () => {

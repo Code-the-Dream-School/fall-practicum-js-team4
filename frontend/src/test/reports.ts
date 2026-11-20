@@ -1,6 +1,6 @@
 // Pet report fixtures and a fake "my reports" API for tests
 import { http, HttpResponse } from 'msw';
-import type { PetReport } from '../types/reports';
+import type { CloseReason, PetReport } from '../types/reports';
 import { API, server, testUser } from './server';
 
 export const report = (fields: Partial<PetReport>): PetReport => ({
@@ -49,6 +49,26 @@ export const mockMyReports = (initial: PetReport[]) => {
         data: { total: reports.length, reports },
       }),
     ),
+    http.patch(`${API}/api/reports/:id/close`, async ({ params, request }) => {
+      let body: { reason?: CloseReason } = {};
+      try {
+        body = (await request.json()) as { reason?: CloseReason };
+      } catch {
+        // empty body is fine
+      }
+      patches.push({ id: params.id as string, body });
+      reports = reports.map((r) =>
+        String(r.petReportId) === params.id
+          ? {
+              ...r,
+              status: 'CLOSED',
+              closeReason: body.reason ?? null,
+            }
+          : r,
+      );
+      const updated = reports.find((r) => String(r.petReportId) === params.id);
+      return HttpResponse.json({ success: true, data: updated });
+    }),
     http.patch(`${API}/api/reports/:id`, async ({ params, request }) => {
       const body = (await request.json()) as Partial<PetReport>;
       patches.push({ id: params.id as string, body });
