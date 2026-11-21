@@ -10,19 +10,19 @@ export const REPORT_TYPE: Record<ReportType, string> = {
   LOST: 'Lost',
   FOUND: 'Found',
 };
-const PET_TYPE: Record<PetType, string> = {
+export const PET_TYPE: Record<PetType, string> = {
   DOG: 'Dog',
   CAT: 'Cat',
   BIRD: 'Bird',
   OTHER: 'Pet',
 };
-const SIZE: Record<PetSize, string> = {
+export const SIZE: Record<PetSize, string> = {
   SMALL: 'Small',
   MEDIUM: 'Medium',
   LARGE: 'Large',
 };
 // Unknown gender is left out of the summary instead of shown as "Unknown"
-const GENDER: Record<PetGender, string | null> = {
+export const GENDER: Record<PetGender, string | null> = {
   MALE: 'Male',
   FEMALE: 'Female',
   UNKNOWN: null,
