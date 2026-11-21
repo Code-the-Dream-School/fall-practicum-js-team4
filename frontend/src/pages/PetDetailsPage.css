@@ -40,6 +40,19 @@
   background: #064e3b;
   color: #a7f3d0;
   font-weight: 600;
+  box-shadow: 0 0 12px rgba(167, 243, 208, 0.24);
+}
+
+.pet-details__status[data-status='REUNITED'] {
+  background: #594214;
+  color: #ffe49a;
+  box-shadow: 0 0 12px rgba(244, 201, 93, 0.24);
+}
+
+.pet-details__status[data-status='CLOSED'] {
+  background: #334155;
+  color: var(--color-on-surface);
+  box-shadow: 0 0 12px rgba(224, 226, 235, 0.15);
 }
 
 .pet-details__edit {

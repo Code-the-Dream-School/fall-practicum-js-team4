@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { PATHS } from '../app/paths';
 import {
   formatEventDate,
+  reportTitle,
   PET_TYPE,
   SIZE,
   GENDER,
@@ -59,7 +60,7 @@ function ReportContent({
       ? fromDirectory
       : directoryPath;
 
-  const petName = report.petName || `${report.petType} Report`;
+  const petName = reportTitle(report);
 
   const location = report.location
     ? `${report.location.city}, ${report.location.state} ${report.location.zipCode}`
@@ -80,7 +81,7 @@ function ReportContent({
           <h1>{petName}</h1>
         </div>
 
-        <span className="pet-details__status">
+        <span className="pet-details__status" data-status={report.status}>
           {report.status === 'ACTIVE' && 'Active'}
           {report.status === 'REUNITED' && 'Reunited'}
           {report.status === 'CLOSED' && 'Closed'}

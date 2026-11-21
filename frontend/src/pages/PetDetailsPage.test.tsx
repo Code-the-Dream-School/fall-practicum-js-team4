@@ -75,6 +75,7 @@ describe('PetDetailsPage', () => {
     );
 
     expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('Active')).toHaveAttribute('data-status', 'ACTIVE');
     expect(requests).toEqual(['1']);
   });
 
@@ -96,6 +97,10 @@ describe('PetDetailsPage', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText('Reunited')).toBeInTheDocument();
+    expect(screen.getByText('Reunited')).toHaveAttribute(
+      'data-status',
+      'REUNITED',
+    );
     expect(screen.getByRole('link', { name: 'Edit report' })).toHaveAttribute(
       'href',
       PATHS.editReport('2'),
@@ -124,6 +129,7 @@ describe('PetDetailsPage', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText('Closed')).toBeInTheDocument();
+    expect(screen.getByText('Closed')).toHaveAttribute('data-status', 'CLOSED');
     expect(screen.queryByText('Active')).not.toBeInTheDocument();
 
     expect(screen.getByRole('link', { name: 'Edit report' })).toHaveAttribute(
@@ -241,7 +247,7 @@ describe('PetDetailsPage', () => {
     renderApp(PATHS.petDetails('2'));
 
     expect(
-      await screen.findByRole('heading', { name: 'CAT Report' }),
+      await screen.findByRole('heading', { name: 'Found cat' }),
     ).toBeInTheDocument();
 
     expect(screen.getByText('no photos available')).toBeInTheDocument();
