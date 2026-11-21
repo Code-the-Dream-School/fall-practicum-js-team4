@@ -187,14 +187,6 @@ export const describeReunitedError = (err: unknown): string =>
 export const getReportDetails = (id: string) =>
   apiRequest<PublicReport>(`/api/reports/${encodeURIComponent(id)}/public`);
 
-export const isReportOwnedByCurrentUser = async (
-  reportId: number,
-): Promise<boolean> => {
-  const { reports } = await getMyReports();
-
-  return reports.some((report) => report.petReportId === reportId);
-};
-
 export interface ReportDetailsResult {
   report: PublicReport;
   isOwner: boolean;
