@@ -364,13 +364,23 @@ After creating or updating a report, compare the information across pages.
 
 Result: ______
 
-## 8. Issues Found
+## 8. Mobile Responsiveness
+
+- [ ] Verify the application's mobile screen width (e.g., 375px or 390px).
+- [ ] Verify the application is usable and does not overflow the screen.
+- [ ] Verify forms, buttons, report cards, and page content fit the screen.
+- [ ] Verify text is readable and no horizontal scrolling is required.
+- [ ] Verify interactive elements are usable on mobile screens.
+
+Result: ______
+
+## 9. Issues Found
 
 | Test section | Issue / steps to reproduce | Expected result | Actual result | Status |
 |---|---|---|---|---|
 | | | | | |
 
-## 9. Final Test Summary
+## 10. Final Test Summary
 
 | Result | Count |
 |---|---|
