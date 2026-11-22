@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReportForm, type ReportFormValues } from './ReportForm';
 import userEvent from '@testing-library/user-event';
 
+const LOOKUP_DOWN = /We can't reach the ZIP code service right now/;
+
 describe('ReportForm', () => {
   const mockSubmit = vi.fn<
     (values: ReportFormValues, photos: File[]) => Promise<void>
@@ -59,6 +61,8 @@ describe('ReportForm', () => {
       '23220',
     );
 
+    expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
     expect(
@@ -96,6 +100,8 @@ describe('ReportForm', () => {
       '23220',
     );
 
+    expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
+
     fireEvent.change(
       screen.getByLabelText('City (required if providing location)'),
       { target: { value: 'A'.repeat(101) } },
@@ -115,38 +121,37 @@ describe('ReportForm', () => {
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it('clears location errors when all location fields are emptied', async () => {
+  it('clears location errors when the ZIP code is removed', async () => {
     const user = userEvent.setup();
     render(<ReportForm reportType="LOST" onSubmit={mockSubmit} />);
 
-    await user.type(
-      screen.getByLabelText('City (required if providing location)'),
-      'A',
+    const zip = screen.getByLabelText(
+      'ZIP Code (required if providing location)',
     );
+    const city = screen.getByLabelText('City (required if providing location)');
+
+    await user.type(zip, '23220');
+    expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
+    await user.type(city, 'A');
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
     expect(
-      await screen.findByText('ZIP code is required when providing a location'),
+      await screen.findByText('State is required when providing a location'),
     ).toBeInTheDocument();
 
-    expect(
-      screen.getByText('State is required when providing a location'),
-    ).toBeInTheDocument();
+    await user.clear(zip);
+    await user.tab();
 
-    await user.clear(
-      screen.getByLabelText('City (required if providing location)'),
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.queryByText('ZIP code is required when providing a location'),
-      ).not.toBeInTheDocument();
-    });
     await waitFor(() => {
       expect(
         screen.queryByText('State is required when providing a location'),
       ).not.toBeInTheDocument();
     });
+    expect(
+      screen.queryByText('ZIP code is required when providing a location'),
+    ).not.toBeInTheDocument();
+    expect(city).toHaveValue('');
+    expect(city).toHaveAttribute('readonly');
   });
 
   it('prevents submission when the event date is in the future', async () => {
