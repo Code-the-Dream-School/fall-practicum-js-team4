@@ -103,7 +103,7 @@ export interface ReportFilters {
 }
 
 export interface ReportListParams extends ReportFilters {
-  type: ReportType;
+  type?: ReportType;
   // 1-indexed; the API returns page 1 when it's left out
   page?: number;
   // Reports per page (API default 20, at most 100)
