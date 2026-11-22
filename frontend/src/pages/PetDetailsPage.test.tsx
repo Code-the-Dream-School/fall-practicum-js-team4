@@ -79,6 +79,59 @@ describe('PetDetailsPage', () => {
     expect(requests).toEqual(['1']);
   });
 
+  it('shows the updated name after editing from Report Details', async () => {
+    signedIn();
+
+    let currentReport: PetReport = { ...milo };
+    let patchBody: unknown;
+
+    server.use(
+      http.get(`${API}/api/reports/:id`, () => successResponse(currentReport)),
+
+      http.patch(`${API}/api/reports/:id`, async ({ request }) => {
+        const body = (await request.json()) as Partial<PetReport>;
+
+        patchBody = body;
+        currentReport = { ...currentReport, ...body };
+
+        return successResponse(currentReport);
+      }),
+    );
+
+    const { user } = renderApp(PATHS.petDetails('1'));
+
+    // Start on the owner's Report Details page
+    expect(
+      await screen.findByRole('heading', { name: 'Milo', level: 1 }),
+    ).toBeInTheDocument();
+
+    // Open Edit Report through the actual link
+    await user.click(screen.getByRole('link', { name: 'Edit report' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Update Pet Report' }),
+    ).toBeInTheDocument();
+
+    // Change the name and save
+    const petNameInput = screen.getByLabelText('Pet Name (optional)');
+
+    await user.clear(petNameInput);
+    await user.type(petNameInput, 'Sunny');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    // Confirm the updated name appears on Report Details
+    expect(
+      await screen.findByRole('heading', { name: 'Sunny', level: 1 }),
+    ).toBeInTheDocument();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Report updated successfully.',
+    );
+
+    // Confirm the update was submitted
+    expect(patchBody).toEqual(expect.objectContaining({ petName: 'Sunny' }));
+  });
+
   it('shows REUNITED details and Edit to the report owner', async () => {
     signedIn();
     const requests: string[] = [];
