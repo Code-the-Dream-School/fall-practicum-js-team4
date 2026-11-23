@@ -12,6 +12,7 @@ import { REPORTS_PER_PAGE } from '../features/reports/constants';
 import { Pagination } from '../components/Pagination';
 import { ReportPageNotFound } from '../features/reports/components/ReportPageNotFound';
 import { Icon } from '../components/Icon';
+import './ReportsDirectoryPage.css';
 
 export function HomePage() {
   const { filters, page, updateFilters, clearFilters, setPage } =
@@ -21,10 +22,8 @@ export function HomePage() {
   const filtered = hasActiveFilters(filters);
 
   return (
-    <section>
-      <h1 style={{ ...textStyles.pageTitle, marginBottom: 16 }}>
-        Recently reported pets
-      </h1>
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <h1 style={textStyles.pageTitle}>Recently reported pets</h1>
 
       <ReportFilters
         filters={filters}
@@ -35,8 +34,12 @@ export function HomePage() {
 
       <QueryView query={query} loading="Loading recent reports...">
         {({ reports, page: currentPage, totalPages, total, limit }) => (
-          <div aria-busy={query.isPlaceholderData}>
-            <p role="status">
+          <div
+            className="directory-results"
+            aria-busy={query.isPlaceholderData}
+            data-updating={query.isPlaceholderData || undefined}
+          >
+            <p role="status" className="directory-results__count">
               {reports.length > 0
                 ? `Showing ${(currentPage - 1) * limit + 1}-${
                     (currentPage - 1) * limit + reports.length
