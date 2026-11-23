@@ -14,9 +14,7 @@ import {
   useReports,
 } from '../features/reports';
 import './ReportsDirectoryPage.css';
-
-// 6 cards per page (a 3 x 2 grid), as in the design
-const REPORTS_PER_PAGE = 6;
+import { REPORTS_PER_PAGE } from '../features/reports/constants';
 
 const CONTENT: Record<
   ReportType,

@@ -3,13 +3,12 @@ import { useReports } from '../features/reports';
 import { ReportCard } from '../features/reports/components/ReportCard';
 import { textStyles } from '../styles/theme';
 import '../features/reports/components/ReportGrid.css';
-
-const RECENT_REPORTS_LIMIT = 6;
+import { REPORTS_PER_PAGE } from '../features/reports/constants';
 
 export function HomePage() {
   const query = useReports({
     sort: 'newest',
-    limit: RECENT_REPORTS_LIMIT,
+    limit: REPORTS_PER_PAGE,
   });
 
   return (
