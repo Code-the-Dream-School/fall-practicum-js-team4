@@ -400,13 +400,25 @@ describe('Moving between pages', () => {
   });
 
   it('keeps the page after opening a pet and coming back', async () => {
+    server.use(
+      http.get(`${API}/api/reports/:id/public`, ({ params }) => {
+        const report = manyPets.find(
+          (item) => String(item.petReportId) === params.id,
+        );
+
+        return report
+          ? HttpResponse.json({ success: true, data: report })
+          : errorResponse(404, 'NOT_FOUND');
+      }),
+    );
+
     const { user } = renderWithBack('/lost-pets');
     await screen.findByText('Showing 1–6 of 45 lost pets');
     await user.click(pageButton('Page 3'));
     await screen.findByText('Showing 13–18 of 45 lost pets');
 
     await user.click(screen.getByRole('link', { name: 'Pet 13' }));
-    await screen.findByRole('heading', { name: /Pet details/ });
+    await screen.findByRole('heading', { name: 'Pet 13' });
     await user.click(screen.getByRole('button', { name: 'Browser back' }));
 
     expect(
