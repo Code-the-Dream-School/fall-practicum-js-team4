@@ -13,6 +13,7 @@ import { Pagination } from '../components/Pagination';
 import { ReportPageNotFound } from '../features/reports/components/ReportPageNotFound';
 import { Icon } from '../components/Icon';
 import './ReportsDirectoryPage.css';
+import { ReportsMap } from '../features/reports/components/ReportsMap';
 
 export function HomePage() {
   const { filters, page, updateFilters, clearFilters, setPage } =
@@ -24,6 +25,8 @@ export function HomePage() {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <h1 style={textStyles.pageTitle}>Recently reported pets</h1>
+
+      <ReportsMap />
 
       <ReportFilters
         filters={filters}
