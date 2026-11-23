@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 
 import { useForm, useWatch } from 'react-hook-form';
+import { PATHS } from '../../../app/paths';
 import type { RegisterInput } from '../../../services/authApi';
 
 import { Icon } from '../../../components/Icon';
@@ -67,7 +68,7 @@ export function SignupForm() {
     if (!registrationComplete) return;
 
     const timer = setTimeout(() => {
-      navigate('/dashboard', { replace: true });
+      navigate(PATHS.profile, { replace: true });
     }, 1000);
 
     return () => clearTimeout(timer);
@@ -126,7 +127,7 @@ export function SignupForm() {
   }
 
   if (status === 'authenticated' && !registrationComplete) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={PATHS.profile} replace />;
   }
 
   return (
