@@ -55,6 +55,7 @@ export interface MyReportsQuery {
 export interface ListReportsQuery {
   page: number;
   limit: number;
+  days?: number;
   type?: ReportType;
   status: ReportStatus;
   search?: string;
@@ -200,6 +201,13 @@ export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
     "number.min": "Limit must be at least 1",
     "number.max": "Limit must be at most 100",
   }),
+
+  days: Joi.number().integer().valid(7).messages({
+    "number.base": "Days must be a number",
+    "number.integer": "Days must be an integer",
+    "any.only": "Days must be 7",
+  }),
+
   type: Joi.string().valid("LOST", "FOUND").messages({
     "any.only": "Type must be either LOST or FOUND",
   }),

@@ -89,6 +89,7 @@ const searchWhere = (search: string): Prisma.PetReportWhereInput => {
 export const listReports = async ({
   page = 1,
   limit = 20,
+  days,
   type,
   status = "ACTIVE",
   search,
@@ -99,6 +100,12 @@ export const listReports = async ({
 }: Partial<ListReportsQuery> = {}) => {
   const skip = (page - 1) * limit;
   const where: Prisma.PetReportWhereInput = { status };
+
+  if (days !== undefined) {
+    where.createdAt = {
+      gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+    };
+  }
 
   if (type) where.reportType = type;
   if (petType) where.petType = petType;

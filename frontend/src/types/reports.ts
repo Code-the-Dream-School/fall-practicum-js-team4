@@ -105,6 +105,7 @@ export interface ReportFilters {
 export interface ReportListParams extends ReportFilters {
   type?: ReportType;
   // 1-indexed; the API returns page 1 when it's left out
+  days?: number;
   page?: number;
   // Reports per page (API default 20, at most 100)
   limit?: number;

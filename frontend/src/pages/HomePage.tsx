@@ -19,7 +19,12 @@ export function HomePage() {
   const { filters, page, updateFilters, clearFilters, setPage } =
     useReportFilters();
 
-  const query = useReports({ ...filters, page, limit: REPORTS_PER_PAGE });
+  const query = useReports({
+    ...filters,
+    days: 7,
+    page,
+    limit: REPORTS_PER_PAGE,
+  });
   const filtered = hasActiveFilters(filters);
 
   return (
