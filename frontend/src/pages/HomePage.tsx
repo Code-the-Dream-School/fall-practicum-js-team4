@@ -26,8 +26,6 @@ export function HomePage() {
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <h1 style={textStyles.pageTitle}>Recently reported pets</h1>
 
-      <ReportsMap />
-
       <ReportFilters
         filters={filters}
         onChange={updateFilters}
@@ -42,6 +40,7 @@ export function HomePage() {
             aria-busy={query.isPlaceholderData}
             data-updating={query.isPlaceholderData || undefined}
           >
+            <ReportsMap reports={reports} />
             <p role="status" className="directory-results__count">
               {reports.length > 0
                 ? `Showing ${(currentPage - 1) * limit + 1}-${

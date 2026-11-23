@@ -1,7 +1,12 @@
 import { MapContainer, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { PublicReport } from '../../../types/reports';
 
-export function ReportsMap() {
+interface ReportsProps {
+  reports: PublicReport[];
+}
+
+export function ReportsMap({ reports }: ReportsProps) {
   return (
     <MapContainer
       center={[39.8283, -98.5795]}
