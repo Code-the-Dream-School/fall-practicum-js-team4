@@ -11,5 +11,4 @@ export const PATHS = {
   analytics: '/analytics',
   login: '/login',
   register: '/register',
-  dashboard: '/dashboard',
 } as const;
