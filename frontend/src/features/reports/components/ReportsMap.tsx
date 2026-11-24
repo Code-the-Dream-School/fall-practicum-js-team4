@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { useReportLocations } from '../hooks/useReportLocations';
 import { PATHS } from '../../../app/paths';
 import type { PublicReport } from '../../../types/reports';
+import './ReportsMap.css';
 
 interface ReportsProps {
   reports: PublicReport[];
@@ -26,6 +27,7 @@ export function ReportsMap({ reports }: ReportsProps) {
         style={{ height: 400, width: '100%', borderRadius: 12 }}
       >
         <TileLayer
+          className="report-map-tiles"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
@@ -59,7 +61,13 @@ export function ReportsMap({ reports }: ReportsProps) {
               key={report.petReportId}
               center={[place.latitude, place.longitude]}
               radius={8}
-              pathOptions={{ color, fillColor: color, fillOpacity: 0.85 }}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: 0.95,
+                weight: 2,
+                className: `report-map-marker report-map-marker--${report.reportType.toLowerCase()}`,
+              }}
             >
               <Popup>
                 <strong>

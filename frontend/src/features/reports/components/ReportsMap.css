@@ -1,0 +1,15 @@
+.report-map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
+}
+
+.report-map-marker {
+  filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+}
+
+.report-map-marker--lost {
+  color: #ff5733;
+}
+
+.report-map-marker--found {
+  color: #00b8d4;
+}
