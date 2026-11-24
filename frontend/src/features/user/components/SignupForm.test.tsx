@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
+import { PATHS } from '../../../app/paths';
 import { AuthProvider } from '../../../context/AuthProvider';
 import {
   API,
@@ -23,7 +24,7 @@ const setup = () => {
       <MemoryRouter initialEntries={['/register']}>
         <Routes>
           <Route path="/register" element={<SignupForm />} />
-          <Route path="/dashboard" element={<p>Dashboard reached</p>} />
+          <Route path={PATHS.profile} element={<p>Profile reached</p>} />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -47,7 +48,7 @@ describe('SignupForm', () => {
     signedIn();
     setup();
 
-    expect(await screen.findByText('Dashboard reached')).toBeInTheDocument();
+    expect(await screen.findByText('Profile reached')).toBeInTheDocument();
 
     expect(
       screen.queryByRole('button', { name: /create account/i }),
@@ -142,7 +143,7 @@ describe('SignupForm', () => {
     ).toBeDisabled();
 
     expect(
-      await screen.findByText('Dashboard reached', {}, { timeout: 3000 }),
+      await screen.findByText('Profile reached', {}, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
 

@@ -44,6 +44,13 @@ describe('AppRoutes', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows the 404 page for the removed /dashboard route', async () => {
+    renderApp('/dashboard');
+    expect(
+      await screen.findByRole('heading', { name: '404' }),
+    ).toBeInTheDocument();
+  });
+
   it('sends a signed-out visitor from /profile to the login page', async () => {
     renderApp('/profile');
     expect(
