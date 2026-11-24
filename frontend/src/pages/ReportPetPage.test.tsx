@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Link, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { API, server } from '../test/server';
+import { renderApp } from '../test/renderApp';
+import { milo } from '../test/reports';
+import { API, server, signedIn } from '../test/server';
 import { ReportPetPage } from './ReportPetPage';
 
 describe('ReportPetPage', () => {
@@ -33,29 +35,35 @@ describe('ReportPetPage', () => {
     expect(screen.getByLabelText('Pet Name (optional)')).toHaveValue('');
   });
 
-  it('2. submits a lost report successfully', async () => {
+  it('2. navigates to the new LOST report details with confirmation', async () => {
     let requestBody: unknown;
+    const detailsRequests: string[] = [];
+    const newReportId = 71;
 
     server.use(
       http.post(`${API}/api/reports`, async ({ request }) => {
         requestBody = await request.json();
 
         return HttpResponse.json(
-          { success: true, data: { petReportId: 1 } },
+          { success: true, data: { petReportId: newReportId } },
           { status: 201 },
         );
       }),
+      http.get(`${API}/api/reports/:id`, ({ params }) => {
+        detailsRequests.push(String(params.id));
+
+        return HttpResponse.json({
+          success: true,
+          data: { ...milo, petReportId: newReportId },
+        });
+      }),
     );
 
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={['/report-pet?type=lost']}>
-        <ReportPetPage />
-      </MemoryRouter>,
-    );
+    signedIn();
+    const { user } = renderApp('/report-pet?type=lost');
 
     await user.selectOptions(
-      screen.getByLabelText('Pet Type (required)'),
+      await screen.findByLabelText('Pet Type (required)'),
       'DOG',
     );
     await user.type(screen.getByLabelText('Color (required)'), 'Brown');
@@ -72,8 +80,14 @@ describe('ReportPetPage', () => {
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
     expect(
-      await screen.findByText('Your pet report was submitted successfully!'),
+      await screen.findByRole('heading', { name: 'Milo', level: 1 }),
     ).toBeInTheDocument();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Your pet report was submitted successfully!',
+    );
+
+    expect(detailsRequests).toEqual([String(newReportId)]);
 
     expect(requestBody).toMatchObject({
       reportType: 'LOST',
@@ -85,33 +99,44 @@ describe('ReportPetPage', () => {
     });
 
     expect(requestBody).not.toHaveProperty('location');
-
-    expect(screen.getByRole('button', { name: 'Submitted' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Submit Report' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('3. submits a found report successfully', async () => {
+  it('3. navigates to the new FOUND report details with confirmation', async () => {
     let requestBody: unknown;
+    const detailsRequests: string[] = [];
+    const newReportId = 72;
 
     server.use(
       http.post(`${API}/api/reports`, async ({ request }) => {
         requestBody = await request.json();
 
         return HttpResponse.json(
-          { success: true, data: { petReportId: 1 } },
+          { success: true, data: { petReportId: newReportId } },
           { status: 201 },
         );
       }),
+      http.get(`${API}/api/reports/:id`, ({ params }) => {
+        detailsRequests.push(String(params.id));
+
+        return HttpResponse.json({
+          success: true,
+          data: {
+            ...milo,
+            petReportId: newReportId,
+            reportType: 'FOUND',
+          },
+        });
+      }),
     );
 
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={['/report-pet?type=found']}>
-        <ReportPetPage />
-      </MemoryRouter>,
-    );
+    signedIn();
+    const { user } = renderApp('/report-pet?type=found');
 
     await user.selectOptions(
-      screen.getByLabelText('Pet Type (required)'),
+      await screen.findByLabelText('Pet Type (required)'),
       'DOG',
     );
     await user.type(screen.getByLabelText('Color (required)'), 'Brown');
@@ -133,7 +158,6 @@ describe('ReportPetPage', () => {
       screen.getByLabelText('City (required if providing location)'),
       'Richmond',
     );
-
     await user.type(
       screen.getByLabelText('State (required if providing location)'),
       'VA',
@@ -142,8 +166,14 @@ describe('ReportPetPage', () => {
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
     expect(
-      await screen.findByText('Your pet report was submitted successfully!'),
+      await screen.findByRole('heading', { name: 'Milo', level: 1 }),
     ).toBeInTheDocument();
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Your pet report was submitted successfully!',
+    );
+
+    expect(detailsRequests).toEqual([String(newReportId)]);
 
     expect(requestBody).toMatchObject({
       reportType: 'FOUND',
@@ -160,7 +190,9 @@ describe('ReportPetPage', () => {
       state: 'VA',
     });
 
-    expect(screen.getByRole('button', { name: 'Submitted' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Submit Report' }),
+    ).not.toBeInTheDocument();
   });
 
   it('4. shows an error when report submission fails', async () => {
@@ -177,17 +209,14 @@ describe('ReportPetPage', () => {
       ),
     );
 
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={['/report-pet?type=lost']}>
-        <ReportPetPage />
-      </MemoryRouter>,
-    );
+    signedIn();
+    const { user } = renderApp('/report-pet?type=lost');
 
     await user.selectOptions(
-      screen.getByLabelText('Pet Type (required)'),
+      await screen.findByLabelText('Pet Type (required)'),
       'DOG',
     );
+
     await user.type(screen.getByLabelText('Color (required)'), 'Brown');
     await user.selectOptions(screen.getByLabelText('Size (required)'), 'SMALL');
     await user.selectOptions(
@@ -206,6 +235,12 @@ describe('ReportPetPage', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Submit Report' })).toBeEnabled();
+
+    expect(
+      screen.getByRole('heading', { name: 'Report a Pet: LOST' }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByLabelText('Color (required)')).toHaveValue('Brown');
   });
 
   it('5. submits a report with photos as multipart/form-data', async () => {
@@ -228,9 +263,13 @@ describe('ReportPetPage', () => {
             { status: 201 },
           ),
         ),
+        http.get(`${API}/api/reports/41`, () =>
+          HttpResponse.json({
+            success: true,
+            data: { ...milo, petReportId: 41 },
+          }),
+        ),
       );
-
-      const user = userEvent.setup();
 
       const originalFetch = globalThis.fetch;
       let capturedFormData: FormData | undefined;
@@ -250,14 +289,11 @@ describe('ReportPetPage', () => {
           return originalFetch(input, init);
         });
 
-      render(
-        <MemoryRouter initialEntries={['/report-pet?type=lost']}>
-          <ReportPetPage />
-        </MemoryRouter>,
-      );
+      signedIn();
+      const { user } = renderApp('/report-pet?type=lost');
 
       await user.selectOptions(
-        screen.getByLabelText('Pet Type (required)'),
+        await screen.findByLabelText('Pet Type (required)'),
         'DOG',
       );
 
@@ -286,8 +322,12 @@ describe('ReportPetPage', () => {
       await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
       expect(
-        await screen.findByText('Your pet report was submitted successfully!'),
+        await screen.findByRole('heading', { name: 'Milo', level: 1 }),
       ).toBeInTheDocument();
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Your pet report was submitted successfully!',
+      );
 
       expect(capturedFormData).toBeInstanceOf(FormData);
 
@@ -315,29 +355,18 @@ describe('ReportPetPage', () => {
     }
   });
 
-  it('6. resets submission state when switching from LOST to FOUND', async () => {
+  it('6. warns and stays on the form when the created report has no ID', async () => {
     server.use(
-      http.post(`${API}/api/reports`, () => {
-        return HttpResponse.json(
-          { success: true, data: { petReportId: 1 } },
-          { status: 201 },
-        );
-      }),
+      http.post(`${API}/api/reports`, () =>
+        HttpResponse.json({ success: true, data: {} }, { status: 201 }),
+      ),
     );
 
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter initialEntries={['/report-pet?type=lost']}>
-        <Link to="/report-pet?type=found">Switch to Found</Link>
-        <Routes>
-          <Route path="/report-pet" element={<ReportPetPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    signedIn();
+    const { user } = renderApp('/report-pet?type=lost');
 
     await user.selectOptions(
-      screen.getByLabelText('Pet Type (required)'),
+      await screen.findByLabelText('Pet Type (required)'),
       'DOG',
     );
     await user.type(screen.getByLabelText('Color (required)'), 'White');
@@ -349,24 +378,25 @@ describe('ReportPetPage', () => {
       screen.getByLabelText('Gender (required)'),
       'MALE',
     );
+
     fireEvent.change(screen.getByLabelText('Date Lost (required)'), {
       target: { value: '2026-11-01' },
     });
+
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
 
-    expect(
-      await screen.findByText('Your pet report was submitted successfully!'),
-    ).toBeInTheDocument();
-
-    expect(screen.getByRole('button', { name: 'Submitted' })).toBeDisabled();
-
-    await user.click(screen.getByRole('link', { name: 'Switch to Found' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your report may have been created, but we could not open its details.',
+    );
 
     expect(
-      screen.getByRole('heading', { name: 'Report a Pet: FOUND' }),
+      screen.getByRole('heading', { name: 'Report a Pet: LOST' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Color (required)')).toHaveValue('');
+
+    expect(screen.getByLabelText('Color (required)')).toHaveValue('White');
+
     expect(screen.getByRole('button', { name: 'Submit Report' })).toBeEnabled();
+
     expect(
       screen.queryByText('Your pet report was submitted successfully!'),
     ).not.toBeInTheDocument();
