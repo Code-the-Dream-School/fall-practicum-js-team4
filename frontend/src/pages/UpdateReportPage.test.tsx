@@ -414,8 +414,12 @@ describe('UpdateReportPage', () => {
       let body: Record<string, unknown> | undefined;
 
       server.use(
+        // After the save, the details page loads the report again
         http.get(`${API}/api/reports/100`, () =>
-          HttpResponse.json({ success: true, data: { ...testReport, status } }),
+          HttpResponse.json({
+            success: true,
+            data: { ...testReport, status, ...(body && { petName: 'Chucha' }) },
+          }),
         ),
         http.patch(`${API}/api/reports/100`, async ({ request }) => {
           body = (await request.json()) as Record<string, unknown>;
@@ -435,10 +439,11 @@ describe('UpdateReportPage', () => {
 
       // Saved and redirected: a closed report's other fields can still be edited
       expect(
-        await screen.findByRole('heading', {
-          name: /Pet details & matches: 100/i,
-        }),
+        await screen.findByRole('heading', { name: 'Chucha', level: 1 }),
       ).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Report updated successfully.',
+      );
       expect(body).toEqual(expect.objectContaining({ petName: 'Chucha' }));
       expect(body).not.toHaveProperty('status');
     },
