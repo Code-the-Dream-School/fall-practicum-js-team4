@@ -403,4 +403,49 @@ describe('UpdateReportPage', () => {
 
     expect(await screen.findByText(/0 \/ 3 photos/)).toBeInTheDocument();
   });
+
+  // The page's copy of the status can be out of date (marked reunited or
+  // closed in another tab): sending it back would undo that change
+  it.each(['ACTIVE', 'REUNITED', 'CLOSED'] as const)(
+    'never sends the status when saving a %s report',
+    async (status) => {
+      signedIn();
+      const user = userEvent.setup();
+      let body: Record<string, unknown> | undefined;
+
+      server.use(
+        // After the save, the details page loads the report again
+        http.get(`${API}/api/reports/100`, () =>
+          HttpResponse.json({
+            success: true,
+            data: { ...testReport, status, ...(body && { petName: 'Chucha' }) },
+          }),
+        ),
+        http.patch(`${API}/api/reports/100`, async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            success: true,
+            data: { ...testReport, status, petName: 'Chucha' },
+          });
+        }),
+      );
+
+      renderApp(PATHS.editReport('100'));
+
+      const petNameInput = await screen.findByLabelText('Pet Name (optional)');
+      await user.clear(petNameInput);
+      await user.type(petNameInput, 'Chucha');
+      await user.click(screen.getByRole('button', { name: /save|update/i }));
+
+      // Saved and redirected: a closed report's other fields can still be edited
+      expect(
+        await screen.findByRole('heading', { name: 'Chucha', level: 1 }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Report updated successfully.',
+      );
+      expect(body).toEqual(expect.objectContaining({ petName: 'Chucha' }));
+      expect(body).not.toHaveProperty('status');
+    },
+  );
 });
