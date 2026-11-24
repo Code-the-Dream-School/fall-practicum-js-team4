@@ -243,7 +243,7 @@ describe('LoginPage', () => {
   });
 
   describe('success', () => {
-    it('shows a welcome message, then opens the protected page', async () => {
+    it('shows a welcome message, then opens the profile page', async () => {
       const { user } = renderApp('/login');
 
       await fillForm(user);
@@ -253,7 +253,25 @@ describe('LoginPage', () => {
         'Welcome back, Sam Rivera! Redirecting…',
       );
       expect(
-        await screen.findByText('Logged in', undefined, REDIRECT),
+        await screen.findByRole(
+          'heading',
+          { name: `${testUser.name}'s profile` },
+          REDIRECT,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('returns to the protected page instead of /profile if redirected to login', async () => {
+      const { user } = renderApp('/report-pet');
+
+      await fillForm(user);
+      await submit(user);
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Welcome back, Sam Rivera! Redirecting…',
+      );
+      expect(
+        await screen.findByRole('heading', { name: /report a pet/i }, REDIRECT),
       ).toBeInTheDocument();
     });
 
@@ -301,11 +319,15 @@ describe('LoginPage', () => {
     expect(password).toHaveAttribute('type', 'password');
   });
 
-  it('sends an already signed-in user to the dashboard', async () => {
+  it('sends an already signed-in user to the profile page', async () => {
     signedIn();
     renderApp('/login');
 
-    expect(await screen.findByText('Logged in')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', {
+        name: `${testUser.name}'s profile`,
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText(/email address/i)).not.toBeInTheDocument();
   });
 });

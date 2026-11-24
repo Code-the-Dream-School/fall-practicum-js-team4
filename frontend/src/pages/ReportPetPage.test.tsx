@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Link, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { API, server } from '../test/server';
+import { API, server, zipLookupResponse, zipPlace } from '../test/server';
 import { ReportPetPage } from './ReportPetPage';
 
 describe('ReportPetPage', () => {
@@ -93,6 +93,11 @@ describe('ReportPetPage', () => {
     let requestBody: unknown;
 
     server.use(
+      http.get(`${API}/api/locations/zip/:zip`, ({ params }) =>
+        zipLookupResponse(String(params.zip), [
+          zipPlace('Richmond', 'Virginia', 'VA'),
+        ]),
+      ),
       http.post(`${API}/api/reports`, async ({ request }) => {
         requestBody = await request.json();
 
@@ -129,14 +134,9 @@ describe('ReportPetPage', () => {
       screen.getByLabelText('ZIP Code (required if providing location)'),
       '23220',
     );
-    await user.type(
-      screen.getByLabelText('City (required if providing location)'),
-      'Richmond',
-    );
 
-    await user.type(
-      screen.getByLabelText('State (required if providing location)'),
-      'VA',
+    await user.click(
+      await screen.findByRole('button', { name: "Yes, that's right" }),
     );
 
     await user.click(screen.getByRole('button', { name: 'Submit Report' }));
