@@ -107,15 +107,14 @@ describe('LogoutButton', () => {
     expect(logoutRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('5. does not return to the Profile page after logout and signing in again', async () => {
+  it('5. does not return to the previous protected page after logout and signing in again', async () => {
     signedIn();
 
-    const { user } = renderApp(PATHS.profile);
+    const { user } = renderApp(PATHS.reportPet);
 
     expect(
       await screen.findByRole('heading', {
-        level: 1,
-        name: `${testUser.name}'s profile`,
+        name: /report a pet/i,
       }),
     ).toBeInTheDocument();
 
@@ -132,13 +131,19 @@ describe('LogoutButton', () => {
     );
 
     expect(
-      await screen.findByText(/^Logged in$/i, {}, { timeout: 3000 }),
+      await screen.findByRole(
+        'heading',
+        {
+          level: 1,
+          name: `${testUser.name}'s profile`,
+        },
+        { timeout: 3000 },
+      ),
     ).toBeInTheDocument();
 
     expect(
       screen.queryByRole('heading', {
-        level: 1,
-        name: `${testUser.name}'s profile`,
+        name: /report a pet/i,
       }),
     ).not.toBeInTheDocument();
   });

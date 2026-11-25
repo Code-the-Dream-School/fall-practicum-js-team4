@@ -24,6 +24,7 @@ const PLACES: Record<string, ZipPlace[]> = {
 };
 
 const LOOKUP_DOWN = /We can't reach the ZIP code service right now/;
+const FROM_ZIP_HINT = 'Filled in from the ZIP code';
 
 const lookupDown = () =>
   errorResponse(
@@ -186,6 +187,82 @@ describe('LocationFields', () => {
     expect(
       screen.queryByText('City is required when providing a location'),
     ).not.toBeInTheDocument();
+  });
+
+  it('locks city and state until a ZIP code is looked up', async () => {
+    const requested = mockZipApi();
+    const { user, onValid, zip, city, state } = renderForm();
+
+    for (const field of [city, state]) {
+      expect(field).toHaveAttribute('readonly');
+      expect(field).toHaveAttribute('placeholder', FROM_ZIP_HINT);
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onValid).toHaveBeenCalledTimes(1));
+
+    await user.type(city, 'Raleigh');
+    await user.type(zip, '2760');
+    await user.tab();
+
+    expect(city).toHaveValue('');
+    expect(city).toHaveAttribute('readonly');
+    expect(requested).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(
+      await screen.findByText('Enter a valid 5-digit ZIP code'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/is required when providing a location/),
+    ).not.toBeInTheDocument();
+    expect(onValid).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps city and state locked while the ZIP code is being looked up', async () => {
+    let answerZip = () => {};
+    const zipCanAnswer = new Promise<void>((resolve) => {
+      answerZip = resolve;
+    });
+    server.use(
+      http.get(`${API}/api/locations/zip/:zip`, async () => {
+        await zipCanAnswer;
+        return lookupDown();
+      }),
+    );
+    const { user, zip, city, state } = renderForm();
+
+    await user.type(zip, '27601');
+    expect(
+      await screen.findByText('Looking up this ZIP code…'),
+    ).toBeInTheDocument();
+    expect(city).toHaveAttribute('readonly');
+    expect(state).toHaveAttribute('readonly');
+
+    answerZip();
+    expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
+    expect(city).not.toHaveAttribute('readonly');
+    expect(city).toHaveAttribute('placeholder', 'Enter city');
+    expect(state).toHaveAttribute('placeholder', 'e.g. VA');
+  });
+
+  it('locks city and state again when the ZIP code is made incomplete during an outage', async () => {
+    server.use(http.get(`${API}/api/locations/zip/:zip`, lookupDown));
+    const { user, zip, city, state } = renderForm();
+
+    await user.type(zip, '27601');
+    expect(await screen.findByText(LOOKUP_DOWN)).toBeInTheDocument();
+    await user.type(city, 'Raleigh');
+    await user.type(state, 'NC');
+
+    await user.type(zip, '{Backspace}');
+    await user.tab();
+
+    expect(city).toHaveValue('');
+    expect(state).toHaveValue('');
+    expect(city).toHaveAttribute('readonly');
+    expect(state).toHaveAttribute('readonly');
+    expect(screen.queryByText(LOOKUP_DOWN)).not.toBeInTheDocument();
   });
 
   it('lets the user type city and state when the lookup is down', async () => {

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
-import { signedIn } from './test/server';
+import { signedIn, testUser } from './test/server';
 
 // App uses the real BrowserRouter, so tests drive it through the jsdom URL
 const openAt = (path: string) => window.history.pushState({}, '', path);
@@ -9,8 +9,8 @@ const openAt = (path: string) => window.history.pushState({}, '', path);
 describe('App', () => {
   afterEach(() => openAt('/'));
 
-  it('sends a signed-out visitor to the login page', async () => {
-    openAt('/dashboard');
+  it('sends a signed-out visitor from /profile to the login page', async () => {
+    openAt('/profile');
     render(<App />);
 
     expect(
@@ -19,12 +19,25 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/login');
   });
 
-  it('opens the dashboard for a signed-in user', async () => {
+  it('opens the profile for a signed-in user', async () => {
     signedIn();
+    openAt('/profile');
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: `${testUser.name}'s profile`,
+      }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/profile');
+  });
+
+  it('renders 404 for removed /dashboard route', async () => {
     openAt('/dashboard');
     render(<App />);
 
-    expect(await screen.findByText('Logged in')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/dashboard');
+    expect(
+      await screen.findByRole('heading', { name: '404' }),
+    ).toBeInTheDocument();
   });
 });

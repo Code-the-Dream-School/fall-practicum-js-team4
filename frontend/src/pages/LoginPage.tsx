@@ -12,7 +12,7 @@ import { loginRules } from '../validation/authRules';
 import { describeLoginError } from './loginErrors';
 import './LoginPage.css';
 
-const DEFAULT_REDIRECT = PATHS.dashboard;
+const DEFAULT_REDIRECT = PATHS.profile;
 // Long enough to read the success message
 const REDIRECT_DELAY_MS = 1000;
 
