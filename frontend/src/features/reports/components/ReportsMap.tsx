@@ -24,7 +24,7 @@ export function ReportsMap({ reports }: ReportsProps) {
         center={[39.8283, -98.5795]}
         zoom={4}
         scrollWheelZoom={false}
-        style={{ height: 350, width: '100%', borderRadius: 12 }}
+        style={{ height: 600, width: '100%', borderRadius: 12 }}
       >
         <TileLayer
           className="report-map-tiles"

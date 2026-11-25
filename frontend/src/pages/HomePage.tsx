@@ -37,16 +37,11 @@ export function HomePage() {
           Reuniting Lost Pets with the <span>Families Who Love Them</span>
         </h1>
 
-        <p className="home-hero__dwscription">
-          Help lost pets find their way home. Explore recent reports, search the
-          area, connect with your community.
+        <p className="home-hero__description">
+          Help lost pets find their way home. <br /> Explore recent reports,
+          search the area, connect with your community.
         </p>
       </header>
-
-      <h2 className="home-section-title">
-        Recently reported pets
-        <span className="home-section-title__badge">Last 7 days</span>
-      </h2>
 
       <ReportFilters
         filters={filters}
@@ -54,6 +49,7 @@ export function HomePage() {
         onClear={clearFilters}
         noun="pets"
       />
+
       <QueryView query={query} loading="Loading recent reports...">
         {({ reports, page: currentPage, totalPages, total, limit }) => (
           <div className="home-results" aria-busy={query.isPlaceholderData}>
@@ -62,6 +58,11 @@ export function HomePage() {
               className="directory-results home-results__list"
               data-updating={query.isPlaceholderData || undefined}
             >
+              <h2 className="home-section-title">
+                Recently reported
+                <span className="home-section-title__badge">Last 7 days</span>
+              </h2>
+
               <p role="status" className="directory-results__count">
                 {reports.length > 0
                   ? `Showing ${(currentPage - 1) * limit + 1}-${
