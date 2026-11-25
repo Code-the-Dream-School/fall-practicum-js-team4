@@ -46,16 +46,6 @@ function CreateReportContent({ reportType }: CreateReportContentProps) {
     try {
       const createdReport = await createReport(payload, { photos });
 
-      if (
-        !Number.isSafeInteger(createdReport?.petReportId) ||
-        createdReport.petReportId <= 0
-      ) {
-        setSubmissionError(
-          'Your report may have been created, but we could not open its details. Please check My Reports before submitting again.',
-        );
-        return;
-      }
-
       navigate(PATHS.petDetails(String(createdReport.petReportId)), {
         replace: true,
         state: {
