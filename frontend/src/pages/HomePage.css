@@ -1,0 +1,10 @@
+.home-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.home-results > * {
+  width: 100%;
+  min-width: 0;
+}
