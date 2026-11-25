@@ -82,6 +82,7 @@ export function ReportsDirectoryPage({
   const query = useReports({
     type: reportType,
     ...filters,
+    type: reportType,
     // Page 1 is the API's default: leave it out so the request stays short
     page: page > 1 ? page : undefined,
     limit: REPORTS_PER_PAGE,

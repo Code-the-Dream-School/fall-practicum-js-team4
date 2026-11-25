@@ -8,6 +8,7 @@ import {
   SEARCH_MAX_LENGTH,
   SIZE_OPTIONS,
   SORT_OPTIONS,
+  REPORT_TYPE_OPTIONS,
   activeFilterChips,
 } from '../filters';
 import './ReportFilters.css';
@@ -21,6 +22,8 @@ interface ReportFiltersProps {
   onClear: () => void;
   // e.g. "lost pets", for labels read by screen readers
   noun: string;
+  hideSizeAndGender?: boolean;
+  showReportType?: boolean;
 }
 
 interface FilterSelectProps<T extends string> {
@@ -64,6 +67,8 @@ export function ReportFilters({
   onChange,
   onClear,
   noun,
+  hideSizeAndGender = false,
+  showReportType = false,
 }: ReportFiltersProps) {
   const applied = filters.search ?? '';
   const [text, setText] = useState(applied);
@@ -127,20 +132,33 @@ export function ReportFilters({
             options={PET_TYPE_OPTIONS}
             onChange={(petType) => onChange({ petType })}
           />
-          <FilterSelect
-            label="Size"
-            allLabel="All sizes"
-            value={filters.size}
-            options={SIZE_OPTIONS}
-            onChange={(size) => onChange({ size })}
-          />
-          <FilterSelect
-            label="Gender"
-            allLabel="All genders"
-            value={filters.gender}
-            options={GENDER_OPTIONS}
-            onChange={(gender) => onChange({ gender })}
-          />
+          {showReportType && (
+            <FilterSelect
+              label="Report type"
+              allLabel="All reports"
+              value={filters.type}
+              options={REPORT_TYPE_OPTIONS}
+              onChange={(type) => onChange({ type })}
+            />
+          )}
+          {!hideSizeAndGender && (
+            <>
+              <FilterSelect
+                label="Size"
+                allLabel="All sizes"
+                value={filters.size}
+                options={SIZE_OPTIONS}
+                onChange={(size) => onChange({ size })}
+              />
+              <FilterSelect
+                label="Gender"
+                allLabel="All genders"
+                value={filters.gender}
+                options={GENDER_OPTIONS}
+                onChange={(gender) => onChange({ gender })}
+              />
+            </>
+          )}
           <FilterSelect
             label="Sort by"
             value={filters.sort ?? 'newest'}

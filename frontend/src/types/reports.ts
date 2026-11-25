@@ -102,10 +102,10 @@ export interface ReportFilters {
   gender?: PetGender;
   // Server default: newest
   sort?: ReportSort;
+  type?: ReportType;
 }
 
 export interface ReportListParams extends ReportFilters {
-  type?: ReportType;
   // 1-indexed; the API returns page 1 when it's left out
   days?: number;
   page?: number;

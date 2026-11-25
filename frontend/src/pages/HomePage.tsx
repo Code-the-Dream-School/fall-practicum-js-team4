@@ -43,8 +43,7 @@ export function HomePage() {
         </h1>
 
         <p className="home-hero__description">
-          Help lost pets find their way home. <br /> Explore recent reports,
-          search your area, connect with your community.
+          Help lost pets find their way home.
         </p>
       </header>
 
@@ -71,6 +70,8 @@ export function HomePage() {
         onChange={updateFilters}
         onClear={clearFilters}
         noun="pets"
+        hideSizeAndGender
+        showReportType
       />
 
       <QueryView query={query} loading="Loading recent reports...">
