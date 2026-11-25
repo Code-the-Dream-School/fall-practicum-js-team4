@@ -1,3 +1,20 @@
+.reports-map {
+  height: 600px;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .reports-map {
+    height: 450px;
+  }
+}
+
+@media (max-width: 600px) {
+  .reports-map {
+    height: 300px;
+  }
+}
+
 .report-map-tiles {
   filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
 }

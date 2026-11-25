@@ -143,3 +143,15 @@
     height: 130px;
   }
 }
+
+.home-report-actions ~ .report-filters .report-filters__menus {
+  dispay: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .home-report-actions ~ .report-filters .report-filters__menus {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

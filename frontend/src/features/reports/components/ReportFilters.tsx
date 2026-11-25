@@ -134,8 +134,8 @@ export function ReportFilters({
           />
           {showReportType && (
             <FilterSelect
-              label="Report type"
-              allLabel="All reports"
+              label="Report status"
+              allLabel="All statuses"
               value={filters.type}
               options={REPORT_TYPE_OPTIONS}
               onChange={(type) => onChange({ type })}

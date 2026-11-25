@@ -13,6 +13,8 @@ interface ReportsProps {
 export function ReportsMap({ reports }: ReportsProps) {
   const { locations, isLoading, hasError } = useReportLocations(reports);
 
+  const isMobile = window.innerWidth <= 768;
+
   return (
     <div>
       {isLoading && <p role="status">Loading report locations...</p>}
@@ -22,9 +24,9 @@ export function ReportsMap({ reports }: ReportsProps) {
 
       <MapContainer
         center={[39.8283, -98.5795]}
-        zoom={4}
+        zoom={isMobile ? 3 : 4}
         scrollWheelZoom={false}
-        style={{ height: 600, width: '100%', borderRadius: 12 }}
+        className="reports-map"
       >
         <TileLayer
           className="report-map-tiles"
