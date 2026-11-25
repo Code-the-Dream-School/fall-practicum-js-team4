@@ -1,7 +1,14 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/renderApp';
-import { API, server, signedIn, testUser } from '../test/server';
+import {
+  API,
+  reportListResponse,
+  server,
+  signedIn,
+  testReports,
+  testUser,
+} from '../test/server';
 import { PATHS } from '../app/paths';
 import type { PetReport } from '../types/reports';
 import { http, HttpResponse, delay } from 'msw';
@@ -108,7 +115,7 @@ describe('UpdateReportPage', () => {
       http.get(`${API}/api/reports/100`, () => {
         return HttpResponse.json({
           success: true,
-          data: testReport,
+          data: patchCalled ? { ...testReport, petName: 'Chucha' } : testReport,
         });
       }),
 
@@ -130,6 +137,33 @@ describe('UpdateReportPage', () => {
           },
         });
       }),
+      http.get(`${API}/api/reports/100/public`, () =>
+        HttpResponse.json({
+          success: true,
+          data: {
+            petReportId: testReport.petReportId,
+            reportType: testReport.reportType,
+            status: testReport.status,
+            petType: testReport.petType,
+            petName: 'Chucha',
+            breed: testReport.breed ?? null,
+            color: testReport.color,
+            size: testReport.size,
+            gender: testReport.gender,
+            distinctiveFeatures: testReport.distinctiveFeatures ?? null,
+            eventDate: testReport.eventDate,
+            createdAt: testReport.createdAt,
+            location: testReport.location ?? null,
+            photos: [],
+          },
+        }),
+      ),
+
+      http.get(`${API}/api/reports`, () =>
+        reportListResponse([
+          { ...testReports[0], petReportId: 100, petName: 'Chucha' },
+        ]),
+      ),
     );
 
     renderApp(PATHS.editReport('100'));
@@ -147,13 +181,25 @@ describe('UpdateReportPage', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: /Pet details & matches: 100/i,
+        name: 'Chucha',
       }),
     ).toBeInTheDocument();
 
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Report updated successfully.',
     );
+
+    await user.click(screen.getByRole('link', { name: /Back to Lost Pets/ }));
+
+    await user.click(await screen.findByRole('link', { name: 'Chucha' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Chucha', level: 1 }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText('Report updated successfully.'),
+    ).not.toBeInTheDocument();
   });
 
   it('4. displays a 404 error when the report is not found', async () => {
@@ -357,4 +403,49 @@ describe('UpdateReportPage', () => {
 
     expect(await screen.findByText(/0 \/ 3 photos/)).toBeInTheDocument();
   });
+
+  // The page's copy of the status can be out of date (marked reunited or
+  // closed in another tab): sending it back would undo that change
+  it.each(['ACTIVE', 'REUNITED', 'CLOSED'] as const)(
+    'never sends the status when saving a %s report',
+    async (status) => {
+      signedIn();
+      const user = userEvent.setup();
+      let body: Record<string, unknown> | undefined;
+
+      server.use(
+        // After the save, the details page loads the report again
+        http.get(`${API}/api/reports/100`, () =>
+          HttpResponse.json({
+            success: true,
+            data: { ...testReport, status, ...(body && { petName: 'Chucha' }) },
+          }),
+        ),
+        http.patch(`${API}/api/reports/100`, async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            success: true,
+            data: { ...testReport, status, petName: 'Chucha' },
+          });
+        }),
+      );
+
+      renderApp(PATHS.editReport('100'));
+
+      const petNameInput = await screen.findByLabelText('Pet Name (optional)');
+      await user.clear(petNameInput);
+      await user.type(petNameInput, 'Chucha');
+      await user.click(screen.getByRole('button', { name: /save|update/i }));
+
+      // Saved and redirected: a closed report's other fields can still be edited
+      expect(
+        await screen.findByRole('heading', { name: 'Chucha', level: 1 }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Report updated successfully.',
+      );
+      expect(body).toEqual(expect.objectContaining({ petName: 'Chucha' }));
+      expect(body).not.toHaveProperty('status');
+    },
+  );
 });

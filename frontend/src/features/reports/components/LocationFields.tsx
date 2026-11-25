@@ -16,6 +16,8 @@ type Lookup =
 
 const ZIP_PATTERN = /^\d{5}$/;
 
+const FROM_ZIP_HINT = 'Filled in from the ZIP code';
+
 interface LocationFieldsProps {
   form: UseFormReturn<ReportFormValues>;
 }
@@ -56,12 +58,14 @@ export function LocationFields({ form }: LocationFieldsProps) {
     if (zip === lastZipRef.current) return;
     lastZipRef.current = zip;
     const requestId = ++requestIdRef.current;
+    clearErrors(['city', 'state']);
 
     if (lookup.step !== 'idle' && lookup.zip !== zip) {
       clearPlace();
     }
 
     if (!ZIP_PATTERN.test(zip)) {
+      if (!zip) clearErrors('zipCode');
       setLookup({ step: 'idle' });
       return;
     }
@@ -117,13 +121,7 @@ export function LocationFields({ form }: LocationFieldsProps) {
     setFocus('zipCode');
   };
 
-  const locked =
-    lookup.step === 'confirm' ||
-    lookup.step === 'choose' ||
-    lookup.step === 'confirmed' ||
-    lookup.step === 'notFound';
-
-  const waitingForZip = lookup.step === 'loading' || lookup.step === 'notFound';
+  const locked = lookup.step !== 'unavailable';
 
   const blocksSubmit =
     lookup.step === 'loading' ||
@@ -222,7 +220,7 @@ export function LocationFields({ form }: LocationFieldsProps) {
           id="report-city"
           type="text"
           autoComplete="address-level2"
-          placeholder="Enter city"
+          placeholder={locked ? FROM_ZIP_HINT : 'Enter city'}
           readOnly={locked}
           aria-invalid={Boolean(errors.city)}
           aria-describedby={errors.city ? 'report-city-error' : undefined}
@@ -233,7 +231,7 @@ export function LocationFields({ form }: LocationFieldsProps) {
               message: 'City must be 100 characters or fewer',
             },
             validate: (value, formValues) =>
-              waitingForZip ||
+              locked ||
               (!formValues.zipCode?.trim() && !formValues.state?.trim()) ||
               Boolean(value.trim()) ||
               'City is required when providing a location',
@@ -254,7 +252,7 @@ export function LocationFields({ form }: LocationFieldsProps) {
           type="text"
           autoComplete="address-level1"
           maxLength={2}
-          placeholder="e.g. VA"
+          placeholder={locked ? FROM_ZIP_HINT : 'e.g. VA'}
           readOnly={locked}
           aria-invalid={Boolean(errors.state)}
           aria-describedby={errors.state ? 'report-state-error' : undefined}
@@ -262,7 +260,7 @@ export function LocationFields({ form }: LocationFieldsProps) {
             deps: ['zipCode', 'city'],
             setValueAs: (value: string) => value.trim().toUpperCase(),
             validate: (value, formValues) => {
-              if (waitingForZip) return true;
+              if (locked) return true;
               const hasLocation = Boolean(
                 formValues.zipCode?.trim() ||
                 formValues.city?.trim() ||

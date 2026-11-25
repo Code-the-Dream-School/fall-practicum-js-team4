@@ -123,7 +123,6 @@ export function UpdateReportPage() {
       distinctiveFeatures: values.distinctiveFeatures?.trim() || null,
       eventDate: new Date(`${values.eventDate}T00:00:00Z`).toISOString(),
       contactInfo: values.contactInfo?.trim() || null,
-      status: report.status,
       deletePhotoIds,
       location:
         values.zipCode?.trim() || values.city?.trim() || values.state?.trim()

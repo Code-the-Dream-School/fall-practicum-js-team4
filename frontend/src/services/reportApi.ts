@@ -3,6 +3,7 @@ import type {
   CloseReason,
   CreateReportInput,
   PetReport,
+  PublicReport,
   UpdateReportInput,
   ReportListParams,
   ReportListResponse,
@@ -182,6 +183,50 @@ const SAVE_ERROR_TITLES: Record<ErrorKind, string> = {
 /** Message for a failed "Mark Reunited": what happened, then that nothing changed. */
 export const describeReunitedError = (err: unknown): string =>
   `${SAVE_ERROR_TITLES[describeApiError(err).kind]}. The report wasn't changed.`;
+
+export const getReportDetails = (id: string) =>
+  apiRequest<PublicReport>(`/api/reports/${encodeURIComponent(id)}/public`);
+
+export interface ReportDetailsResult {
+  report: PublicReport;
+  isOwner: boolean;
+}
+
+export async function getReportDetailsForViewer(
+  id: string,
+  authenticated: boolean,
+): Promise<ReportDetailsResult> {
+  if (!authenticated) {
+    return {
+      report: await getReportDetails(id),
+      isOwner: false,
+    };
+  }
+  try {
+    const ownerReport = await getReportById(id);
+
+    return {
+      report: {
+        ...ownerReport,
+        photos: ownerReport.photos ?? [],
+      },
+      isOwner: true,
+    };
+  } catch (error) {
+    if (
+      !(error instanceof ApiError) ||
+      error.status !== 403 ||
+      error.code !== 'FORBIDDEN'
+    ) {
+      throw error;
+    }
+
+    return {
+      report: await getReportDetails(id),
+      isOwner: false,
+    };
+  }
+}
 
 /** Message for a failed "Close Report": what happened, then that nothing changed. */
 export const describeCloseError = (err: unknown): string => {

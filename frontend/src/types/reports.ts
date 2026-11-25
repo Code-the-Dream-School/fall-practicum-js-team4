@@ -56,6 +56,9 @@ export interface CreateReportInput {
   contactInfo?: string | null;
   location?: ReportLocation | null;
 }
+// Fields the edit form saves. No status: the form doesn't change it, and
+// sending the status loaded with the page could undo "Mark Reunited" or
+// "Close Report" done since then. Status has its own actions (see reportApi).
 export interface UpdateReportInput {
   petType?: PetType;
   petName?: string | null;
@@ -66,7 +69,6 @@ export interface UpdateReportInput {
   distinctiveFeatures?: string | null;
   eventDate?: string;
   contactInfo?: string | null;
-  status?: ReportStatus;
   location?: ReportLocation | null;
   photos?: ReportPhoto[];
   deletePhotoIds?: number[];

@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { PATHS } from '../../../app/paths';
 import { Icon } from '../../../components/Icon';
 import type { PublicReport } from '../../../types/reports';
@@ -12,6 +12,9 @@ import {
 } from '../format';
 
 export function ReportCard({ report }: { report: PublicReport }) {
+  const { pathname, search } = useLocation();
+  const fromDirectory = `${pathname}${search}`;
+
   const photo = report.photos[0];
   const location = formatLocation(report.location);
   const tone = report.reportType === 'LOST' ? 'lost' : 'found';
@@ -41,6 +44,7 @@ export function ReportCard({ report }: { report: PublicReport }) {
           <h2 className="report-card__title">
             <Link
               to={PATHS.petDetails(String(report.petReportId))}
+              state={{ fromDirectory }}
               className="report-card__link"
             >
               {reportTitle(report)}
@@ -89,6 +93,7 @@ export function ReportCard({ report }: { report: PublicReport }) {
         <div className="report-card__actions">
           <Link
             to={PATHS.petDetails(String(report.petReportId))}
+            state={{ fromDirectory }}
             className="report-card__view"
             tabIndex={-1}
             aria-hidden="true"

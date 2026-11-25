@@ -2,7 +2,6 @@ import { Route, Routes } from 'react-router';
 import { PATHS } from './app/paths';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { LoggedInPage } from './pages/LoggedInPage';
 import { LoginPage } from './pages/LoginPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { HomePage } from './pages/HomePage';
@@ -42,7 +41,6 @@ export function AppRoutes() {
             element={<UpdateReportPage />}
           />
           <Route path={PATHS.profile} element={<ProfilePage />} />
-          <Route path={PATHS.dashboard} element={<LoggedInPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
