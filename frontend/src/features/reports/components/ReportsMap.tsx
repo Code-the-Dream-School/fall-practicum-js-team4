@@ -85,7 +85,9 @@ export function ReportsMap({ reports }: ReportsProps) {
         })}
       </MapContainer>
 
-      <p>Locations are approximate, based on ZIP codes.</p>
+      <p className="report-map__caption">
+        Locations are approximate, based on ZIP codes.
+      </p>
     </div>
   );
 }

@@ -13,3 +13,10 @@
 .report-map-marker--found {
   color: #00b8d4;
 }
+
+.report-map__caption {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #9ce5ff;
+}

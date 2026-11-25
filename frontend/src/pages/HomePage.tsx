@@ -15,6 +15,8 @@ import { Icon } from '../components/Icon';
 import './ReportsDirectoryPage.css';
 import { ReportsMap } from '../features/reports/components/ReportsMap';
 import './HomePage.css';
+import { Link } from 'react-router';
+import { PATHS } from '../app/paths';
 
 export function HomePage() {
   const { filters, page, updateFilters, clearFilters, setPage } =
@@ -31,7 +33,10 @@ export function HomePage() {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <header className="home-hero">
-        <p className="home-hero__label">Community lost &amp; found pets</p>
+        <p className="home-hero__label">
+          <Icon name="pets" className="home-hero__icon" />
+          Community lost &amp; found pets
+        </p>
 
         <h1 className="home-hero__title">
           Reuniting Lost Pets with the <span>Families Who Love Them</span>
@@ -39,9 +44,27 @@ export function HomePage() {
 
         <p className="home-hero__description">
           Help lost pets find their way home. <br /> Explore recent reports,
-          search the area, connect with your community.
+          search your area, connect with your community.
         </p>
       </header>
+
+      <div className="home-report-actions">
+        <Link
+          to={PATHS.reportLost}
+          className="directory-cta directory-cta--lost"
+        >
+          <Icon name="warning" />
+          Report a Lost Pet
+        </Link>
+
+        <Link
+          to={PATHS.reportFound}
+          className="directory-cta directory-cta--found"
+        >
+          <Icon name="search" />
+          Report a Found Pet
+        </Link>
+      </div>
 
       <ReportFilters
         filters={filters}
@@ -99,7 +122,11 @@ export function HomePage() {
                   )}
                 </div>
               ) : (
-                <ul className="report-grid">
+                <ul
+                  className="report-grid"
+                  tabIndex={0}
+                  aria-label="Pet reports"
+                >
                   {reports.map((report) => (
                     <ReportCard key={report.petReportId} report={report} />
                   ))}
