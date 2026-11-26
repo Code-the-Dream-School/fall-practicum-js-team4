@@ -8,7 +8,7 @@ photos today; matching and analytics will be added on the same structure.
 - **Language:** TypeScript (`strict`), compiled to `dist/` with `tsc`; `tsx` in development
 - **Framework:** Express 4
 - **Database:** PostgreSQL via Prisma ORM
-- **Auth:** email/password, with a JWT in an httpOnly cookie
+- **Auth:** email/password or Google, with a JWT in an httpOnly cookie
 - **Validation:** Joi
 - **Photos:** `multer` (uploads), `sharp` (cleaning and resizing), Cloudinary
   (storage)
@@ -33,18 +33,19 @@ the API docs are at http://localhost:8080/api/docs.
 
 ### Environment variables (`.env`)
 
-| Variable                | Required   | Description                                                                                                                           |
-| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | yes        | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
-| `JWT_SECRET`            | yes        | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
-| `CLIENT_URL`            | no         | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
-| `COOKIE_SAME_SITE`      | no         | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
-| `TRUST_PROXY`           | no         | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
-| `CLOUDINARY_CLOUD_NAME` | for photos | From the Cloudinary dashboard (API Keys page). Only photo uploads need the three Cloudinary values                                    |
-| `CLOUDINARY_API_KEY`    | for photos | Same page. Never commit it                                                                                                            |
-| `CLOUDINARY_API_SECRET` | for photos | Same page. Never commit it or put it in frontend code                                                                                 |
-| `PORT`                  | no         | Default `8080`                                                                                                                        |
-| `NODE_ENV`              | no         | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
+| Variable                | Required           | Description                                                                                                                           |
+| ----------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | yes                | PostgreSQL connection string (local or Neon, see [Database](#database))                                                               |
+| `JWT_SECRET`            | yes                | Signs session tokens. Generate your own: `openssl rand -hex 32`                                                                       |
+| `CLIENT_URL`            | no                 | Frontend origin allowed to send the auth cookie. Default `http://localhost:5173`                                                      |
+| `COOKIE_SAME_SITE`      | no                 | `lax` (default), `strict`, or `none` (needs HTTPS; for frontend and backend on different domains)                                     |
+| `TRUST_PROXY`           | no                 | When deployed: number of proxies in front of the app (`1` on Render, Railway, Fly) so rate limits apply per user. Leave unset locally |
+| `GOOGLE_CLIENT_ID`      | for Google sign-in | OAuth client id from Google Cloud Console (Credentials). Tokens for any other client id are rejected                                  |
+| `CLOUDINARY_CLOUD_NAME` | for photos         | From the Cloudinary dashboard (API Keys page). Only photo uploads need the three Cloudinary values                                    |
+| `CLOUDINARY_API_KEY`    | for photos         | Same page. Never commit it                                                                                                            |
+| `CLOUDINARY_API_SECRET` | for photos         | Same page. Never commit it or put it in frontend code                                                                                 |
+| `PORT`                  | no                 | Default `8080`                                                                                                                        |
+| `NODE_ENV`              | no                 | `production` makes the cookie `Secure` (HTTPS only). Jest sets `test`, which disables rate limiting                                   |
 
 `.env` is gitignored. Never commit it or paste its values into chat.
 
@@ -138,13 +139,15 @@ Never edit a migration that's already been committed; create a new one instead.
 Full contract (request/response formats, error codes, frontend checklist):
 [`../docs/auth.md`](../docs/auth.md).
 
-| Method  | Path                 | Auth | Purpose                                   |
-| ------- | -------------------- | ---- | ----------------------------------------- |
-| `POST`  | `/api/auth/register` | no   | Create an account and sign in             |
-| `POST`  | `/api/auth/login`    | no   | Sign in with email + password             |
-| `PATCH` | `/api/auth/password` | yes  | Change password (signs out other devices) |
-| `POST`  | `/api/auth/logout`   | no   | Sign out                                  |
-| `GET`   | `/api/auth/me`       | yes  | Current user, or `401` when signed out    |
+| Method  | Path                    | Auth | Purpose                                   |
+| ------- | ----------------------- | ---- | ----------------------------------------- |
+| `POST`  | `/api/auth/register`    | no   | Create an account and sign in             |
+| `POST`  | `/api/auth/login`       | no   | Sign in with email + password             |
+| `POST`  | `/api/auth/google`      | no   | Sign in or sign up with Google            |
+| `POST`  | `/api/auth/google/link` | yes  | Connect Google to the signed-in account   |
+| `PATCH` | `/api/auth/password`    | yes  | Change password (signs out other devices) |
+| `POST`  | `/api/auth/logout`      | no   | Sign out                                  |
+| `GET`   | `/api/auth/me`          | yes  | Current user, or `401` when signed out    |
 
 How it works:
 
@@ -155,7 +158,7 @@ How it works:
 - Passwords are hashed with Node's built-in `scrypt` at OWASP's minimum cost
   (N=2^17, r=8, p=1); the settings are stored with each hash, and older hashes
   are upgraded automatically on the next successful login.
-- Register, login and change-password are limited to 20 attempts per IP
+- Register, login, Google sign-in and linking, and change-password are limited to 20 attempts per IP
   per 15 minutes; creating or updating reports to 20 per signed-in user per 15 minutes;
   all routes together to 100 per IP.
 

@@ -88,7 +88,7 @@ paths:
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
-          description: Wrong password or unknown email
+          description: Wrong password, unknown email, or an account that signs in with Google only
           content:
             application/json:
               schema:
@@ -99,6 +99,138 @@ paths:
                 message: Email or password is incorrect
         "429":
           $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/google:
+    post:
+      tags: [Auth]
+      operationId: googleLogin
+      security: []
+      summary: Sign in or sign up with Google
+      description: |
+        Send the ID token ("credential") that Google Identity Services gives the frontend.
+        The server verifies it with Google's public keys: signature, issuer
+        (accounts.google.com), audience (GOOGLE_CLIENT_ID) and expiry. The email in a
+        verified token is used; an email sent by the client is never accepted.
+
+        Accounts are matched by Google's account id, never by email:
+        - Linked to this Google account: signs in (200).
+        - No account with this email: creates one with no password (201). It can only
+          sign in with Google.
+        - An account with this email exists but isn't linked to this Google account:
+          409 GOOGLE_ACCOUNT_NOT_LINKED. Nothing is created or linked. The user signs in
+          with their password and connects Google with POST /api/auth/google/link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleLoginRequest"
+            example:
+              credential: eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20ifQ.c2lnbmF0dXJl
+      responses:
+        "200":
+          description: Signed in to the account linked to this Google account
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "201":
+          description: New account created and signed in
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SessionCookie"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/GoogleCredentialRejected"
+        "409":
+          description: An account with this email exists and isn't linked to this Google account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: GOOGLE_ACCOUNT_NOT_LINKED
+                message: An account with this email already exists. Sign in with your password, then connect Google from your profile.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/GoogleUnavailable"
+
+  /api/auth/google/link:
+    post:
+      tags: [Auth]
+      operationId: linkGoogle
+      summary: Connect a Google account to the signed-in account
+      description: |
+        After this, the user can sign in with their password or with Google. Requires a
+        session and the account's password (so a stolen session alone can't add someone
+        else's Google account). The Google email doesn't have to match the account's email.
+        Linking the Google account that's already linked returns 200 and changes nothing.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkGoogleRequest"
+            example:
+              credential: eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20ifQ.c2lnbmF0dXJl
+              password: correct-horse-1
+      responses:
+        "200":
+          description: Google account connected; the session is unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: VALIDATION_ERROR, INVALID_CURRENT_PASSWORD (wrong password) or NO_PASSWORD
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: INVALID_CURRENT_PASSWORD
+                message: Current password is incorrect
+        "401":
+          description: |
+            UNAUTHENTICATED (no valid session) or a rejected Google credential
+            (GOOGLE_AUTH_FAILED, GOOGLE_TOKEN_EXPIRED, GOOGLE_EMAIL_NOT_VERIFIED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: UNAUTHENTICATED
+                message: Please sign in
+        "409":
+          description: |
+            GOOGLE_ACCOUNT_IN_USE (this Google account is linked to another PawRadar account)
+            or GOOGLE_ALREADY_LINKED (this account has a different Google account)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                code: GOOGLE_ACCOUNT_IN_USE
+                message: This Google account is already connected to another PawRadar account
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "503":
+          $ref: "#/components/responses/GoogleUnavailable"
 
   /api/auth/password:
     patch:
@@ -130,8 +262,8 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         "400":
           description: |
-            VALIDATION_ERROR (missing/invalid fields, or new password same as current)
-            or INVALID_CURRENT_PASSWORD
+            VALIDATION_ERROR (missing/invalid fields, or new password same as current),
+            INVALID_CURRENT_PASSWORD, or NO_PASSWORD (the account signs in with Google only)
           content:
             application/json:
               schema:
@@ -844,6 +976,34 @@ components:
             true keeps the session cookie for 7 days; false makes it a browser-session
             cookie (no Max-Age) that is deleted when the browser closes
 
+    GoogleLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential:
+          type: string
+          maxLength: 4096
+          description: The Google ID token (a JWT) from Google Identity Services
+        rememberMe:
+          type: boolean
+          default: true
+          description: Same as in LoginRequest
+
+    LinkGoogleRequest:
+      type: object
+      additionalProperties: false
+      required: [credential, password]
+      properties:
+        credential:
+          type: string
+          maxLength: 4096
+          description: The Google ID token (a JWT) from Google Identity Services
+        password:
+          type: string
+          maxLength: 128
+          description: The signed-in account's current password
+
     ChangePasswordRequest:
       type: object
       additionalProperties: false
@@ -1395,6 +1555,29 @@ components:
             success: false
             code: UNAUTHENTICATED
             message: Please sign in
+    GoogleCredentialRejected:
+      description: |
+        The Google credential was rejected. GOOGLE_AUTH_FAILED: bad signature, wrong issuer
+        or audience, or malformed. GOOGLE_TOKEN_EXPIRED: past its expiry time.
+        GOOGLE_EMAIL_NOT_VERIFIED: Google hasn't verified the account's email.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            code: GOOGLE_TOKEN_EXPIRED
+            message: Google sign-in expired, please try again
+    GoogleUnavailable:
+      description: Google's public keys couldn't be downloaded, so no token can be checked
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            code: GOOGLE_UNAVAILABLE
+            message: Google sign-in is unavailable right now, please try again later
     TooManyRequests:
       description: >-
         Rate limit hit. Every route allows 100 requests per IP per 15 minutes;

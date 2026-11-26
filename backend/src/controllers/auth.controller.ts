@@ -32,6 +32,19 @@ export const login = async (req: Request, res: Response) => {
   sendSession(res, 200, user, { remember: rememberMe });
 };
 
+// Same session as a password login. 201 when this sign-in created the account.
+export const google = async (req: Request, res: Response) => {
+  const { credential, rememberMe } = req.body;
+  const { user, created } = await authService.loginWithGoogle({ credential });
+  sendSession(res, created ? 201 : 200, user, { remember: rememberMe });
+};
+
+// The session stays as it is: linking doesn't change who is signed in
+export const linkGoogle = async (req: Request, res: Response) => {
+  const user = await authService.linkGoogle(req.user!.id, req.body);
+  res.json({ success: true, data: { user: authService.toPublicUser(user) } });
+};
+
 // Old tokens stop working, so give this browser a fresh one to stay signed in,
 // with the same "remember me" choice as the current one.
 // requireAuth runs first, so the cookie is valid and req.user is set.

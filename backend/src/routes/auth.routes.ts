@@ -5,7 +5,13 @@ import validate from "../middleware/validate";
 import requireAuth from "../middleware/requireAuth";
 import asyncHandler from "../utils/asyncHandler";
 import AppError from "../utils/AppError";
-import { registerSchema, loginSchema, changePasswordSchema } from "../validators/auth.validators";
+import {
+  registerSchema,
+  loginSchema,
+  changePasswordSchema,
+  googleLoginSchema,
+  linkGoogleSchema,
+} from "../validators/auth.validators";
 
 const router = express.Router();
 
@@ -20,6 +26,14 @@ const authLimiter = rateLimit({
 
 router.post("/register", authLimiter, validate(registerSchema), asyncHandler(controller.register));
 router.post("/login", authLimiter, validate(loginSchema), asyncHandler(controller.login));
+router.post("/google", authLimiter, validate(googleLoginSchema), asyncHandler(controller.google));
+router.post(
+  "/google/link",
+  authLimiter,
+  requireAuth,
+  validate(linkGoogleSchema),
+  asyncHandler(controller.linkGoogle),
+);
 router.patch(
   "/password",
   authLimiter,

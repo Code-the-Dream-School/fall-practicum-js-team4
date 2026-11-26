@@ -8,7 +8,7 @@ document; change it first if the contract needs to change.
 
 | Topic                    | Decision                                                                                                                                                                                                                       |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Sign-in methods          | Email + password only for the MVP. Third-party sign-in (e.g. Google) can be added after the MVP                                                                                                                                |
+| Sign-in methods          | Email + password, or Google. Google accounts are matched by Google's account id, never by email; see [Google sign-in](#post-apiauthgoogle)                                                                                     |
 | Session mechanism        | A JWT stored in an **httpOnly cookie** named `token`                                                                                                                                                                           |
 | Who is the current user  | The backend reads the cookie, verifies the JWT, and loads the user whose id is in the token's `sub` claim                                                                                                                      |
 | Surviving a page refresh | The browser keeps the cookie (7-day lifetime) and sends it automatically. On app load the frontend calls `GET /api/auth/me` to find out who is signed in                                                                       |
@@ -102,13 +102,15 @@ hash.
 
 Base path: `/api/auth`.
 
-| Method  | Path        | Auth required | Purpose                                              |
-| ------- | ----------- | ------------- | ---------------------------------------------------- |
-| `POST`  | `/register` | no            | Create an account with email + password, and sign in |
-| `POST`  | `/login`    | no            | Sign in with email + password                        |
-| `PATCH` | `/password` | yes           | Change the password                                  |
-| `POST`  | `/logout`   | no            | Sign out                                             |
-| `GET`   | `/me`       | yes           | Return the signed-in user                            |
+| Method  | Path           | Auth required | Purpose                                              |
+| ------- | -------------- | ------------- | ---------------------------------------------------- |
+| `POST`  | `/register`    | no            | Create an account with email + password, and sign in |
+| `POST`  | `/login`       | no            | Sign in with email + password                        |
+| `POST`  | `/google`      | no            | Sign in or sign up with Google                       |
+| `POST`  | `/google/link` | yes           | Connect Google to the signed-in account              |
+| `PATCH` | `/password`    | yes           | Change the password                                  |
+| `POST`  | `/logout`      | no            | Sign out                                             |
+| `GET`   | `/me`          | yes           | Return the signed-in user                            |
 
 ### `POST /api/auth/register`
 
@@ -160,7 +162,71 @@ Errors: `400 VALIDATION_ERROR`, `401 INVALID_CREDENTIALS`, `429 TOO_MANY_REQUEST
 
 `INVALID_CREDENTIALS` is returned for both a wrong password and an unknown
 email. The response deliberately doesn't say which, so
-it can't be used to discover who has an account.
+it can't be used to discover who has an account. Accounts created with Google
+have no password, so they also get `INVALID_CREDENTIALS` here.
+
+### `POST /api/auth/google`
+
+Signs in with Google, creating the account the first time. The frontend gets an
+ID token from [Google Identity Services](https://developers.google.com/identity/gsi/web)
+(the `credential` in its callback) and sends it here.
+
+```json
+{ "credential": "<Google ID token>", "rememberMe": true }
+```
+
+| Field        | Rules                                                            |
+| ------------ | ---------------------------------------------------------------- |
+| `credential` | required, a JWT (three dot-separated parts), max 4096 characters |
+| `rememberMe` | optional boolean, default `true`, same as login                  |
+
+The backend verifies the token with Google's public keys: the signature, the
+issuer (`accounts.google.com`), the audience (our `GOOGLE_CLIENT_ID`) and the
+expiry. Google must have verified the email. The email comes from the verified
+token only; any other field in the body is a `400`.
+
+| Situation                                                         | Result                                                            |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| An account is linked to this Google account                       | `200 OK`, signs in to it (even if the Google email changed since) |
+| No account has this email                                         | `201 Created`, new account **with no password**, signed in        |
+| An account has this email but isn't linked to this Google account | `409 GOOGLE_ACCOUNT_NOT_LINKED`; nothing is created or linked     |
+
+Success sets the `token` cookie, same body as register.
+
+Errors: `400 VALIDATION_ERROR`, `401 GOOGLE_AUTH_FAILED`, `401 GOOGLE_TOKEN_EXPIRED`,
+`401 GOOGLE_EMAIL_NOT_VERIFIED`, `409 GOOGLE_ACCOUNT_NOT_LINKED`,
+`429 TOO_MANY_REQUESTS` (shares the limit with login), `503 GOOGLE_UNAVAILABLE`.
+
+On `409 GOOGLE_ACCOUNT_NOT_LINKED`, tell the user to sign in with their password
+and connect Google from their profile. Matching on email alone would let anyone
+who registered that address first (emails aren't verified) share the account
+with its real owner; see [Known limitations](#known-limitations-mvp).
+
+Accounts created with Google can only sign in with Google: password login fails,
+registering the same email is `409 EMAIL_TAKEN`, and `PATCH /password` is
+`400 NO_PASSWORD`.
+
+### `POST /api/auth/google/link`
+
+Requires a signed-in user. Connects a Google account, so the user can sign in
+with either their password or Google.
+
+```json
+{ "credential": "<Google ID token>", "password": "correct-horse-1" }
+```
+
+The password proves the person owns this account, so a stolen session alone
+can't attach someone else's Google account. The Google email doesn't have to
+match the account's email.
+
+Success: `200 OK`, same body as `GET /me`. The session cookie doesn't change.
+Linking the Google account that's already linked changes nothing.
+
+Errors: `400 VALIDATION_ERROR`, `400 INVALID_CURRENT_PASSWORD`, `400 NO_PASSWORD`,
+`401 UNAUTHENTICATED`, the `401`/`503` Google errors above,
+`409 GOOGLE_ACCOUNT_IN_USE` (linked to another PawRadar account),
+`409 GOOGLE_ALREADY_LINKED` (this account has a different Google account),
+`429 TOO_MANY_REQUESTS`.
 
 ### `PATCH /api/auth/password`
 
@@ -182,6 +248,7 @@ every other device where this user is signed in gets `401 UNAUTHENTICATED` on
 its next request, while this browser stays signed in.
 
 Errors: `400 VALIDATION_ERROR`, `400 INVALID_CURRENT_PASSWORD`,
+`400 NO_PASSWORD` (the account signs in with Google only),
 `401 UNAUTHENTICATED`, `429 TOO_MANY_REQUESTS` (shares the 20-attempt limit with
 login).
 
@@ -226,31 +293,40 @@ job, and should answer `403 FORBIDDEN`.
 
 ## Error codes
 
-| HTTP | `code`                     | When                                                                                                   |
-| ---- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 400  | `VALIDATION_ERROR`         | Missing/invalid fields, unknown fields, or a body that isn't valid JSON                                |
-| 400  | `INVALID_CURRENT_PASSWORD` | Changing the password with a wrong current password                                                    |
-| 401  | `INVALID_CREDENTIALS`      | Email/password login failed                                                                            |
-| 401  | `UNAUTHENTICATED`          | Route needs a signed-in user and there isn't a valid session                                           |
-| 403  | `FORBIDDEN`                | Signed in, but not allowed (reserved for other features)                                               |
-| 404  | `NOT_FOUND`                | Unknown route                                                                                          |
-| 409  | `EMAIL_TAKEN`              | Registering with an email that already has an account                                                  |
-| 413  | `PAYLOAD_TOO_LARGE`        | Request body over 100 kB                                                                               |
-| 415  | `UNSUPPORTED_MEDIA_TYPE`   | Request body in an unsupported charset                                                                 |
-| 429  | `TOO_MANY_REQUESTS`        | More than 20 register/login/change-password attempts per IP in 15 minutes, or 100 requests of any kind |
-| 500  | `INTERNAL_ERROR`           | Unexpected server error; details are logged on the server only                                         |
+| HTTP | `code`                      | When                                                                                                          |
+| ---- | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`          | Missing/invalid fields, unknown fields, or a body that isn't valid JSON                                       |
+| 400  | `INVALID_CURRENT_PASSWORD`  | Changing the password or linking Google with a wrong current password                                         |
+| 400  | `NO_PASSWORD`               | Changing the password or linking Google on an account that signs in with Google only                          |
+| 401  | `INVALID_CREDENTIALS`       | Email/password login failed                                                                                   |
+| 401  | `UNAUTHENTICATED`           | Route needs a signed-in user and there isn't a valid session                                                  |
+| 401  | `GOOGLE_AUTH_FAILED`        | Google credential rejected: bad signature, wrong issuer or audience, or malformed                             |
+| 401  | `GOOGLE_TOKEN_EXPIRED`      | Google credential past its expiry time; get a new one                                                         |
+| 401  | `GOOGLE_EMAIL_NOT_VERIFIED` | Google hasn't verified the Google account's email                                                             |
+| 403  | `FORBIDDEN`                 | Signed in, but not allowed (reserved for other features)                                                      |
+| 404  | `NOT_FOUND`                 | Unknown route                                                                                                 |
+| 409  | `EMAIL_TAKEN`               | Registering with an email that already has an account                                                         |
+| 409  | `GOOGLE_ACCOUNT_NOT_LINKED` | Google sign-in for an email whose account isn't linked to that Google account                                 |
+| 409  | `GOOGLE_ACCOUNT_IN_USE`     | Linking a Google account that's linked to another PawRadar account                                            |
+| 409  | `GOOGLE_ALREADY_LINKED`     | Linking Google to an account that already has a different Google account                                      |
+| 413  | `PAYLOAD_TOO_LARGE`         | Request body over 100 kB                                                                                      |
+| 415  | `UNSUPPORTED_MEDIA_TYPE`    | Request body in an unsupported charset                                                                        |
+| 429  | `TOO_MANY_REQUESTS`         | More than 20 register/login/Google/change-password attempts per IP in 15 minutes, or 100 requests of any kind |
+| 500  | `INTERNAL_ERROR`            | Unexpected server error; details are logged on the server only                                                |
+| 503  | `GOOGLE_UNAVAILABLE`        | Google's public keys couldn't be downloaded, so Google sign-in can't be checked                               |
 
 ## Configuration
 
 Backend `.env`:
 
-| Variable           | Example                                                            | Notes                                                                                                |
-| ------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`     | `postgresql://user:password@localhost:5432/pawradar?schema=public` | Used by Prisma                                                                                       |
-| `JWT_SECRET`       | output of `openssl rand -hex 32`                                   | Required; the server refuses to issue tokens without it                                              |
-| `CLIENT_URL`       | `http://localhost:5173`                                            | Frontend origin allowed by CORS (credentials enabled)                                                |
-| `COOKIE_SAME_SITE` | `lax`                                                              | `lax` (default), `strict` or `none`                                                                  |
-| `TRUST_PROXY`      | `1`                                                                | Number of proxies in front of the app when deployed (1 on Render, Railway, Fly). Leave unset locally |
+| Variable           | Example                                                            | Notes                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`     | `postgresql://user:password@localhost:5432/pawradar?schema=public` | Used by Prisma                                                                                                                                                |
+| `JWT_SECRET`       | output of `openssl rand -hex 32`                                   | Required; the server refuses to issue tokens without it                                                                                                       |
+| `CLIENT_URL`       | `http://localhost:5173`                                            | Frontend origin allowed by CORS (credentials enabled)                                                                                                         |
+| `COOKIE_SAME_SITE` | `lax`                                                              | `lax` (default), `strict` or `none`                                                                                                                           |
+| `TRUST_PROXY`      | `1`                                                                | Number of proxies in front of the app when deployed (1 on Render, Railway, Fly). Leave unset locally                                                          |
+| `GOOGLE_CLIENT_ID` | `1234-abc.apps.googleusercontent.com`                              | OAuth client id (Google Cloud Console → Credentials). Required for Google sign-in; tokens for any other client id are rejected. The frontend uses the same id |
 
 ## Known limitations (MVP)
 
@@ -261,10 +337,10 @@ Backend `.env`:
 - **No "forgot password" reset or email verification.** Both need an email
   provider. Changing the password requires being signed in.
 - **Emails are not verified,** so anyone can register with an address they
-  don't own. Keep this in mind before adding third-party sign-in (e.g. Google):
-  **never link a provider to an existing account just because the email
-  matches.** Otherwise an attacker can pre-register the victim's email with
-  their own password, and keep access after the victim signs in with Google
-  ("account pre-hijacking"). When linking, either require the user to confirm
-  the existing password first, or clear `passwordHash` and increment
-  `tokenVersion` so only the provider can sign in afterwards.
+  don't own. That's why Google sign-in **never links to an existing account
+  just because the email matches**: an attacker could pre-register the victim's
+  email with their own password and keep access after the victim signs in with
+  Google ("account pre-hijacking"). Linking needs a signed-in user and their
+  password (`POST /google/link`). The cost: if someone else registered your
+  address first, Google sign-in for it answers `409` and you can't take the
+  address over yourself. Email verification would fix that later.
