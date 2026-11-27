@@ -80,7 +80,6 @@ export function ReportsDirectoryPage({
   const { filters, page, updateFilters, clearFilters, setPage } =
     useReportFilters();
   const query = useReports({
-    type: reportType,
     ...filters,
     type: reportType,
     // Page 1 is the API's default: leave it out so the request stays short
