@@ -35,10 +35,9 @@ export function HomePage() {
     <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <header className="home-hero">
         <p className="home-hero__label">
-          <Icon name="pets" className="home-hero__icon" />
+          <span className="home-hero__dot" aria-hidden="true" />
           Community pet alert network
         </p>
-
         <h1 className="home-hero__title">
           Reuniting Lost Pets <span>with Their Families</span>
         </h1>

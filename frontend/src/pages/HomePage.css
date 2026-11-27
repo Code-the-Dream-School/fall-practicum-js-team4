@@ -11,11 +11,32 @@
 }
 
 .home-hero {
-  padding: 32px 16зч;
+  padding: 32px 16px;
 }
 
 .home-hero .home-hero__icon {
   color: var(--accent);
+}
+
+@keyframes community-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.home-hero__dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-success);
+  box-shadow: 0 0 8px var(--color-success);
+  animation: community-dot-pulse 2s ease-in-out infinite;
 }
 
 .home-hero__label {
@@ -175,5 +196,11 @@
 
   .home-results__list .report-card__media {
     height: 130px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero__dot {
+    animation: none;
   }
 }
