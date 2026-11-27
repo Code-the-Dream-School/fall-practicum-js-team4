@@ -62,6 +62,7 @@ export interface ListReportsQuery {
   petType?: PetType;
   size?: PetSize;
   gender?: PetGender;
+  includeReunited?: boolean;
   // By the date the report was created
   sort: "newest" | "oldest";
 }
@@ -214,6 +215,9 @@ export const listReportsQuerySchema = Joi.object<ListReportsQuery>({
   status: Joi.string().valid("ACTIVE", "REUNITED").default("ACTIVE").messages({
     "any.only": "Status must be either ACTIVE or REUNITED",
   }),
+
+  includeReunited: Joi.boolean().default(false),
+
   search: Joi.string().trim().max(100).allow("").messages({
     "string.max": "Search must be at most 100 characters",
   }),

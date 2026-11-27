@@ -323,6 +323,11 @@
   min-width: 0;
 }
 
+.report-card--reunited .report-card__badge {
+  background-color: var(--color-success);
+  color: var(--color-on-success);
+}
+
 .reports-empty {
   display: flex;
   flex-direction: column;

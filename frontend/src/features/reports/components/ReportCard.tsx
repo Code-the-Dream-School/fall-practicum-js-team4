@@ -17,8 +17,14 @@ export function ReportCard({ report }: { report: PublicReport }) {
 
   const photo = report.photos[0];
   const location = formatLocation(report.location);
-  const tone = report.reportType === 'LOST' ? 'lost' : 'found';
+  const isReunited = report.status === 'REUNITED';
+  const tone = isReunited
+    ? 'reunited'
+    : report.reportType === 'LOST'
+      ? 'lost'
+      : 'found';
   const typeLabel = REPORT_TYPE[report.reportType];
+  const badgeLabel = isReunited ? 'REUNITED' : typeLabel;
 
   return (
     <li className={`report-card report-card--${tone}`}>
@@ -34,7 +40,7 @@ export function ReportCard({ report }: { report: PublicReport }) {
         )}
         <span className="report-card__badge">
           <span className="report-card__badge-dot" aria-hidden="true" />
-          {typeLabel}
+          {badgeLabel}
         </span>
         <span className="report-card__id">ID: #{report.petReportId}</span>
       </div>

@@ -24,6 +24,7 @@ export function HomePage() {
 
   const query = useReports({
     ...filters,
+    includeReunited: true,
     days: 7,
     page,
     limit: REPORTS_PER_PAGE,
@@ -35,15 +36,15 @@ export function HomePage() {
       <header className="home-hero">
         <p className="home-hero__label">
           <Icon name="pets" className="home-hero__icon" />
-          Community lost &amp; found pets
+          Community pet alert network
         </p>
 
         <h1 className="home-hero__title">
-          Reuniting Lost Pets with the <span>Families Who Love Them</span>
+          Reuniting Lost Pets <span>with Their Families</span>
         </h1>
 
         <p className="home-hero__description">
-          Help lost pets find their way home.
+          Report lost or found pets and help bring them home.
         </p>
       </header>
 

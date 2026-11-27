@@ -92,6 +92,7 @@ export const listReports = async ({
   days,
   type,
   status = "ACTIVE",
+  includeReunited = false,
   search,
   petType,
   size,
@@ -99,7 +100,9 @@ export const listReports = async ({
   sort = "newest",
 }: Partial<ListReportsQuery> = {}) => {
   const skip = (page - 1) * limit;
-  const where: Prisma.PetReportWhereInput = { status };
+  const where: Prisma.PetReportWhereInput = {
+    status: includeReunited ? { in: ["ACTIVE", "REUNITED"] } : status,
+  };
 
   if (days !== undefined) {
     where.createdAt = {

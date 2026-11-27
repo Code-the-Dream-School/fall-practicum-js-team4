@@ -56,7 +56,17 @@ export function ReportsMap({ reports }: ReportsProps) {
             return null;
           }
 
-          const color = report.reportType === 'LOST' ? '#ff5733' : '#00b8d4';
+          const isReunited = report.status === 'REUNITED';
+
+          const markerType = isReunited
+            ? 'reunited'
+            : report.reportType.toLowerCase();
+
+          const color = isReunited
+            ? '#4caf50'
+            : report.reportType === 'LOST'
+              ? '#ff5733'
+              : '#00b8d4';
 
           return (
             <CircleMarker
@@ -68,12 +78,13 @@ export function ReportsMap({ reports }: ReportsProps) {
                 fillColor: color,
                 fillOpacity: 0.95,
                 weight: 2,
-                className: `report-map-marker report-map-marker--${report.reportType.toLowerCase()}`,
+                className: `report-map-marker report-map-marker--${markerType}`,
               }}
             >
               <Popup>
                 <strong>
-                  {report.reportType}: {report.petName || 'Pet report'}
+                  {isReunited ? 'REUNITED' : report.reportType}:{' '}
+                  {report.petName || 'Pet report'}
                 </strong>
                 <p>
                   {location.city}, {location.state}

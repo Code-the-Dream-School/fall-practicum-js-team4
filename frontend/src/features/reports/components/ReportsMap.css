@@ -1,22 +1,11 @@
 .reports-map {
   height: 600px;
   width: 100%;
-}
-
-@media (max-width: 1024px) {
-  .reports-map {
-    height: 450px;
-  }
-}
-
-@media (max-width: 600px) {
-  .reports-map {
-    height: 300px;
-  }
+  border-radius: 12px;
 }
 
 .report-map-tiles {
-  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
+  filter: invert(100%) hue-rotate(180deg) brightness(150%) contrast(100%);
 }
 
 .report-map-marker {
@@ -36,4 +25,16 @@
   font-size: 14px;
   line-height: 1.5;
   color: #9ce5ff;
+}
+
+@media (max-width: 1024px) {
+  .reports-map {
+    height: 450px;
+  }
+}
+
+@media (max-width: 600px) {
+  .reports-map {
+    height: 300px;
+  }
 }

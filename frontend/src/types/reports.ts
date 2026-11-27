@@ -111,6 +111,7 @@ export interface ReportListParams extends ReportFilters {
   page?: number;
   // Reports per page (API default 20, at most 100)
   limit?: number;
+  includeReunited?: boolean;
 }
 
 export interface ReportListResponse {
