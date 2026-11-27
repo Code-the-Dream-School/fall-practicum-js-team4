@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { PATHS } from '../app/paths';
 import {
   ReportForm,
   type ReportFormValues,
@@ -14,8 +15,8 @@ interface CreateReportContentProps {
 }
 
 function CreateReportContent({ reportType }: CreateReportContentProps) {
+  const navigate = useNavigate();
   const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
   const handleCreate = async (values: ReportFormValues, photos: File[]) => {
     const payload: CreateReportInput = {
@@ -41,11 +42,16 @@ function CreateReportContent({ reportType }: CreateReportContentProps) {
     };
 
     setSubmissionError(null);
-    setSubmissionSuccess(false);
 
     try {
-      await createReport(payload, { photos });
-      setSubmissionSuccess(true);
+      const createdReport = await createReport(payload, { photos });
+
+      navigate(PATHS.petDetails(String(createdReport.petReportId)), {
+        replace: true,
+        state: {
+          successMessage: 'Your pet report was submitted successfully!',
+        },
+      });
     } catch (error) {
       console.error('Report submission error:', error);
       setSubmissionError(describeReportError(error));
@@ -56,16 +62,8 @@ function CreateReportContent({ reportType }: CreateReportContentProps) {
     <div className="report-pet-page">
       <section className="report-pet-page__card">
         <h1 style={textStyles.pageTitle}>Report a Pet: {reportType}</h1>
-        <ReportForm
-          reportType={reportType}
-          onSubmit={handleCreate}
-          isSubmitted={submissionSuccess}
-        />
+        <ReportForm reportType={reportType} onSubmit={handleCreate} />
         {submissionError && <p role="alert">{submissionError}</p>}
-
-        {submissionSuccess && (
-          <p role="status">Your pet report was submitted successfully!</p>
-        )}
       </section>
     </div>
   );
