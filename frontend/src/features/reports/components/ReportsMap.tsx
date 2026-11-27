@@ -62,20 +62,12 @@ export function ReportsMap({ reports }: ReportsProps) {
             ? 'reunited'
             : report.reportType.toLowerCase();
 
-          const color = isReunited
-            ? '#4caf50'
-            : report.reportType === 'LOST'
-              ? '#ff5733'
-              : '#00b8d4';
-
           return (
             <CircleMarker
               key={report.petReportId}
               center={[place.latitude, place.longitude]}
               radius={8}
               pathOptions={{
-                color,
-                fillColor: color,
                 fillOpacity: 0.95,
                 weight: 2,
                 className: `report-map-marker report-map-marker--${markerType}`,
