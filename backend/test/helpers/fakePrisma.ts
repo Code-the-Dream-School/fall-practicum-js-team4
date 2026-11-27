@@ -49,7 +49,7 @@ type Contains = { contains: string; mode?: "insensitive" };
 type FindManyWhere = {
   userId?: string;
   reportType?: string;
-  status?: string;
+  status?: string | { in: string[] };
   petType?: string;
   size?: string;
   gender?: string;
@@ -79,7 +79,14 @@ const matchesSearch = (report: FakeReport, or: NonNullable<FindManyWhere["OR"]>)
   );
 
 const matchesReportWhere = (report: FakeReport, where?: FindManyWhere) =>
-  EQUAL_FIELDS.every((field) => !where?.[field] || report[field] === where[field]) &&
+  EQUAL_FIELDS.every((field) => {
+    const filter = where?.[field];
+    if (filter === undefined) return true;
+    if (field === "status" && typeof filter === "object") {
+      return typeof report.status === "string" && filter.in.includes(report.status);
+    }
+    return report[field] === filter;
+  }) &&
   (!where?.OR || matchesSearch(report, where.OR));
 
 // A report as Prisma returns it: photos reduced to the selected fields

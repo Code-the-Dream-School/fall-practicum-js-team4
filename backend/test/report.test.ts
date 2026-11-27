@@ -1373,9 +1373,54 @@ describe("GET /api/reports", () => {
       jest.clearAllMocks();
     });
 
+    it("includes ACTIVE and REUNITED but excludes CLOSED when includeReunited=true (200)", async () => {
+      prisma._reports[0].status = "CLOSED";
+
+      const res = await request(app).get("/api/reports").query({ includeReunited: true });
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(3);
+      expect(res.body.data.reports).toHaveLength(3);
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual(
+        expect.arrayContaining(["Lost Dog 2", "Found Cat 1", "Reunited Dog"]),
+      );
+
+      const where = { status: { in: ["ACTIVE", "REUNITED"] } };
+      expect(prisma.petReport.count).toHaveBeenLastCalledWith({ where });
+      expect(prisma.petReport.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where }),
+      );
+    });
+
+    it("keeps ACTIVE as the default when includeReunited=false (200)", async () => {
+      const res = await request(app).get("/api/reports").query({ includeReunited: false });
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(3);
+      expect(res.body.data.reports).toHaveLength(3);
+      expect(res.body.data.reports.every((r: { status: string }) => r.status === "ACTIVE")).toBe(
+        true,
+      );
+    });
+
+    it("combines report type with includeReunited=true (200)", async () => {
+      const res = await request(app)
+        .get("/api/reports")
+        .query({ type: "LOST", includeReunited: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(3);
+      expect(res.body.data.reports).toHaveLength(3);
+      expect(res.body.data.reports.map((r: { petName: string }) => r.petName)).toEqual(
+        expect.arrayContaining(["Lost Dog 1", "Lost Dog 2", "Reunited Dog"]),
+      );
+    });
+
+    it("rejects an invalid includeReunited value (400)", async () => {
+      const res = await request(app).get("/api/reports").query({ includeReunited: "invalid" });
+      expect(res.status).toBe(400);
+    });
+
     it("defaults to status=ACTIVE and returns both LOST and FOUND when type is omitted (200)", async () => {
       const res = await request(app).get("/api/reports");
-
       expect(res.status).toBe(200);
       expect(res.body.data.total).toBe(3);
       expect(res.body.data.totalPages).toBe(1);
@@ -1396,7 +1441,6 @@ describe("GET /api/reports", () => {
 
     it("filters by type=LOST and applies the same where to count and findMany (200)", async () => {
       const res = await request(app).get("/api/reports").query({ type: "LOST", limit: 1 });
-
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({
         total: 2,
