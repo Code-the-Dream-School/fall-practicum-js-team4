@@ -11,7 +11,9 @@ export interface FakeUser {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
+  // null for accounts created with Google
+  passwordHash: string | null;
+  googleId?: string | null;
   tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
@@ -43,7 +45,7 @@ interface ReportInclude {
   [relation: string]: unknown;
 }
 
-type UserWhere = Partial<Pick<FakeUser, "id" | "email">>;
+type UserWhere = Partial<Pick<FakeUser, "id" | "email" | "googleId">>;
 // The report query's filter; OR holds the search conditions
 type Contains = { contains: string; mode?: "insensitive" };
 type FindManyWhere = {
@@ -137,13 +139,24 @@ export const createFakePrisma = () => {
     user: {
       findUnique: jest.fn(async ({ where }: { where: UserWhere }) => findUser(where)),
       create: jest.fn(
-        async ({ data }: { data: Pick<FakeUser, "name" | "email" | "passwordHash"> }) => {
-          if (findUser({ email: data.email })) {
+        async ({
+          data,
+        }: {
+          data: Pick<FakeUser, "name" | "email"> &
+            Partial<Pick<FakeUser, "passwordHash" | "googleId">>;
+        }) => {
+          // Both are unique in the real database
+          if (
+            findUser({ email: data.email }) ||
+            (data.googleId && findUser({ googleId: data.googleId }))
+          ) {
             throw Object.assign(new Error("unique"), { code: "P2002" });
           }
           const now = new Date();
           const user: FakeUser = {
             id: crypto.randomUUID(),
+            passwordHash: null,
+            googleId: null,
             tokenVersion: 0,
             createdAt: now,
             updatedAt: now,
@@ -151,6 +164,22 @@ export const createFakePrisma = () => {
           };
           users.push(user);
           return user;
+        },
+      ),
+      // Only what linkGoogle uses: equality filters and plain values
+      updateMany: jest.fn(
+        async ({ where, data }: { where: UserWhere; data: Partial<FakeUser> }) => {
+          const googleId = data.googleId;
+          if (googleId && users.some((u) => u.googleId === googleId)) {
+            throw Object.assign(new Error("unique"), { code: "P2002" });
+          }
+          const matches = users.filter((u) =>
+            Object.entries(where).every(
+              ([key, value]) => (u[key as keyof FakeUser] ?? null) === value,
+            ),
+          );
+          for (const user of matches) Object.assign(user, data);
+          return { count: matches.length };
         },
       ),
       update: jest.fn(

@@ -57,7 +57,11 @@ model User {
   id           String      @id @default(uuid()) @db.Uuid
   name         String      
   email        String      @unique
-  passwordHash String      @map("password_hash")
+  // null for accounts created with Google, which have no password
+  passwordHash String?     @map("password_hash")
+  // Google's stable account id ("sub"). Set only on Google sign-up or when a
+  // signed-in user links Google, never because an email address matches
+  googleId     String?     @unique @map("google_id")
   tokenVersion Int         @default(0) @map("token_version")
   phoneNumber  String?     @map("phone_number") @db.VarChar(15)
   createdAt    DateTime    @default(now()) @map("created_at")
