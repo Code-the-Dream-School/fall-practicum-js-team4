@@ -1,8 +1,6 @@
-import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
-import { Link } from 'react-router';
+import { CircleMarker, MapContainer, Tooltip, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useReportLocations } from '../hooks/useReportLocations';
-import { PATHS } from '../../../app/paths';
 import type { PublicReport } from '../../../types/reports';
 import './ReportsMap.css';
 
@@ -62,10 +60,32 @@ export function ReportsMap({ reports }: ReportsProps) {
             ? 'reunited'
             : report.reportType.toLowerCase();
 
+          const overlapping = reports
+            .filter((other) => {
+              const otherLocation = other.location;
+              if (!otherLocation) return false;
+
+              return (
+                otherLocation.zipCode === location.zipCode &&
+                otherLocation.city.toLowerCase() ===
+                  location.city.toLowerCase() &&
+                otherLocation.state.toUpperCase() ===
+                  location.state.toUpperCase()
+              );
+            })
+            .sort((a, b) => a.petReportId - b.petReportId);
+
+          const index = overlapping.findIndex(
+            (other) => other.petReportId === report.petReportId,
+          );
+
           return (
             <CircleMarker
               key={report.petReportId}
-              center={[place.latitude, place.longitude]}
+              center={[
+                place.latitude,
+                place.longitude + (index - (overlapping.length - 1) / 2) * 0.8,
+              ]}
               radius={8}
               pathOptions={{
                 fillOpacity: 0.95,
@@ -73,19 +93,19 @@ export function ReportsMap({ reports }: ReportsProps) {
                 className: `report-map-marker report-map-marker--${markerType}`,
               }}
             >
-              <Popup>
+              <Tooltip
+                direction="top"
+                offset={[0, -8]}
+                opacity={1}
+                className={`report-map-tooltip--${markerType}`}
+              >
                 <strong>
                   {isReunited ? 'REUNITED' : report.reportType}:{' '}
-                  {report.petType.toLowerCase()}
-                  {report.petName ? `, name - ${report.petName}` : ''}
+                  {report.petName
+                    ? `${report.petName} (${report.petType.toLowerCase()})`
+                    : report.petType.toLowerCase()}
                 </strong>
-                <p>
-                  {location.city}, {location.state}
-                </p>
-                <Link to={PATHS.petDetails(String(report.petReportId))}>
-                  View report
-                </Link>
-              </Popup>
+              </Tooltip>
             </CircleMarker>
           );
         })}

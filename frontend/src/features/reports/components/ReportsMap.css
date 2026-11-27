@@ -53,6 +53,36 @@
   fill: currentColor;
 }
 
+.report-map-marker:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.reports-map .leaflet-tooltip {
+  background-color: var(--color-surface-high);
+  color: var(--color-on-surface);
+  border: none;
+  border-radius: 8px;
+  padding: 4px 14px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.reports-map .leaflet-tooltip::before {
+  display: none;
+}
+
+.reports-map .report-map-tooltip--lost {
+  color: var(--color-primary);
+}
+
+.reports-map .report-map-tooltip--found {
+  color: var(--color-secondary);
+}
+
+.reports-map .report-map-tooltip--reunited {
+  color: var(--color-success);
+}
+
 @media (max-width: 1024px) {
   .reports-map {
     height: 450px;
@@ -66,7 +96,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reports-map-marker {
+  .report-map-marker {
     animation: none;
   }
 }
