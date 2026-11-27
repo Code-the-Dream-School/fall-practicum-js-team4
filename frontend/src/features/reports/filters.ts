@@ -40,6 +40,14 @@ export const REPORT_TYPE_OPTIONS: {
   { value: 'FOUND', label: 'Found' },
 ];
 
+export const REPORT_STATUS_OPTIONS: {
+  value: 'ACTIVE' | 'REUNITED';
+  label: string;
+}[] = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'REUNITED', label: 'Reunited' },
+];
+
 // The backend rejects longer searches
 export const SEARCH_MAX_LENGTH = 100;
 
@@ -57,6 +65,7 @@ export const filtersFromParams = (params: URLSearchParams): ReportFilters => {
   return {
     search: search || undefined,
     type: pick(REPORT_TYPE_OPTIONS, params.get('type')),
+    status: pick(REPORT_STATUS_OPTIONS, params.get('status')),
     petType: pick(PET_TYPE_OPTIONS, params.get('petType')),
     size: pick(SIZE_OPTIONS, params.get('size')),
     gender: pick(GENDER_OPTIONS, params.get('gender')),
@@ -103,6 +112,11 @@ export const activeFilterChips = (filters: ReportFilters) => {
     chips.push({
       key: 'type',
       label: label(REPORT_TYPE_OPTIONS, filters.type),
+    });
+  if (filters.status)
+    chips.push({
+      key: 'status',
+      label: label(REPORT_STATUS_OPTIONS, filters.status),
     });
   return chips;
 };

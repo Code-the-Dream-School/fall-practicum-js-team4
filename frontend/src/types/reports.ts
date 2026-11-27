@@ -103,6 +103,7 @@ export interface ReportFilters {
   // Server default: newest
   sort?: ReportSort;
   type?: ReportType;
+  status?: 'ACTIVE' | 'REUNITED';
 }
 
 export interface ReportListParams extends ReportFilters {

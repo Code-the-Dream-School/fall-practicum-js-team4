@@ -9,6 +9,7 @@ import {
   SIZE_OPTIONS,
   SORT_OPTIONS,
   REPORT_TYPE_OPTIONS,
+  REPORT_STATUS_OPTIONS,
   activeFilterChips,
 } from '../filters';
 import './ReportFilters.css';
@@ -24,6 +25,7 @@ interface ReportFiltersProps {
   noun: string;
   hideSizeAndGender?: boolean;
   showReportType?: boolean;
+  showStatus?: boolean;
 }
 
 interface FilterSelectProps<T extends string> {
@@ -69,6 +71,7 @@ export function ReportFilters({
   noun,
   hideSizeAndGender = false,
   showReportType = false,
+  showStatus = false,
 }: ReportFiltersProps) {
   const applied = filters.search ?? '';
   const [text, setText] = useState(applied);
@@ -134,13 +137,24 @@ export function ReportFilters({
           />
           {showReportType && (
             <FilterSelect
-              label="Report status"
-              allLabel="All statuses"
+              label="Report type"
+              allLabel="All report types"
               value={filters.type}
               options={REPORT_TYPE_OPTIONS}
               onChange={(type) => onChange({ type })}
             />
           )}
+
+          {showStatus && (
+            <FilterSelect
+              label="Report status"
+              allLabel="All statuses"
+              value={filters.status}
+              options={REPORT_STATUS_OPTIONS}
+              onChange={(status) => onChange({ status })}
+            />
+          )}
+
           {!hideSizeAndGender && (
             <>
               <FilterSelect

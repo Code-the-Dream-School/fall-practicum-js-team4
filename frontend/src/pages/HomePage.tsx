@@ -24,7 +24,7 @@ export function HomePage() {
 
   const query = useReports({
     ...filters,
-    includeReunited: true,
+    includeReunited: !filters.status,
     days: 7,
     page,
     limit: REPORTS_PER_PAGE,
@@ -72,6 +72,7 @@ export function HomePage() {
         noun="pets"
         hideSizeAndGender
         showReportType
+        showStatus
       />
 
       <QueryView query={query} loading="Loading recent reports...">
