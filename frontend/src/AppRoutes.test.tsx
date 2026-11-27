@@ -6,7 +6,9 @@ describe('AppRoutes', () => {
   it('shows the home page at /', async () => {
     renderApp('/');
     expect(
-      await screen.findByRole('heading', { name: /home/i }),
+      await screen.findByRole('heading', {
+        name: /Reuniting Lost Pets with Their Families/i,
+      }),
     ).toBeInTheDocument();
   });
 
