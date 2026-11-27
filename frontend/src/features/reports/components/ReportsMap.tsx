@@ -76,7 +76,8 @@ export function ReportsMap({ reports }: ReportsProps) {
               <Popup>
                 <strong>
                   {isReunited ? 'REUNITED' : report.reportType}:{' '}
-                  {report.petName || 'Pet report'}
+                  {report.petType.toLowerCase()}
+                  {report.petName ? `, name - ${report.petName}` : ''}
                 </strong>
                 <p>
                   {location.city}, {location.state}
