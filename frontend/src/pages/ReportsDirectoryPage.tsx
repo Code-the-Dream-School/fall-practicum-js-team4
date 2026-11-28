@@ -14,9 +14,8 @@ import {
   useReports,
 } from '../features/reports';
 import './ReportsDirectoryPage.css';
-
-// 6 cards per page (a 3 x 2 grid), as in the design
-const REPORTS_PER_PAGE = 6;
+import { REPORTS_PER_PAGE } from '../features/reports/constants';
+import { ReportPageNotFound } from '../features/reports/components/ReportPageNotFound';
 
 const CONTENT: Record<
   ReportType,
@@ -81,8 +80,8 @@ export function ReportsDirectoryPage({
   const { filters, page, updateFilters, clearFilters, setPage } =
     useReportFilters();
   const query = useReports({
-    type: reportType,
     ...filters,
+    type: reportType,
     // Page 1 is the API's default: leave it out so the request stays short
     page: page > 1 ? page : undefined,
     limit: REPORTS_PER_PAGE,
@@ -153,21 +152,11 @@ export function ReportsDirectoryPage({
             </p>
             {data.reports.length === 0 && data.total > 0 ? (
               // An old link, or reports were reunited while on the last page
-              <div className="reports-empty">
-                <Icon name="find_in_page" />
-                <h2>There's no page {data.page}</h2>
-                <p>
-                  The list has {data.totalPages}{' '}
-                  {data.totalPages === 1 ? 'page' : 'pages'}.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => goToPage(1)}
-                  style={buttonStyles.outline}
-                >
-                  Go to the first page
-                </button>
-              </div>
+              <ReportPageNotFound
+                page={data.page}
+                totalPages={data.totalPages}
+                onGoToFirstPage={() => goToPage(1)}
+              />
             ) : filtered && data.reports.length === 0 ? (
               <div className="reports-empty">
                 <Icon name="search_off" />
